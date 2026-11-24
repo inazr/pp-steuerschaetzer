@@ -1,0 +1,88 @@
+<client>
+  <version>66</version>
+  <baseCurrency>EUR</baseCurrency>
+  <securities>
+    <security>
+      <uuid>sec-1</uuid>
+      <name>ETF</name>
+      <currencyCode>EUR</currencyCode>
+      <isin>IE00TEST0002</isin>
+      <prices/>
+    </security>
+  </securities>
+  <accounts>
+    <account>
+      <uuid>acc-1</uuid>
+      <name>Konto</name>
+      <currencyCode>EUR</currencyCode>
+      <transactions>
+        <account-transaction>
+          <uuid>at-buy</uuid>
+          <date>2020-02-03T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>100000</amount>
+          <security reference="../../../../../securities/security"/>
+          <crossEntry class="buysell">
+            <portfolio>
+              <uuid>pf-A</uuid>
+              <name>Depot A</name>
+              <referenceAccount reference="../../../../.."/>
+              <transactions>
+                <portfolio-transaction>
+                  <uuid>pt-buy</uuid>
+                  <date>2020-02-03T00:00</date>
+                  <currencyCode>EUR</currencyCode>
+                  <amount>100000</amount>
+                  <security reference="../../../../../../../../../securities/security"/>
+                  <crossEntry class="buysell" reference="../../../.."/>
+                  <shares>1000000000</shares>
+                  <type>BUY</type>
+                </portfolio-transaction>
+                <portfolio-transaction>
+                  <uuid>pt-out</uuid>
+                  <date>2021-01-04T00:00</date>
+                  <currencyCode>EUR</currencyCode>
+                  <amount>48000</amount>
+                  <security reference="../../../../../../../../../securities/security"/>
+                  <crossEntry class="portfolio-transfer">
+                    <portfolioFrom reference="../../../.."/>
+                    <transactionFrom reference="../.."/>
+                    <portfolioTo>
+                      <uuid>pf-B</uuid>
+                      <name>Depot B</name>
+                      <referenceAccount reference="../../../../../../../../.."/>
+                      <transactions>
+                        <portfolio-transaction>
+                          <uuid>pt-in</uuid>
+                          <date>2021-01-04T00:00</date>
+                          <currencyCode>EUR</currencyCode>
+                          <amount>48000</amount>
+                          <security reference="../../../../../../../../../../../../../securities/security"/>
+                          <crossEntry class="portfolio-transfer" reference="../../../.."/>
+                          <shares>400000000</shares>
+                          <type>TRANSFER_IN</type>
+                        </portfolio-transaction>
+                      </transactions>
+                    </portfolioTo>
+                    <transactionTo reference="../portfolioTo/transactions/portfolio-transaction"/>
+                  </crossEntry>
+                  <shares>400000000</shares>
+                  <type>TRANSFER_OUT</type>
+                </portfolio-transaction>
+              </transactions>
+            </portfolio>
+            <portfolioTransaction reference="../portfolio/transactions/portfolio-transaction"/>
+            <account reference="../../../.."/>
+            <accountTransaction reference="../.."/>
+          </crossEntry>
+          <shares>0</shares>
+          <type>BUY</type>
+        </account-transaction>
+      </transactions>
+    </account>
+  </accounts>
+  <portfolios>
+    <portfolio reference="../../accounts/account/transactions/account-transaction/crossEntry/portfolio"/>
+    <portfolio reference="../../accounts/account/transactions/account-transaction/crossEntry/portfolio/transactions/portfolio-transaction[2]/crossEntry/portfolioTo"/>
+  </portfolios>
+</client>
