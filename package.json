@@ -1,0 +1,12 @@
+{
+  "name": "pp-steuern",
+  "version": "0.1.0",
+  "description": "Steuerrechner für Portfolio Performance: Vorabpauschale, Freibetrag nutzen, Verkaufsplanung. Eine HTML-Datei, läuft offline.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node test/run-tests.mjs"
+  },
+  "license": "MIT"
+}
