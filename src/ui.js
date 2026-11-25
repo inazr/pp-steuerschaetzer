@@ -271,7 +271,7 @@ function allowanceBank(b, pooled) {
     <h2>Bank: ${esc(b.label)}</h2>
     <div class="facts">${facts.join('')}</div>
     ${b.hint ? `<p class="note">${esc(b.hint)}</p>` : ''}
-    ${b.rows.length ? lotTable(b.rows, [['Erlös', r => r.gross], ['Gewinn stpfl.', r => r.gainTaxable]]) : `<p class="note">${b.fsaLeft < 0.01 ? 'Der Freibetrag ist bereits ausgeschöpft.' : 'Keine Lots mit steuerpflichtigem Gewinn an der FIFO-Spitze.'}</p>`}
+    ${b.rows.length ? lotTable(b.rows, [['Erlös', r => r.gross], ['Gewinn stpfl.', r => r.gainTaxable]]) : `<p class="note">${b.leftStart < 0.01 ? 'Der Freibetrag ist bereits ausgeschöpft.' : 'Keine Lots mit steuerpflichtigem Gewinn an der FIFO-Spitze.'}</p>`}
   </div>`;
 }
 function renderAllowance() {

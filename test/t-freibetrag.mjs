@@ -55,6 +55,8 @@ export default ({ g, check, near }) => {
   r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, S2, 2025);
   check('fb: pooled shares one allowance', r.pooled === true && near(r.harvested, 1000, 0.02) && r.total === 1000 && r.used === 0 && r.remaining === 1000
     && r.banks.length === 2 && near(r.banks[0].harvested + r.banks[1].harvested, 1000, 0.02), r);
+  // Final review M1: A verbraucht den gemeinsamen Topf, B startet mit 0 (Hinweis „ausgeschöpft“ statt „keine Lots“)
+  check('fb M1: pooled leftStart per bank', near(r.banks[0].leftStart, 1000) && r.banks[1].leftStart === 0 && r.banks[1].rows.length === 0, r.banks);
   // 2) Eingetragene FSA 600/400 -> A 12 Stück (600), B 8 Stück (400)
   r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, { ...S2, fsa: { A: 600, B: 400 } }, 2025);
   check('fb: entered FSA per bank', r.pooled === false && near(r.banks[0].harvested, 600, 0.02) && near(r.banks[1].harvested, 400, 0.02)

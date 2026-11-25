@@ -20,6 +20,7 @@ function fifoQueues(lots) {
 // Je aktiver Bank ein Greedy-Durchlauf (höchster stpfl. Gewinn je Stück an den FIFO-Spitzen der Bank-Depots).
 // Ein Gewinn verbraucht bei Einzelaktien erst den Aktientopf, dann den allgemeinen Topf, dann den Freistellungsauftrag;
 // sonst allgemeiner Topf, dann FSA. Gemeinsamer Modus: ein gemeinsamer FSA-Rest über alle Banken (Töpfe je Bank).
+// leftStart je Bank: freier FSA zu Beginn ihres Durchlaufs (gemeinsam: was frühere Banken übrig ließen).
 function optimizeAllowance(result, data, settings, year) {
   const led = ledger(result, data, settings, year), active = led.banks.filter(b => b.active);
   let poolLeft = led.banks.length ? led.banks[0].fsaLeft : 0;
@@ -58,7 +59,7 @@ function optimizeAllowance(result, data, settings, year) {
     if (led.pooled) poolLeft = left;
     const hint = start.allg > 0 ? `Verluste von ${fmtEur(start.allg)} werden zuerst verrechnet. Alternative: bis 15.12. Verlustbescheinigung beantragen, dann wirkt der Freistellungsauftrag sofort.` : '';
     banks.push({ key: b.key, label: b.label, fsa: b.fsa, used: b.used, fsaLeft: b.fsaLeft, potsStart: start, rows: brows,
-      harvested: round2(brows.reduce((s, r) => s + r.gainTaxable, 0)), potsUsed, fsaUsed: round2(leftStart - left), hint });
+      harvested: round2(brows.reduce((s, r) => s + r.gainTaxable, 0)), potsUsed, fsaUsed: round2(leftStart - left), leftStart, hint });
     rows.push(...brows);
   }
   const total = led.pooled ? led.spb : round2(active.reduce((s, b) => s + b.fsa, 0));
