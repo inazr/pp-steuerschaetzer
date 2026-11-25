@@ -58,4 +58,19 @@ export default ({ g, check, near, root }) => {
   const big = fx('xpath.xml').replace('<price t="2023-12-29" v="12000000000"/>', prices);
   const t0 = performance.now(); const bd = extract(big); const ms = performance.now() - t0;
   check('perf: 100k prices < 2000 ms', ms < 2000 && bd.prices.get('sec-etf').length === 100002, Math.round(ms));
+  const ZX = `<client><securities/><accounts>
+    <account><uuid>acc-1</uuid><name>Verrechnung</name><currencyCode>EUR</currencyCode><transactions>
+      <account-transaction><uuid>z1</uuid><date>2026-03-31T00:00</date><amount>7500</amount><type>INTEREST</type>
+        <units><unit type="TAX"><amount amount="2638"/></unit></units></account-transaction>
+      <account-transaction><uuid>z2</uuid><date>2026-04-30T00:00</date><amount>1200</amount><type>INTEREST_CHARGE</type></account-transaction>
+    </transactions></account>
+    <account><uuid>acc-2</uuid><name>USD-Konto</name><currencyCode>USD</currencyCode><transactions>
+      <account-transaction><uuid>z3</uuid><date>2026-03-31T00:00</date><amount>500</amount><type>INTEREST</type></account-transaction>
+    </transactions></account></accounts>
+    <portfolios><portfolio><uuid>pf-1</uuid><name>Depot</name><referenceAccount><uuid>acc-1</uuid></referenceAccount><transactions/></portfolio></portfolios></client>`;
+  const zd = extract(ZX);
+  check('pp: accounts listed', zd.accounts.length === 2 && zd.accounts[0].uuid === 'acc-1' && zd.accounts[1].currency === 'USD', zd.accounts);
+  check('pp: interest gross = net + tax', zd.interest.length === 1 && zd.interest[0].account === 'acc-1' && near(zd.interest[0].gross, 101.38) && zd.interest[0].date === '2026-03-31', zd.interest);
+  check('pp: INTEREST_CHARGE ignored', !zd.interest.some(i => i.uuid === 'z2'));
+  check('pp: non-EUR interest warned', zd.warnings.some(w => w.includes('Zinsen in USD ignoriert') && w.includes('USD-Konto')), zd.warnings);
 };

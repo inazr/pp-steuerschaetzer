@@ -41,13 +41,24 @@ function extractPortfolio(xmlText) {
   }
   txs.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
-  const dividends = [], seenDiv = new Set();
+  const dividends = [], seenDiv = new Set(), accounts = [], interest = [], seenInt = new Set(), warnedInt = new Set();
   for (const a of kids(child(root, 'accounts'), 'account')) {
     const accUuid = childText(a, 'uuid');
     const owners = portfolios.filter(p => p.accountUuid === accUuid);
+    const accName = childText(a, 'name'), accCur = childText(a, 'currencyCode') || 'EUR';
+    accounts.push({ uuid: accUuid, name: accName, currency: accCur });
     for (const tx of kids(child(a, 'transactions'), 'account-transaction')) {
-      if (childText(tx, 'type') !== 'DIVIDENDS') continue;
+      const type = childText(tx, 'type');
       const uuid = childText(tx, 'uuid');
+      if (type === 'INTEREST') { // Brutto-Zinsen; INTEREST_CHARGE und negative Zinsen nie (§ 20 Abs. 9 EStG)
+        const net = +childText(tx, 'amount') / 100;
+        if (seenInt.has(uuid) || !(net > 0)) continue;
+        seenInt.add(uuid);
+        if (accCur !== 'EUR') { if (!warnedInt.has(accUuid)) { warnedInt.add(accUuid); warnings.push(`Zinsen in ${accCur} ignoriert: ${accName}`); } continue; }
+        interest.push({ uuid, date: day(childText(tx, 'date')), account: accUuid, gross: net + units(tx, 'TAX') });
+        continue;
+      }
+      if (type !== 'DIVIDENDS') continue;
       if (seenDiv.has(uuid)) continue;
       seenDiv.add(uuid);
       const security = secOf(tx);
@@ -59,6 +70,7 @@ function extractPortfolio(xmlText) {
       dividends.push({ uuid, date, depots: owners.map(p => p.uuid), security, gross: +childText(tx, 'amount') / 100 + units(tx, 'TAX') + units(tx, 'FEE') });
     }
   }
+  interest.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   dividends.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
   for (const s of allSecs) if (!eur.has(s.uuid) && used.has(s.uuid)) warnings.push('Nicht in EUR, ignoriert: ' + s.name);
@@ -75,6 +87,6 @@ function extractPortfolio(xmlText) {
   return {
     securities: allSecs.filter(s => eur.has(s.uuid)).map(({ node, ...s }) => s),
     portfolios: portfolios.map(({ node, ...p }) => p),
-    txs, dividends, prices, warnings,
+    txs, dividends, accounts, interest, prices, warnings,
   };
 }
