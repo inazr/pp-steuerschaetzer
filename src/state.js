@@ -44,3 +44,10 @@ function nextDepotsOff(settings, fileUuids, checked) {
   const inFile = new Set(fileUuids), on = new Set(checked);
   return [...(settings.depotsOff || []).filter(u => !inFile.has(u)), ...fileUuids.filter(u => !on.has(u))];
 }
+
+// Geratene Fondstypen der übergebenen Wertpapiere als explizite Wahl übernehmen; vorhandene Wahl bleibt
+function confirmFundTypes(settings, secs) {
+  const out = { ...(settings.fundTypes || {}) };
+  for (const s of secs) if (fundTypeGuessed(settings, s)) out[s.isin || s.uuid] = guessFundType(s);
+  return out;
+}

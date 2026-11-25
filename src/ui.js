@@ -13,6 +13,7 @@ const S = () => ({ ...ui.settings, depots: ui.depots, genutzt: getUsed(ui.settin
 const secName = u => (ui.data.securities.find(s => s.uuid === u) || {}).name || u;
 const secIsin = u => (ui.data.securities.find(s => s.uuid === u) || {}).isin || '';
 const depName = u => (ui.data.portfolios.find(p => p.uuid === u) || {}).name || u;
+const tradedSecs = () => ui.data.securities.filter(x => ui.data.txs.some(t => t.security === x.uuid));
 const multiDepot = () => (ui.depots || []).length > 1;
 const eurTd = (x, cls = '') => `<td class="${x < 0 ? 'neg ' : ''}${cls}">${fmtEur(x)}</td>`;
 const save = () => saveSettings(localStorage, ui.settings);
@@ -80,6 +81,8 @@ function messages() {
   const stale = ui.data.securities.filter(s => r.lots.some(l => l.security === s.uuid)).map(s => [s, r.latest.get(s.uuid)])
     .filter(([, p]) => !p || (Date.parse(TODAY) - Date.parse(p[0])) / 864e5 > 7)
     .map(([s, p]) => p ? `Letzter Kurs für ${s.name} ist vom ${fmtDate(p[0])} – bitte Kurse in Portfolio Performance aktualisieren.` : `Kein Kurs für ${s.name} – Wertpapier wird in Freibetrag und Verkaufsplanung nicht berücksichtigt.`);
+  const guessed = tradedSecs().filter(x => fundTypeGuessed(ui.settings, x)).length;
+  if (guessed) out.push(`<div class="msg warn guess-msg"><span><b>${guessed} ${guessed === 1 ? 'Fondstyp ist' : 'Fondstypen sind'} geraten</b> – bitte in der Wertpapier-Tabelle prüfen. Der Typ bestimmt Vorabpauschale und Teilfreistellung.</span><button class="btn" type="button" id="confirm-all">Alle bestätigen</button></div>`);
   const warns = [...ui.data.warnings, ...r.warnings, ...stale];
   if (warns.length) out.push(`<div class="msg warn"><b>Hinweise</b><ul>${warns.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`);
   return out.join('');
@@ -89,8 +92,12 @@ function renderOverview() {
   const s = ui.settings, d = ui.data, r = ui.result;
   const prefill = prefillUsed(r, S(), YEAR);
   const held = sec => r.lots.filter(l => l.security === sec).reduce((a, l) => a + l.shares, 0);
-  const secs = d.securities.filter(x => d.txs.some(t => t.security === x.uuid));
+  const secs = tradedSecs();
   const ftSelect = x => `<select data-ft="${esc(x.isin || x.uuid)}" aria-label="Fondstyp ${esc(x.name)}">${Object.entries(FUND_TYPES).map(([k, v]) => `<option value="${k}"${fundTypeOf(s, x) === k ? ' selected' : ''}>${v.label}${v.vp ? ` (TFS ${v.tfs * 100} %)` : ''}</option>`).join('')}</select>`;
+  // Geratener Typ: markiert, mit ✓ als explizite Wahl übernehmen
+  const ftCell = x => fundTypeGuessed(s, x)
+    ? `<div class="ft guess">${ftSelect(x)}<span class="pill warn">geraten</span><button class="btn ok" type="button" data-confirm="${esc(x.uuid)}" aria-label="Fondstyp ${esc(x.name)} bestätigen" title="Bestätigen">✓</button></div>`
+    : ftSelect(x);
   $('#p0').innerHTML = `
     ${messages()}
     <div class="grid">
@@ -119,7 +126,7 @@ function renderOverview() {
       <div class="card-h"><h2>Wertpapiere</h2><span class="sub">Fondstyp bestimmt Teilfreistellung und Vorabpauschale. Wird je ISIN gespeichert.</span></div>
       <div class="tablebox"><table>
         <thead><tr><th>Wertpapier</th><th>ISIN</th><th>Bestand</th><th>Kurs</th><th>Kursdatum</th><th>Wert</th><th>Fondstyp</th></tr></thead>
-        <tbody>${secs.map(x => { const p = r.latest.get(x.uuid); const h = held(x.uuid); return `<tr><td class="txt">${esc(x.name)}</td><td>${esc(x.isin)}</td><td>${fmtShares(h)}</td><td>${p ? fmtEur(p[1]) : '–'}</td><td class="sub">${p ? fmtDate(p[0]) : '–'}</td><td>${p ? fmtEur(h * p[1]) : '–'}</td><td>${ftSelect(x)}</td></tr>`; }).join('')}</tbody>
+        <tbody>${secs.map(x => { const p = r.latest.get(x.uuid); const h = held(x.uuid); return `<tr><td class="txt">${esc(x.name)}</td><td>${esc(x.isin)}</td><td>${fmtShares(h)}</td><td>${p ? fmtEur(p[1]) : '–'}</td><td class="sub">${p ? fmtDate(p[0]) : '–'}</td><td>${p ? fmtEur(h * p[1]) : '–'}</td><td>${ftCell(x)}</td></tr>`; }).join('')}</tbody>
       </table></div>
     </div>
     <div class="card">
@@ -326,7 +333,12 @@ document.addEventListener('submit', e => {
   renderCharts();
 });
 document.addEventListener('click', e => {
-  const id = e.target.id;
+  const id = e.target.id, conf = e.target.closest && e.target.closest('[data-confirm]');
+  if (ui.data && (conf || id === 'confirm-all')) {
+    const secs = conf ? ui.data.securities.filter(x => x.uuid === conf.dataset.confirm) : tradedSecs();
+    ui.settings.fundTypes = confirmFundTypes(ui.settings, secs);
+    save(); recompute(); return;
+  }
   if (id === 'csv-vp') download(`vorabpauschale-${TODAY}.csv`, csvVp(ui.result.vpRows, ui.data));
   else if (id === 'csv-fb') download(`freibetrag-${YEAR}.csv`, csvAllowance(ui.alloc, ui.data));
   else if (id === 'csv-plan') download(`verkaufsplan-${TODAY}.csv`, csvPlan(ui.plan, ui.data));

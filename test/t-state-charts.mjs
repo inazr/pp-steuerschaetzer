@@ -25,6 +25,10 @@ export default ({ g, check, near }) => {
   check('depots: deselected stays off', JSON.stringify(sel({ depotsOff: ['B'] }, ['A', 'B'])) === '["A"]');
   check('depots: all off -> all on', JSON.stringify(sel({ depotsOff: ['A', 'B'] }, ['A', 'B'])) === '["A","B"]');
   check('depots: other file kept', JSON.stringify(nextOff({ depotsOff: ['K'] }, ['A', 'B'], ['A']).sort()) === '["B","K"]');
+  const conf = g('confirmFundTypes');
+  const cs = [{ uuid: 'a', name: 'Siemens AG', isin: 'DE0007236101' }, { uuid: 'b', name: 'X', isin: 'IE00X' }, { uuid: 'c', name: 'Ohne ISIN ETF', isin: '' }];
+  const cft = conf({ fundTypes: { IE00X: 'mischfonds' } }, cs);
+  check('confirm: guess stored, explicit kept, uuid key without isin', cft.DE0007236101 === 'einzelaktie' && cft.IE00X === 'mischfonds' && cft.c === 'aktienfonds', cft);
   check('depots: re-check removes', JSON.stringify(nextOff({ depotsOff: ['B', 'K'] }, ['A', 'B'], ['A', 'B'])) === '["K"]');
   check('state: fee defaults 0', def.gebuehrFix === 0 && def.gebuehrProz === 0, def);
   save(st, { ...def, kirchensteuer: true, fundTypes: { IE01: 'mischfonds' }, txs: [1], prices: 2, lots: 3, depots: ['A'] });
