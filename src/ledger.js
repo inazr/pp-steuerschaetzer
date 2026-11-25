@@ -79,6 +79,7 @@ const POT_START = 2018;
 const W_PRE2018 = 'Verluste aus 2009–2017 sind nicht berechnet – bitte als Vortrag zum 1.1. eintragen (Jahressteuerbescheinigung der Bank).';
 const W_POOLED = 'Freistellungsaufträge je Bank eintragen, sonst stimmt der Abzug der einzelnen Bank nicht.';
 const bankLabel = (data, key) => ((data.portfolios || []).find(p => p.uuid === key) || (data.accounts || []).find(a => a.uuid === key) || {}).name || key;
+const asPots = o => ({ aktien: round2(+o.aktien || 0), allg: round2(+o.allg || 0) });
 const potsPositive = p => p.aktien > EPS || p.allg > EPS;
 const lotsIn = (result, depots) => (result.lots || []).some(l => depots.includes(l.depot));
 
@@ -109,12 +110,19 @@ function ledger(result, data, settings, year) {
   const rows = bankMembers(data, settings).map(m => {
     const evs = bankEvents(result, data, settings, m), label = bankLabel(data, m.key);
     if (evs.some(e => e.year < POT_START && (e.kind === 'aktie' || e.kind === 'sonst'))) warnings.push(`${label}: ${W_PRE2018}`);
-    // Töpfe bis zum 1.1. des Jahres fortschreiben (Ereignisse vor 2018 nie)
+    // Töpfe bis zum 1.1. des Jahres fortschreiben (Ereignisse vor 2018 nie). Ein Vortrag-Override „y|key“ ersetzt
+    // den Stand zum 1.1. jedes Jahres y (ab 2018); fortgeschrieben wird von dort aus.
+    const vt = settings.vortrag || {}, ov = y => vt[`${y}|${m.key}`];
+    const ovYears = Object.keys(vt).filter(k => k.slice(k.indexOf('|') + 1) === m.key).map(k => +k.slice(0, k.indexOf('|')))
+      .filter(y => y >= POT_START && y < year);
+    const first = Math.max(POT_START, [...evs.map(e => e.year), ...ovYears].reduce((a, y) => Math.min(a, y), year));
     let pots = { aktien: 0, allg: 0 };
-    const first = Math.max(POT_START, evs.reduce((y, e) => Math.min(y, e.year), year));
-    for (let y = first; y < year; y++) pots = netYear(pots, evs.filter(e => e.year === y)).potsAfter;
-    const vortragComputed = pots, o = (settings.vortrag || {})[`${year}|${m.key}`];
-    const potsStart = o ? { aktien: round2(+o.aktien || 0), allg: round2(+o.allg || 0) } : vortragComputed;
+    for (let y = first; y < year; y++) {
+      if (ov(y)) pots = asPots(ov(y));
+      pots = netYear(pots, evs.filter(e => e.year === y)).potsAfter;
+    }
+    const vortragComputed = pots, o = ov(year);
+    const potsStart = o ? asPots(o) : vortragComputed;
     const eventsYear = evs.filter(e => e.year === year), net = netYear(potsStart, eventsYear);
     const hasLots = lotsIn(result, m.depots);
     return { key: m.key, label, depots: m.depots, accounts: m.accounts,
