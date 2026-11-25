@@ -36,6 +36,14 @@ function setYearBank(obj, year, bankKey, value) {
 function setYearBankKeep(obj, year, bankKey, value) {
   return setKey(obj, `${year}|${bankKey}`, value);
 }
+// Vortrag zum 1.1. je Feld ('aktien' | 'allg'): gespeichert wird nur, was eingetippt ist (sonst null = berechnet);
+// ohne eingetipptes Feld fällt der Eintrag weg. Alle anderen Jahre bleiben (wie setYearBankKeep).
+function setVortragField(obj, year, bankKey, field, value) {
+  const cur = (obj || {})[`${year}|${bankKey}`], e = { aktien: null, allg: null };
+  for (const f of ['aktien', 'allg']) if (cur && typeof cur[f] === 'number') e[f] = cur[f];
+  e[field] = value;
+  return setYearBankKeep(obj, year, bankKey, e.aktien === null && e.allg === null ? null : e);
+}
 // Neues Objekt mit Eintrag je Schlüssel (fsa, bankOf, zinsen); null löscht.
 function setKey(obj, key, value) {
   const out = { ...(obj || {}) };

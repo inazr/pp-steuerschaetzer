@@ -69,4 +69,12 @@ export default ({ g, check, near }) => {
   check('ledger: earlier-year vortrag override is carried forward', l.banks[0].vortragComputed.allg === 500 && l.banks[0].used === 0 && l.banks[0].pots.allg === 200 && !l.banks[0].vortragOverridden, l.banks[0]);
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: 0, allg: 500 }, '2026|A': { aktien: 0, allg: 100 } } }, 2026);
   check('ledger: current-year vortrag override wins over earlier one', l.banks[0].vortragComputed.allg === 500 && l.banks[0].vortrag.allg === 100 && l.banks[0].vortragOverridden && l.banks[0].used === 200, l.banks[0]);
+  // Final review I1: nur eingetippte Felder überschreiben, das andere bleibt berechnet
+  l = L(R([ev('A', 'aktie', -200, 2025), ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2026|A': { aktien: null, allg: 250 } } }, 2026);
+  check('ledger I1: only allg typed -> aktien stays computed', l.banks[0].vortragComputed.aktien === 200 && l.banks[0].potsStart.aktien === 200
+    && l.banks[0].potsStart.allg === 250 && l.banks[0].vortragOverridden && l.banks[0].used === 50, l.banks[0]);
+  l = L(R([ev('A', 'aktie', -200, 2024), ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: null, allg: 500 } } }, 2026);
+  check('ledger I1: earlier-year override merges per field', l.banks[0].vortragComputed.aktien === 200 && l.banks[0].vortragComputed.allg === 500 && l.banks[0].used === 0, l.banks[0]);
+  l = L(R([ev('A', 'aktie', -200, 2025), ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2026|A': { aktien: null, allg: null } } }, 2026);
+  check('ledger I1: entry without typed field is no override', !l.banks[0].vortragOverridden && l.banks[0].potsStart.aktien === 200 && l.banks[0].used === 300, l.banks[0]);
 };

@@ -170,8 +170,8 @@ function bankBox(b, i) {
     <div class="fields four">
       ${amountField(`${id}-fsa`, 'Freistellungsauftrag', 'data-fsa', b.key, (s.fsa || {})[b.key], b.fsa, src)}
       ${amountField(`${id}-used`, `genutzt ${YEAR}`, 'data-genutzt', b.key, (s.genutzt || {})[`${YEAR}|${b.key}`], b.usedComputed, calc)}
-      ${amountField(`${id}-va`, `Vortrag 1.1. Aktien`, 'data-vortrag-aktien', b.key, b.vortragOverridden ? vt.aktien : undefined, b.vortragComputed.aktien, b.vortragOverridden ? `berechnet: ${fmtEur(b.vortragComputed.aktien)}` : 'berechnet aus der Datei')}
-      ${amountField(`${id}-vg`, `Vortrag 1.1. allgemein`, 'data-vortrag-allg', b.key, b.vortragOverridden ? vt.allg : undefined, b.vortragComputed.allg, b.vortragOverridden ? `berechnet: ${fmtEur(b.vortragComputed.allg)}` : 'berechnet aus der Datei')}
+      ${amountField(`${id}-va`, `Vortrag 1.1. Aktien`, 'data-vortrag-aktien', b.key, vt.aktien, b.vortragComputed.aktien, typeof vt.aktien === 'number' ? `berechnet: ${fmtEur(b.vortragComputed.aktien)}` : 'berechnet aus der Datei')}
+      ${amountField(`${id}-vg`, `Vortrag 1.1. allgemein`, 'data-vortrag-allg', b.key, vt.allg, b.vortragComputed.allg, typeof vt.allg === 'number' ? `berechnet: ${fmtEur(b.vortragComputed.allg)}` : 'berechnet aus der Datei')}
     </div>
     <div class="facts">
       ${fact('Aktientopf jetzt', fmtEur(b.pots.aktien))}${fact('allg. Topf jetzt', fmtEur(b.pots.allg))}
@@ -398,11 +398,10 @@ document.addEventListener('change', e => {
   else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
   else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
   else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
-    // Vortrag immer als Paar: ein leeres Feld übernimmt den berechneten Stand; gleich dem berechneten Stand = kein Eintrag.
+    // Vortrag je Feld: gespeichert wird nur das Eingetippte, ein leeres Feld bleibt berechnet (keine Zahl aus der Datei).
     // Einträge anderer Jahre bleiben (sie wirken auf die Fortschreibung).
-    const key = el.dataset.vortragAktien || el.dataset.vortragAllg, c = ui.led.banks.find(x => x.key === key).vortragComputed;
-    const a = amountOf($(`[data-vortrag-aktien="${CSS.escape(key)}"]`)) ?? c.aktien, l = amountOf($(`[data-vortrag-allg="${CSS.escape(key)}"]`)) ?? c.allg;
-    ui.settings.vortrag = setYearBankKeep(ui.settings.vortrag, YEAR, key, a === c.aktien && l === c.allg ? null : { aktien: a, allg: l });
+    const aktien = !!el.dataset.vortragAktien, key = aktien ? el.dataset.vortragAktien : el.dataset.vortragAllg;
+    ui.settings.vortrag = setVortragField(ui.settings.vortrag, YEAR, key, aktien ? 'aktien' : 'allg', amountOf(el));
   }
   else if (el.dataset.depot) {
     ui.depots = $$('[data-depot]').filter(x => x.checked).map(x => x.dataset.depot);

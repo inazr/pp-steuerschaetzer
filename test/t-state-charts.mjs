@@ -27,6 +27,12 @@ export default ({ g, check, near }) => {
     === '{"2019|A":{"aktien":1,"allg":2},"2026|B":3,"2026|A":{"aktien":0,"allg":5}}');
   check('state: setYearBankKeep null clears only that key', JSON.stringify(sybk({ '2019|A': 1, '2026|A': 2 }, 2026, 'A', null)) === '{"2019|A":1}');
   check('state: setKey set/clear', JSON.stringify(sk({ a: 1 }, 'b', 2)) === '{"a":1,"b":2}' && JSON.stringify(sk({ a: 1 }, 'a', null)) === '{}');
+  // Final review I1: Vortrag je Feld; nur Eingetipptes wird gespeichert, leere Einträge fallen weg
+  const svf = g('setVortragField');
+  check('state I1: vortrag field stores only the typed field', JSON.stringify(svf({ '2019|A': { aktien: 1, allg: 2 } }, 2026, 'A', 'allg', 150))
+    === '{"2019|A":{"aktien":1,"allg":2},"2026|A":{"aktien":null,"allg":150}}');
+  check('state I1: vortrag field keeps the other typed field', JSON.stringify(svf({ '2026|A': { aktien: 5, allg: 150 } }, 2026, 'A', 'allg', null)) === '{"2026|A":{"aktien":5,"allg":null}}');
+  check('state I1: vortrag entry removed when both fields empty', JSON.stringify(svf({ '2019|A': 1, '2026|A': { aktien: null, allg: 150 } }, 2026, 'A', 'allg', null)) === '{"2019|A":1}');
   const sel = g('selectedDepots'), nextOff = g('nextDepotsOff');
   check('depots: unknown default on', JSON.stringify(sel({ depotsOff: ['X'] }, ['A', 'B'])) === '["A","B"]');
   check('depots: deselected stays off', JSON.stringify(sel({ depotsOff: ['B'] }, ['A', 'B'])) === '["A"]');
