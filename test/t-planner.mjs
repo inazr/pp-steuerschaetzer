@@ -1,5 +1,5 @@
 const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: 1000, fundTypes: {}, depots: null };
-const data = { securities: [{ uuid: 'X', name: 'X', isin: 'IX', currency: 'EUR' }, { uuid: 'Y', name: 'Y', isin: 'IY', currency: 'EUR' }], portfolios: [{ uuid: 'A', name: 'A' }], txs: [], dividends: [], prices: new Map(), warnings: [] };
+const data = { securities: [{ uuid: 'X', name: 'X', isin: 'IEX', currency: 'EUR' }, { uuid: 'Y', name: 'Y', isin: 'IEY', currency: 'EUR' }], portfolios: [{ uuid: 'A', name: 'A' }], txs: [], dividends: [], prices: new Map(), warnings: [] };
 const lot = (id, security, buyDate, shares, cost, vpCum = 0) => ({ id, depot: 'A', security, buyDate, shares, cost, vpCum, divPS: {} });
 const res = (lots, prices) => ({ lots, vpRows: [], errors: [], warnings: [], realized: {}, latest: new Map(Object.entries(prices).map(([k, v]) => [k, ['2025-11-20', v]])) });
 
@@ -23,7 +23,7 @@ export default ({ g, check, near }) => {
   check('plan: allowance then taxed', near(p.rows[0].shares, n, 1e-8) && near(p.allowanceUsed, 1000) && near(p.tax, (n * 35 - 1000) * rate, 0.011), [p.rows[0].shares, n, p.tax]);
 
   // Einzelaktie vor 2009: steuerfrei
-  p = plan(res([lot(1, 'X', '2005-05-05', 10, 10)], { X: 100 }), data, { ...SET, fundTypes: { IX: 'einzelaktie' } }, 2025, 300);
+  p = plan(res([lot(1, 'X', '2005-05-05', 10, 10)], { X: 100 }), data, { ...SET, fundTypes: { IEX: 'einzelaktie' } }, 2025, 300);
   check('plan: Bestandsschutz exempt', p.rows[0].exempt === true && p.tax === 0 && near(p.rows[0].shares, 3, 1e-8), p.rows[0]);
 
   // Verlust: keine Steuer, keine Verrechnung

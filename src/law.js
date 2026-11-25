@@ -52,4 +52,24 @@ const FUND_TYPES = {
   immo_ausland: { label: 'Immobilienfonds (Ausland)', tfs: 0.80, vp: true },
   sonstige: { label: 'Sonstiger Fonds', tfs: 0, vp: true },
   einzelaktie: { label: 'Einzelaktie', tfs: 0, vp: false, bestandsschutz: '2009-01-01' },
+  sonstiges_wp: { label: 'Sonstiges Wertpapier (ETC, Anleihe, Zertifikat)', tfs: 0, vp: false },
 };
+
+// Fondstyp raten: PP-Dateien kennen keinen Wertpapiertyp, Namen sind oft Broker-Kürzel („VANG FTSE AW USDD“).
+// Stärkstes Signal ist das ISIN-Präfix IE/LU, außer der Name trägt eine Gesellschaftsform (Linde plc, ArcelorMittal S.A.).
+const FT_ETC = /\b(ETC|ETN|Zertifikat|Certificate|Xetra-Gold|EUWAX Gold|Optionsschein|Turbo)\b|\bPhysical (Gold|Silver|Metals?)\b/i;
+const FT_FUND_WORD = /fonds|\b(ETF|UCITS|Funds?|Index|Acc|Dist)\b|\b(Thes|Aussch)/i;
+// Anbieternamen zählen nur ohne Gesellschaftsform (Amundi SA, Invesco Ltd sind Aktien)
+const FT_PROVIDER = /\b(iShares|Xtrackers|Vanguard|VANG|Amundi|Lyxor|SPDR|WisdomTree|Invesco|ComStage|Dimensional|DWS|Deka)\b/i;
+const FT_COMPANY = /\b(plc|AG|SE|S\.A\.?|SA|N\.V\.?|NV|Inc\.?|Corp\.?|Corporation|Ltd\.?|Holdings?|Group|KGaA)(\b|$)/i;
+const FT_BOND_FUND = /anleihe|\b(Bonds?|Renten|Treasury|Govt|Government|Aggregate|Corporate|Corp|Money Market|Geldmarkt|Overnight|€STR|Ester)\b/i;
+const FT_BOND_SINGLE = /anleihe|pfandbrief|\b(Bond|Note|Schatz\w*)\b/i;
+
+function guessFundType(sec) {
+  const name = (sec && sec.name) || '', isin = (sec && sec.isin) || '';
+  if (FT_ETC.test(name)) return 'sonstiges_wp';
+  const company = FT_COMPANY.test(name);
+  const fund = FT_FUND_WORD.test(name) || (!company && (FT_PROVIDER.test(name) || /^(IE|LU)/.test(isin)));
+  if (fund) return FT_BOND_FUND.test(name) ? 'sonstige' : 'aktienfonds';
+  return FT_BOND_SINGLE.test(name) ? 'sonstiges_wp' : 'einzelaktie';
+}

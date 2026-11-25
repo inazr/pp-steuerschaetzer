@@ -1,7 +1,7 @@
 const mem = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), m }; };
 const TOK = { ink: '#111', ink2: '#444', ink3: '#777', line: '#ddd', surface: '#fff', series: ['#a1', '#a2', '#a3', '#a4', '#a5', '#a6'], fontUi: 'Public Sans', fontNum: 'JetBrains Mono' };
 const data = {
-  securities: [{ uuid: 'S', name: 'Welt', isin: 'I1' }, { uuid: 'T', name: 'Schwellenländer', isin: 'I2' }],
+  securities: [{ uuid: 'S', name: 'Welt', isin: 'IE01' }, { uuid: 'T', name: 'Schwellenländer', isin: 'IE02' }],
   portfolios: [{ uuid: 'A', name: 'Depot A' }, { uuid: 'B', name: 'Depot B' }],
 };
 
@@ -12,10 +12,10 @@ export default ({ g, check, near }) => {
   const def = load(st);
   check('state: defaults', def.veranlagung === 'single' && def.kirchensteuer === false && def.bundesland === 'default' && def.genutzt === null && JSON.stringify(def.fundTypes) === '{}', def);
   check('state: fee defaults 0', def.gebuehrFix === 0 && def.gebuehrProz === 0, def);
-  save(st, { ...def, kirchensteuer: true, fundTypes: { I1: 'mischfonds' }, txs: [1], prices: 2, lots: 3, depots: ['A'] });
+  save(st, { ...def, kirchensteuer: true, fundTypes: { IE01: 'mischfonds' }, txs: [1], prices: 2, lots: 3, depots: ['A'] });
   const raw = JSON.parse(st.getItem('pp-steuerschaetzer-v1'));
   check('state: never persists portfolio data', !('txs' in raw) && !('prices' in raw) && !('lots' in raw) && !('depots' in raw), Object.keys(raw));
-  check('state: roundtrip', load(st).kirchensteuer === true && load(st).fundTypes.I1 === 'mischfonds');
+  check('state: roundtrip', load(st).kirchensteuer === true && load(st).fundTypes.IE01 === 'mischfonds');
   save(st, { ...def, gebuehrFix: 4.9, gebuehrProz: 0.25 });
   check('state: fees persist', load(st).gebuehrFix === 4.9 && load(st).gebuehrProz === 0.25, load(st));
   check('state: broken storage -> defaults', load({ getItem: () => '{kaputt' }).veranlagung === 'single');
@@ -80,7 +80,7 @@ export default ({ g, check, near }) => {
   check('chart lots: Monday starts a new week', wk.series[0].data.map(x => v(x)[0]).join() === '2019-12-30,2020-01-06', wk.series[0].data.map(v));
   const w53 = g('optLotGains')({ ...res, lots: [{ ...lot('S'), buyDate: '2021-01-01' }] }, data, { fundTypes: {} }, TOK);
   check('chart lots: ISO week-year (01.01.2021 = KW 53/2020)', w53.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 }).includes('KW 53/2020'), w53.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 }));
-  const solo = g('optLotGains')(res, data, { fundTypes: { I1: 'sonstige' } }, TOK);
+  const solo = g('optLotGains')(res, data, { fundTypes: { IE01: 'sonstige' } }, TOK);
   check('chart lots: no tax-free part -> taxable part gets rounded end', JSON.stringify(rad(solo.series[0].data[0])) === '[4,4,0,0]' && near(v(solo.series[1].data[0])[1], 0), [solo.series[0].data[0], solo.series[1].data[0]]);
   const one = g('optLotGains')({ ...res, lots: [lot('S')] }, data, { fundTypes: {} }, TOK);
   const h = g('lotChartHeight');

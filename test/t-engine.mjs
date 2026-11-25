@@ -89,4 +89,12 @@ export default ({ g, check, near }) => {
   res = replay(mk({ txs: [tx('2023-05-10', 'BUY', 'A', 10, 1000)], prices: [['2023-05-10', 100], ['2023-12-29', 110]] }), SET, '2024-03-01');
   check('missing start price: no VP row, warning', res.vpRows.length === 0 && res.warnings.some(w => w.includes('Kein Kurs')), res.warnings);
   check('missing start price: vpCum is 0 not NaN', res.lots[0].vpCum === 0);
+
+  // Heuristik in der Engine: Aktie ohne Fondssignal -> keine VP
+  const stockSecs = [{ uuid: 'S', name: 'Siemens AG', isin: 'DE0007236101', currency: 'EUR' }];
+  res = replay(mk({ txs: [tx('2022-12-01', 'BUY', 'A', 100, 9500)], prices: P, secs: stockSecs }), SET, '2024-05-01');
+  check('heuristic: stock gets no VP', res.vpRows.length === 0, res.vpRows);
+  // sonstiges_wp: keine VP, voller Gewinn steuerpflichtig, auch bei Kauf vor 2009
+  res = replay(mk({ txs: [tx('2005-01-10', 'BUY', 'A', 10, 500), tx('2024-02-01', 'SELL', 'A', 10, 1200)], prices: P }), { ...SET, fundTypes: { IS: 'sonstiges_wp' } }, '2024-05-01');
+  check('sonstiges_wp: no VP, no Bestandsschutz, no TFS', res.vpRows.length === 0 && near(res.realized[2024], 700), [res.vpRows, res.realized]);
 };

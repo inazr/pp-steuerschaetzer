@@ -6,10 +6,10 @@ const ceil8 = x => Math.ceil(x * 1e8 - 1e-6) / 1e8;
 const isoToDe = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const EPS = 1e-8;
 
-function fundTypeOf(settings, sec) {
-  const key = settings.fundTypes && settings.fundTypes[sec.isin || sec.uuid];
-  return FUND_TYPES[key] ? key : 'aktienfonds';
-}
+// Explizite Wahl des Nutzers (je ISIN, sonst UUID), sonst geraten
+const explicitFundType = (settings, sec) => { const key = settings.fundTypes && sec && settings.fundTypes[sec.isin || sec.uuid]; return FUND_TYPES[key] ? key : null; };
+const fundTypeOf = (settings, sec) => explicitFundType(settings, sec) || guessFundType(sec);
+const fundTypeGuessed = (settings, sec) => !explicitFundType(settings, sec);
 
 // Letzter Kurs am oder vor date, höchstens maxDays Tage alt
 function priceOnOrBefore(list, date, maxDays = 10) {
