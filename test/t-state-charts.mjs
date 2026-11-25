@@ -33,6 +33,14 @@ export default ({ g, check, near }) => {
     === '{"2019|A":{"aktien":1,"allg":2},"2026|A":{"aktien":null,"allg":150}}');
   check('state I1: vortrag field keeps the other typed field', JSON.stringify(svf({ '2026|A': { aktien: 5, allg: 150 } }, 2026, 'A', 'allg', null)) === '{"2026|A":{"aktien":5,"allg":null}}');
   check('state I1: vortrag entry removed when both fields empty', JSON.stringify(svf({ '2019|A': 1, '2026|A': { aktien: null, allg: 150 } }, 2026, 'A', 'allg', null)) === '{"2019|A":1}');
+  // Final review M4: Bank-Zuordnung ohne Ketten – wer X folgt, folgt mit X zum neuen Ziel
+  const ab = g('assignBank');
+  check('state M4: assign re-points members of the moved bank', JSON.stringify(ab({ C: 'A', kA: 'A', kB: 'B' }, 'A', 'B')) === '{"C":"B","kA":"B","kB":"B","A":"B"}', ab({ C: 'A', kA: 'A', kB: 'B' }, 'A', 'B'));
+  check('state M4: own bank deletes only the entry, members stay', JSON.stringify(ab({ A: 'B', C: 'A' }, 'A', null)) === '{"C":"A"}', ab({ A: 'B', C: 'A' }, 'A', null));
+  const D3 = { portfolios: [{ uuid: 'A' }, { uuid: 'B' }, { uuid: 'C' }], accounts: [], interest: [] };
+  const m3 = g('bankMembers')(D3, { depots: ['A', 'B', 'C'], bankOf: ab({ C: 'A' }, 'A', 'B') });
+  check('state M4: chained assignment keeps the group together', m3.length === 1 && m3[0].key === 'B' && JSON.stringify(m3[0].depots) === '["A","B","C"]', m3);
+  check('state M4: assigning to itself means own bank', JSON.stringify(ab({ A: 'B' }, 'A', 'A')) === '{}');
   const sel = g('selectedDepots'), nextOff = g('nextDepotsOff');
   check('depots: unknown default on', JSON.stringify(sel({ depotsOff: ['X'] }, ['A', 'B'])) === '["A","B"]');
   check('depots: deselected stays off', JSON.stringify(sel({ depotsOff: ['B'] }, ['A', 'B'])) === '["A"]');

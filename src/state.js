@@ -51,6 +51,16 @@ function setKey(obj, key, value) {
   return out;
 }
 
+// Bank-Zuordnung (bankOf) ohne Ketten: Ziele sind immer Gründer. Wird X einer Bank T zugeordnet, folgen alle, die
+// X zugeordnet waren, mit zu T; „eigene Bank“ (null oder X selbst) löscht nur den Eintrag von X.
+function assignBank(bankOf, member, target) {
+  if (!target || target === member) return setKey(bankOf, member, null);
+  const out = {};
+  for (const [k, v] of Object.entries(bankOf || {})) out[k] = v === member ? target : v;
+  out[member] = target;
+  return out;
+}
+
 // Depotauswahl: gespeichert werden die abgewählten UUIDs, damit neue Depots automatisch an sind
 function selectedDepots(settings, fileUuids) {
   const off = new Set(settings.depotsOff || []), on = fileUuids.filter(u => !off.has(u));

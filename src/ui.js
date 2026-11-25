@@ -393,7 +393,7 @@ document.addEventListener('change', e => {
     const t = $('#plan-target'); if (t) ui.target = t.value; // eingetipptes Ziel nicht verlieren
   }
   else if (el.dataset.ft) ui.settings.fundTypes = { ...ui.settings.fundTypes, [el.dataset.ft]: el.value };
-  else if (el.dataset.bankOf) ui.settings.bankOf = setKey(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
+  else if (el.dataset.bankOf) ui.settings.bankOf = assignBank(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
   else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
   else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
   else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
