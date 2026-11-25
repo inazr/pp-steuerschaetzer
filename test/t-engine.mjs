@@ -1,6 +1,3 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-
 // Testdaten direkt als Data-Objekt (Format aus extractPortfolio)
 let n = 0;
 const tx = (date, type, depot, shares, amount, extra = {}) => ({ uuid: 't' + (++n), date, type, depot, security: 'S', shares, amount, fees: 0, taxes: 0, ...extra });
@@ -11,7 +8,7 @@ const mk = ({ txs, dividends = [], prices, secs }) => ({
 });
 const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: null, fundTypes: {}, depots: null };
 
-export default ({ g, check, near, skipped, root }) => {
+export default ({ g, check, near }) => {
   const vpForLot = g('vpForLot'), replay = g('replay');
 
   // Formel § 18 InvStG
@@ -92,5 +89,4 @@ export default ({ g, check, near, skipped, root }) => {
   res = replay(mk({ txs: [tx('2023-05-10', 'BUY', 'A', 10, 1000)], prices: [['2023-05-10', 100], ['2023-12-29', 110]] }), SET, '2024-03-01');
   check('missing start price: no VP row, warning', res.vpRows.length === 0 && res.warnings.some(w => w.includes('Kein Kurs')), res.warnings);
   check('missing start price: vpCum is 0 not NaN', res.lots[0].vpCum === 0);
-
 };

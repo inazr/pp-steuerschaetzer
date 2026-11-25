@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Wandelt eine XPath-referenzierte PP-Datei in den XStream-id-Modus um (für den Gleichheitstest).
@@ -20,7 +20,7 @@ function toIdMode(g, xml) {
 }
 const plain = d => JSON.parse(JSON.stringify({ ...d, prices: [...d.prices.entries()] }));
 
-export default ({ g, check, near, skipped, root }) => {
+export default ({ g, check, near, root }) => {
   const extract = g('extractPortfolio');
   const fx = f => readFileSync(join(root, 'test/fixtures', f), 'utf8');
 
