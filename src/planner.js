@@ -1,6 +1,14 @@
 // „Ich brauche X € netto“: verkauft FIFO je Depot × Wertpapier, wählt dabei immer den Lot mit der geringsten
 // Steuer je Euro netto. Freibetrag wird in Verkaufsreihenfolge verbraucht, Verluste werden nicht verrechnet.
+// Zwei Durchläufe: mit Bewertung der Fixgebühr (weniger Orders) und ohne (wie bis 0.2). Behalten wird der Plan mit
+// den geringeren Kosten (Gebühren + Steuer); so wird die Gebührenbewertung nie teurer als die reine Steuer-Reihenfolge.
 function planNetSale(result, data, settings, year, target) {
+  const a = runNetSale(result, data, settings, year, target, true), b = runNetSale(result, data, settings, year, target, false);
+  if (a.reached !== b.reached) return a.reached ? a : b;
+  return b.fees + b.tax < a.fees + a.tax - 0.005 ? b : a;
+}
+
+function runNetSale(result, data, settings, year, target, feeAware) {
   const total = param('sparerpauschbetrag', year)[settings.veranlagung];
   const used = settings.genutzt ?? prefillUsed(result, settings, year);
   let allowLeft = Math.max(0, total - used);
@@ -37,7 +45,7 @@ function planNetSale(result, data, settings, year, target) {
     let best = null, bs = null, bScore = 0;
     for (const h of heads) {
       if (h.i >= h.lots.length) continue;
-      const x = info(h), st = step(h, x), score = x.ratio + (st.F > 0 ? st.F / Math.max(st.net, 0.01) : 0);
+      const x = info(h), st = step(h, x), score = x.ratio + (feeAware && st.F > 0 ? st.F / Math.max(st.net, 0.01) : 0);
       if (!best || score < bScore || (score === bScore && st.lot.buyDate < bs.lot.buyDate)) { best = h; bs = st; bScore = score; }
     }
     if (!best) break;

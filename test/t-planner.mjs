@@ -61,4 +61,10 @@ export default ({ g, check, near }) => {
   check('plan fee 0: unchanged order (X first)', p.rows[0].lot.security === 'X' && p.rows.length === 2, p.rows.map(r => r.lot.security));
   p = plan(res([lot(1, 'X', '2020-01-01', 100, 95)], { X: 100 }), data, fee, 2025, 500);
   check('plan fee: one security, one order', p.rows.length === 1 && near(p.fees, 10) && p.net >= 500 && p.net < 500.01, p);
+
+  // Review I1: kleiner Kopf-Lot, dahinter Verlust-Lots desselben Wertpapiers. Die Order läuft über die Lots weiter,
+  // die Fixgebühr fällt nur einmal an – der Plan darf nicht teurer werden als ohne Gebührenbewertung (0.2)
+  const i1 = [lot(1, 'X', '2015-01-01', 1, 95), lot(2, 'X', '2016-01-01', 100, 120), lot(3, 'Y', '2015-01-01', 100, 50)];
+  p = plan(res(i1, { X: 100, Y: 100 }), data, { ...SET, gebuehrFix: 10 }, 2025, 3000);
+  check('plan fee I1: sells the loss lots of X, no tax', p.reached && p.tax === 0 && near(p.fees, 10) && p.rows.every(r => r.lot.security === 'X'), [p.tax, p.fees, p.rows.map(r => [r.lot.security, r.shares])]);
 };
