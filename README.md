@@ -32,9 +32,9 @@ Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github
 | Reiter | Inhalt |
 |---|---|
 | **Übersicht** | Steuer-Einstellungen (Veranlagung, Kirchensteuer, Bundesland, bereits genutzter Freibetrag), Depotauswahl, Wertpapiere mit Fondstyp, unrealisierte Gewinne je Wertpapier über die Kaufdaten, geteilt in steuerpflichtig und steuerfrei |
-| **Vorabpauschale** | § 18 InvStG je Jahr, Depot und Wertpapier: Basisertrag, Deckelung durch Wertsteigerung plus Ausschüttungen, Zwölftelung im Kaufjahr, Teilfreistellung, Steuer. Gestapelter Chart je Jahr, CSV-Export |
+| **Vorabpauschale** | § 18 InvStG je Jahr, Depot und Wertpapier: Basisertrag, Deckelung durch Wertsteigerung plus Ausschüttungen, Zwölftelung im Kaufjahr, Teilfreistellung, Steuer. Prognose für das laufende Jahr zum letzten Kurs (fällig im Januar). Gestapelter Chart je Jahr, CSV-Export |
 | **Freibetrag nutzen** | Welche Lots du verkaufen und sofort zurückkaufen kannst, damit der steuerpflichtige Gewinn den freien Sparerpauschbetrag genau füllt. Streng FIFO je Depot, CSV-Export |
-| **Verkaufsplanung** | „Ich brauche X € netto“: verkauft je Depot nach FIFO und wählt zwischen Wertpapieren immer den Lot mit der geringsten Steuer je Euro netto. Wasserfall Brutto → Steuer → Netto, CSV-Export |
+| **Verkaufsplanung** | „Ich brauche X € netto“: verkauft je Depot nach FIFO und wählt zwischen Wertpapieren immer den Lot mit der geringsten Steuer je Euro netto. Ordergebühren fest je Order und in % vom Erlös. Wasserfall Brutto → Gebühren → Steuer → Netto, CSV-Export |
 
 Steuerlogik im Überblick:
 
@@ -42,7 +42,7 @@ Steuerlogik im Überblick:
 - **Vorabpauschale je Lot**, zum Jahresende verbucht und beim Verkauf auf den Gewinn angerechnet. Ausschüttungen zählen brutto (netto plus einbehaltene Steuern) und werden nach dem Bestand im jeweiligen Depot am Zahltag verteilt.
 - **Teilfreistellung** je Fondstyp: Aktienfonds 30 %, Mischfonds 15 %, Immobilienfonds 60 % (Inland) bzw. 80 % (Ausland). Für **Einzelaktien** gibt es keine Vorabpauschale und keine Teilfreistellung, Käufe vor 2009 sind steuerfrei (Bestandsschutz).
 - **Steuersatz** Abgeltungsteuer + Soli, wahlweise mit Kirchensteuer (8 % oder 9 %) und Ermäßigung nach § 32d Abs. 1 EStG.
-- **Bereits genutzter Freibetrag** ist mit der steuerpflichtigen Vorabpauschale des Vorjahres (sie fließt im Januar zu) plus den Verkäufen des laufenden Jahres vorbelegt, jeweils für die ausgewählten Depots, und lässt sich überschreiben. Enthält eine Datei Depots mehrerer Personen (z. B. ein Kinderdepot), wählst du nur die Depots einer Person aus.
+- **Bereits genutzter Freibetrag** ist mit der steuerpflichtigen Vorabpauschale des Vorjahres (sie fließt im Januar zu) plus den Ausschüttungen (nach Teilfreistellung) und Verkäufen des laufenden Jahres vorbelegt, jeweils für die ausgewählten Depots, und lässt sich überschreiben. Enthält eine Datei Depots mehrerer Personen (z. B. ein Kinderdepot), wählst du nur die Depots einer Person aus.
 
 ## Gesetzliche Werte
 
@@ -69,7 +69,7 @@ Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/l
 - Nur **Wertpapiere in EUR**. Andere werden ausgelassen und angezeigt.
 - **Keine Verlustverrechnung** (Verlusttöpfe) und keine Anrechnung ausländischer Quellensteuer. Verluste mindern die Steuer im Verkaufsplan nicht (konservativ).
 - Nicht abgebildet ist die **fiktive Veräußerung zum 31.12.2017** für Fondsanteile, die vor 2018 gekauft wurden (Altbestand, 100.000-€-Freibetrag).
-- Gerechnet wird mit dem **letzten Kurs in der Datei**. Ordergebühren für künftige Verkäufe sind nicht berücksichtigt.
+- Gerechnet wird mit dem **letzten Kurs in der Datei**. Ordergebühren gibt es nur im Verkaufsplan, nicht beim Freibetrag-Nutzen (Verkauf und Rückkauf).
 
 ## Entwicklung
 

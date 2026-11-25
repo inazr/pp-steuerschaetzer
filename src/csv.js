@@ -22,6 +22,6 @@ function csvAllowance(res, data) {
   return csvDoc([...CSV_LOT_HEAD, 'Gewinn steuerpflichtig'], res.rows.map(r => [...csvLotCols(r, data), csvMoney(r.gainTaxable)]));
 }
 function csvPlan(plan, data) {
-  return csvDoc([...CSV_LOT_HEAD, 'Gewinn', 'Gewinn steuerpflichtig', 'Freibetrag', 'Steuer', 'Netto-Erlös'],
-    plan.rows.map(r => [...csvLotCols(r, data), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net)]));
+  return csvDoc([...CSV_LOT_HEAD, 'Gebühr', 'Gewinn', 'Gewinn steuerpflichtig', 'Freibetrag', 'Steuer', 'Netto-Erlös'],
+    plan.rows.map(r => [...csvLotCols(r, data), csvMoney(r.fee || 0), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net)]));
 }

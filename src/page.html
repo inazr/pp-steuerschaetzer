@@ -56,7 +56,7 @@ button { font: inherit; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn:disabled { opacity: .55; cursor: progress; }
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .kpi { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--surface); min-width: 0; }
 .kpi .l { font-size: 11px; color: var(--ink-3); letter-spacing: 0.02em; }
 .kpi .v { font-size: 19px; font-weight: 600; white-space: nowrap; }
@@ -149,6 +149,7 @@ td.sub, span.sub { color: var(--ink-3); }
 .tablebox select { font: inherit; font-family: var(--font-ui); color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 4px; }
 .target { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
 .target .f { width: 220px; }
+.target .f.sm { width: 150px; }
 .depots { display: flex; gap: 6px 16px; flex-wrap: wrap; }
 footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
 </style>

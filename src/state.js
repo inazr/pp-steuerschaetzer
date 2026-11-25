@@ -1,7 +1,7 @@
 // Einstellungen im Browser speichern. Nie Buchungen, Kurse oder Lots – nur Steuer-Einstellungen und Fondstypen je ISIN.
 const STORE_KEY = 'pp-steuerschaetzer-v1';
-const SETTINGS_KEYS = ['veranlagung', 'kirchensteuer', 'bundesland', 'genutzt', 'fundTypes'];
-const defaultSettings = () => ({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: null, fundTypes: {} });
+const SETTINGS_KEYS = ['veranlagung', 'kirchensteuer', 'bundesland', 'genutzt', 'fundTypes', 'gebuehrFix', 'gebuehrProz'];
+const defaultSettings = () => ({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: null, fundTypes: {}, gebuehrFix: 0, gebuehrProz: 0 });
 
 function loadSettings(storage) {
   const s = defaultSettings();

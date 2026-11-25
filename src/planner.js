@@ -5,12 +5,16 @@ function planNetSale(result, data, settings, year, target) {
   const used = settings.genutzt ?? prefillUsed(result, settings, year);
   let allowLeft = Math.max(0, total - used);
   const rate = taxRate(settings, year);
-  const heads = fifoQueues(result.lots).map(lots => ({ lots, i: 0, left: lots[0].shares, price: (result.latest.get(lots[0].security) || [])[1] }))
+  // Ordergebühren: fester Betrag je Order (= erster Verkauf je Depot × Wertpapier) plus Prozent vom Erlös
+  const feeFix = Math.max(0, +settings.gebuehrFix || 0), feePct = Math.max(0, +settings.gebuehrProz || 0) / 100;
+  const heads = fifoQueues(result.lots).map(lots => ({ lots, i: 0, left: lots[0].shares, price: (result.latest.get(lots[0].security) || [])[1], ordered: false }))
     .filter(h => h.price > 0);
+  const tfsOf = lot => FUND_TYPES[fundTypeOf(settings, data.securities.find(s => s.uuid === lot.security))].tfs;
   const info = h => {
-    const lot = h.lots[h.i], g = taxableGainPerShare(lot, h.price, settings, data);
+    const lot = h.lots[h.i], a = h.price * (1 - feePct); // Erlös je Stück nach Prozentgebühr
+    const g = taxableGainPerShare(lot, a, settings, data);
     const taxablePS = g === null ? 0 : Math.max(0, g);
-    return { lot, exempt: g === null, taxablePS, ratio: taxablePS * rate / (h.price - taxablePS * rate) };
+    return { lot, a, exempt: g === null, taxablePS, ratio: taxablePS * rate / (a - taxablePS * rate) };
   };
   const rows = [];
   let needed = target;
@@ -22,21 +26,26 @@ function planNetSale(result, data, settings, year, target) {
       if (!best || x.ratio < bi.ratio || (x.ratio === bi.ratio && x.lot.buyDate < bi.lot.buyDate)) { best = h; bi = x; }
     }
     if (!best) break;
-    const { lot, exempt, taxablePS } = bi, price = best.price;
-    const n1 = taxablePS > 0 ? allowLeft / taxablePS : Infinity; // steuerfrei über den Freibetrag
-    const want = needed <= n1 * price ? needed / price : n1 + (needed - n1 * price) / (price - taxablePS * rate);
+    const { lot, a, exempt, taxablePS } = bi, price = best.price;
+    const F = best.ordered ? 0 : feeFix;                       // feste Gebühr nur beim ersten Verkauf dieser Order
+    const fT = taxablePS > 0 ? F * (1 - tfsOf(lot)) : 0;       // die feste Gebühr mindert auch den steuerpflichtigen Gewinn
+    // Netto(n) = n·a − F − Steuer; steuerfrei solange n·t − fT ≤ freier Betrag
+    const nFree = taxablePS > 0 ? (allowLeft + fT) / taxablePS : Infinity;
+    const want = (needed + F) <= nFree * a ? (needed + F) / a : (needed + F - rate * (fT + allowLeft)) / (a - taxablePS * rate);
     const n = Math.min(best.left, ceil8(want));
-    const taxableAmt = n * taxablePS, free = Math.min(allowLeft, taxableAmt);
+    const fee = round2(F + n * price * feePct);
+    const taxableAmt = exempt ? 0 : Math.max(0, n * taxablePS - fT), free = Math.min(allowLeft, taxableAmt);
     const tax = round2((taxableAmt - free) * rate);
-    const net = round2(n * price - tax);
+    const net = round2(n * price - fee - tax);
     rows.push({
-      lot, shares: n, price, gross: round2(n * price), gain: round2(n * (price - lot.cost - lot.vpCum / lot.shares)),
+      lot, shares: n, price, gross: round2(n * price), fee, gain: round2(n * (price - lot.cost - lot.vpCum / lot.shares) - fee),
       taxable: round2(taxableAmt), allowance: round2(free), tax, net, exempt,
     });
+    best.ordered = true;
     allowLeft -= free; needed -= net;
     best.left = round8(best.left - n);
     if (best.left <= EPS) { best.i++; best.left = best.i < best.lots.length ? best.lots[best.i].shares : 0; }
   }
   const sum = k => round2(rows.reduce((s, r) => s + r[k], 0));
-  return { gross: sum('gross'), tax: sum('tax'), net: sum('net'), allowanceUsed: sum('allowance'), reached: needed <= 0.005, rows };
+  return { gross: sum('gross'), fees: sum('fee'), tax: sum('tax'), net: sum('net'), allowanceUsed: sum('allowance'), reached: needed <= 0.005, rows };
 }

@@ -63,6 +63,8 @@ function renderKpis() {
     ['Depotwert', fmtEur(marketValue()), (n => `${n} ${n === 1 ? 'Wertpapier' : 'Wertpapiere'}`)(new Set(r.lots.map(l => l.security)).size) + ` · ${r.lots.length} Lots`],
     [`Vorabpauschale ${YEAR - 1}`, fmtEur(vpPrev.reduce((s, x) => s + x.vp, 0)),
       `steuerpflichtig ${fmtEur(vpPrev.reduce((s, x) => s + x.taxable, 0))} · Steuer ${fmtEur(vpPrev.reduce((s, x) => s + x.tax, 0))} · ${depotScope(ui.depots, ui.data.portfolios.length)}`],
+    (fc => [`Vorabpauschale ${YEAR} (Prognose)`, fc.length ? fmtEur(fc.reduce((s, x) => s + x.vp, 0)) : '–',
+      fc.length ? `steuerpflichtig ${fmtEur(fc.reduce((s, x) => s + x.taxable, 0))} · Steuer ${fmtEur(fc.reduce((s, x) => s + x.tax, 0))} · fällig Januar ${YEAR + 1}` : 'keine Prognose möglich'])(r.vpForecast),
     [`Freibetrag ${YEAR} frei`, fmtEur(ui.alloc.remaining), `von ${fmtEur(ui.alloc.total)} · genutzt ${fmtEur(ui.alloc.used)} · ${depotScope(ui.depots, ui.data.portfolios.length)}`],
     ['Steuersatz', fmtPct(taxRate(ui.settings, YEAR)), ui.settings.kirchensteuer ? 'inkl. Soli und Kirchensteuer' : 'inkl. Soli'],
   ];
@@ -99,7 +101,7 @@ function renderOverview() {
           <div class="f"><label for="s-land">Bundesland (Kirchensteuer)</label><div class="in"><select id="s-land"><option value="default"${s.bundesland === 'default' ? ' selected' : ''}>Übrige Länder (9 %)</option><option value="bayern"${s.bundesland === 'bayern' ? ' selected' : ''}>Bayern (8 %)</option><option value="baden_wuerttemberg"${s.bundesland === 'baden_wuerttemberg' ? ' selected' : ''}>Baden-Württemberg (8 %)</option></select></div></div>
           <label class="chk"><input type="checkbox" id="s-kist"${s.kirchensteuer ? ' checked' : ''}> Kirchensteuerpflichtig</label>
           <div class="f"><label for="s-used">Freibetrag ${YEAR} bereits genutzt</label><div class="in"><input id="s-used" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${prefill.toFixed(2)}" value="${s.genutzt ?? ''}"><span class="u">€</span></div>
-            <span class="h">Leer = Vorbelegung ${fmtEur(prefill)}: steuerpflichtige Vorabpauschale ${YEAR - 1} plus Verkäufe ${YEAR} der ausgewählten Depots. Andere Banken oder Ausschüttungen selbst eintragen.</span></div>
+            <span class="h">Leer = Vorbelegung ${fmtEur(prefill)}: steuerpflichtige Vorabpauschale ${YEAR - 1} plus Ausschüttungen und Verkäufe ${YEAR} der ausgewählten Depots. Andere Banken selbst eintragen.</span></div>
         </div>
       </div>
       <div class="card">
@@ -137,7 +139,18 @@ function renderVp() {
       + `<tr class="sum"><td>Summe ${y}</td>${multiDepot() ? '<td></td>' : ''}<td class="txt">Basiszins ${fmtPct(ys[0].basiszins)}</td>${eurTd(sum('wertAnfang'))}${eurTd(sum('wertEnde'))}${eurTd(sum('basisertrag'))}${eurTd(sum('ausschuettungen'))}${eurTd(sum('vp'))}<td></td>${eurTd(sum('taxable'))}${eurTd(sum('tax'))}</tr>`;
   }).join('');
   const bz = Object.entries(LAW.basiszins.values).map(([y, v]) => `<tr><td>${y}</td><td>${fmtPct(v)}</td><td class="txt">${esc(LAW.basiszins.source[y])}</td></tr>`).join('');
-  $('#p1').innerHTML = `
+  const fc = ui.result.vpForecast, fsum = k => fc.reduce((s, r) => s + r[k], 0);
+  const forecast = fc.length ? `
+    <div class="card">
+      <div class="card-h"><h2>Prognose ${YEAR}, fällig Januar ${YEAR + 1}</h2><span class="sub">Letzter Kurs statt Kurs zum 31.12. · ändert sich bis Jahresende mit dem Kurs</span></div>
+      <div class="tablebox"><table>
+        <thead><tr>${multiDepot() ? '<th>Depot</th>' : ''}<th>Wertpapier</th><th>Wert 01.01.</th><th>Wert aktuell</th><th>Kurs vom</th><th>Basisertrag</th><th>Ausschüttungen bisher</th><th>Vorabpauschale</th><th>Steuerpflichtig</th><th>Steuer</th></tr></thead>
+        <tbody>${fc.map(r => `<tr>${multiDepot() ? `<td class="txt">${esc(depName(r.depot))}</td>` : ''}<td class="txt">${esc(secName(r.security))}</td>${eurTd(r.wertAnfang)}${eurTd(r.wertEnde)}<td class="sub">${esc(fmtDate(r.priceDate))}</td>${eurTd(r.basisertrag)}${eurTd(r.ausschuettungen)}${eurTd(r.vp)}${eurTd(r.taxable)}${eurTd(r.tax)}</tr>`).join('')}
+        <tr class="sum"><td class="txt">Summe · Basiszins ${fmtPct(fc[0].basiszins)}</td>${multiDepot() ? '<td></td>' : ''}${eurTd(fsum('wertAnfang'))}${eurTd(fsum('wertEnde'))}<td></td>${eurTd(fsum('basisertrag'))}${eurTd(fsum('ausschuettungen'))}${eurTd(fsum('vp'))}${eurTd(fsum('taxable'))}${eurTd(fsum('tax'))}</tr></tbody>
+      </table></div>
+      <p class="note">Die Steuer wird im Januar ${YEAR + 1} abgebucht und verbraucht den Freibetrag ${YEAR + 1}, nicht den von ${YEAR}. Fällt der Kurs bis 31.12., sinkt die Vorabpauschale.</p>
+    </div>` : '';
+  $('#p1').innerHTML = forecast + `
     <div class="card">
       <div class="card-h"><h2>Vorabpauschale je Jahr</h2><span class="sub">Brutto vor Teilfreistellung · fließt am ersten Werktag des Folgejahres zu</span></div>
       ${rows.length ? '<div class="chart" id="c-vp"></div>' : '<p class="note">Keine Vorabpauschale angefallen (oder keine Fonds mit Kursen zu Jahresbeginn und -ende).</p>'}
@@ -202,19 +215,22 @@ function renderPlan() {
       <h2>Wie viel muss ich verkaufen?</h2>
       <form class="target" id="plan-form">
         <div class="f"><label for="plan-target">Ich brauche netto</label><div class="in"><input id="plan-target" type="number" min="1" step="0.01" inputmode="decimal" value="${esc(ui.target)}" required><span class="u">€</span></div></div>
+        <div class="f sm"><label for="p-fix">Gebühr je Order</label><div class="in"><input id="p-fix" type="number" min="0" step="0.01" inputmode="decimal" value="${+ui.settings.gebuehrFix || 0}"><span class="u">€</span></div></div>
+        <div class="f sm"><label for="p-pct">plus vom Erlös</label><div class="in"><input id="p-pct" type="number" min="0" step="0.01" inputmode="decimal" value="${+ui.settings.gebuehrProz || 0}"><span class="u">%</span></div></div>
         <button class="btn primary" type="submit">Berechnen</button>
         ${p ? '<button class="btn" type="button" id="csv-plan">CSV exportieren</button>' : ''}
       </form>
-      <p class="note">Verkauft wird je Depot nach FIFO; zwischen Wertpapieren wählt der Plan immer den Lot mit der geringsten Steuer je Euro netto. Freibetrag (${fmtEur(ui.alloc.remaining)} frei) wird zuerst verbraucht. Verluste werden nicht verrechnet (konservativ), Ordergebühren nicht berücksichtigt.</p>
+      <p class="note">Verkauft wird je Depot nach FIFO; zwischen Wertpapieren wählt der Plan immer den Lot mit der geringsten Steuer je Euro netto. Freibetrag (${fmtEur(ui.alloc.remaining)} frei) wird zuerst verbraucht. Verluste werden nicht verrechnet (konservativ). Die feste Gebühr fällt einmal je Depot und Wertpapier an; Gebühren mindern den steuerpflichtigen Gewinn.</p>
       ${p ? `<div class="facts">
         <div class="fact"><div class="l">Brutto-Erlös</div><div class="v">${fmtEur(p.gross)}</div></div>
+        <div class="fact"><div class="l">Gebühren</div><div class="v">${fmtEur(p.fees)}</div></div>
         <div class="fact"><div class="l">Steuer</div><div class="v">${fmtEur(p.tax)}</div></div>
         <div class="fact"><div class="l">Netto</div><div class="v">${fmtEur(p.net)}</div></div>
         <div class="fact"><div class="l">Freibetrag genutzt</div><div class="v">${fmtEur(p.allowanceUsed)}</div></div>
       </div>${p.reached ? '' : `<div class="msg warn">Das Ziel ist mit dem Bestand nicht erreichbar. Gezeigt wird der Verkauf aller Lots mit Kurs.</div>`}` : ''}
     </div>
     ${p && p.rows.length ? `<div class="card"><h2>Von Brutto zu Netto</h2><div class="chart" id="c-plan"></div></div>
-    <div class="card"><h2>Verkaufsplan</h2>${lotTable(p.rows, [['Erlös', r => r.gross], ['Gewinn', r => r.gain], ['Freibetrag', r => r.allowance], ['Steuer', r => r.tax], ['Netto', r => r.net]])}</div>` : ''}`;
+    <div class="card"><h2>Verkaufsplan</h2>${lotTable(p.rows, [['Erlös', r => r.gross], ['Gebühr', r => r.fee], ['Gewinn', r => r.gain], ['Freibetrag', r => r.allowance], ['Steuer', r => r.tax], ['Netto', r => r.net]])}</div>` : ''}`;
 }
 
 // ---------- Charts ----------
@@ -279,6 +295,11 @@ document.addEventListener('change', e => {
   else if (el.id === 's-land') ui.settings.bundesland = el.value;
   else if (el.id === 's-kist') ui.settings.kirchensteuer = el.checked;
   else if (el.id === 's-used') { const v = el.value.replace(',', '.').trim(); ui.settings.genutzt = v === '' || !isFinite(+v) ? null : Math.max(0, +v); }
+  else if (el.id === 'p-fix' || el.id === 'p-pct') {
+    const v = Math.max(0, +el.value.replace(',', '.') || 0);
+    ui.settings[el.id === 'p-fix' ? 'gebuehrFix' : 'gebuehrProz'] = v;
+    const t = $('#plan-target'); if (t) ui.target = t.value; // eingetipptes Ziel nicht verlieren
+  }
   else if (el.dataset.ft) ui.settings.fundTypes = { ...ui.settings.fundTypes, [el.dataset.ft]: el.value };
   else if (el.dataset.depot) {
     ui.depots = $$('[data-depot]').filter(x => x.checked).map(x => x.dataset.depot);

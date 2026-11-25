@@ -22,8 +22,8 @@ export default ({ g, check }) => {
   check('csv fb: header', fl[0] === '﻿Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn steuerpflichtig', fl[0]);
   check('csv fb: shares 8 dp, date', fl[1] === 'Depot A;"ETF; ""World""";IE00X;1,12345679;15.03.2020;95,50;100,00;112,35;3,54', fl[1]);
 
-  const pl = g('csvPlan')({ rows: [{ lot, shares: 2, price: 100, gross: 200, gain: 9, taxable: 6.3, allowance: 0, tax: 1.66, net: 198.34, exempt: false }] }, data);
+  const pl = g('csvPlan')({ rows: [{ lot, shares: 2, price: 100, gross: 200, fee: 5.5, gain: 9, taxable: 6.3, allowance: 0, tax: 1.66, net: 198.34, exempt: false }] }, data);
   const pls = pl.split('\r\n');
-  check('csv plan: header', pls[0] === '﻿Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn;Gewinn steuerpflichtig;Freibetrag;Steuer;Netto-Erlös', pls[0]);
-  check('csv plan: row', pls[1] === 'Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;9,00;6,30;0,00;1,66;198,34', pls[1]);
+  check('csv plan: header', pls[0] === '﻿Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gebühr;Gewinn;Gewinn steuerpflichtig;Freibetrag;Steuer;Netto-Erlös', pls[0]);
+  check('csv plan: row', pls[1] === 'Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;5,50;9,00;6,30;0,00;1,66;198,34', pls[1]);
 };

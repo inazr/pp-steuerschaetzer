@@ -38,7 +38,7 @@ function replay(data, settings, today) {
   const depName = u => (data.portfolios.find(p => p.uuid === u) || {}).name || u;
   const queues = new Map();
   const q = (d, s) => { const k = d + '|' + s; let a = queues.get(k); if (!a) queues.set(k, a = []); return a; };
-  const errors = [], warnings = [], vpRows = [], realized = {};
+  const errors = [], warnings = [], vpRows = [], realized = {}, distributions = {};
   let lotId = 0;
 
   const events = [...data.txs, ...data.dividends.map(d => ({ ...d, type: 'DIV' }))]
@@ -79,7 +79,14 @@ function replay(data, settings, today) {
         // Ausschüttung am Konto: auf alle Depots dieses Kontos nach Bestand am Zahltag verteilen
         const queues = (ev.depots || [ev.depot]).map(d => q(d, ev.security));
         const held = queues.reduce((s, qu) => s + qu.reduce((a, l) => a + l.shares, 0), 0);
-        if (held > EPS) for (const qu of queues) for (const lot of qu) lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
+        if (held > EPS) for (const qu of queues) for (const lot of qu) {
+          lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
+          // steuerpflichtiger Teil verbraucht den Freibetrag (nur ausgewählte Depots)
+          if (!settings.depots || settings.depots.includes(lot.depot)) {
+            const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
+            distributions[y] = (distributions[y] || 0) + ev.gross / held * lot.shares * (1 - ft.tfs);
+          }
+        }
         return;
       }
       case 'BUY': case 'DELIVERY_INBOUND': return buy(ev);
@@ -113,49 +120,61 @@ function replay(data, settings, today) {
     }
   };
 
-  const yearEnd = Y => {
-    const open = [...queues.entries()].filter(([, l]) => l.length);
-    if (!hasParam('basiszins', Y)) {
-      if (Y >= 2018 && open.length) warnings.push(`Kein Basiszins für ${Y} hinterlegt – Vorabpauschale ${Y} nicht berechnet`);
-      return;
-    }
+  // Vorabpauschale eines Jahres für alle offenen Lots. endPrice(list) liefert [Kurs, Datum] zum Jahresende
+  // (oder den letzten Kurs für die Prognose). commit = Lots fortschreiben; sonst nur rechnen (Prognose).
+  const vpYear = (Y, endPrice, commit, label) => {
+    const out = [];
     const bz = param('basiszins', Y);
-    if (bz <= 0) return;
+    if (bz <= 0) return out;
     const rate = taxRate(settings, Y);
-    for (const [key, lots] of open) {
+    for (const [key, lots] of [...queues.entries()].filter(([, l]) => l.length)) {
       const [depot, security] = key.split('|');
       const sec = secById.get(security), ft = FUND_TYPES[fundTypeOf(settings, sec)];
       if (!ft.vp) continue;
       const list = data.prices.get(security) || [];
-      const ps = priceOnOrBefore(list, `${Y}-01-01`), pe = priceOnOrBefore(list, `${Y}-12-31`);
-      if (ps === null || pe === null) {
-        warnings.push(`Kein Kurs zum ${ps === null ? '01.01.' : '31.12.'}${Y} für ${sec.name} – Vorabpauschale ${Y} übersprungen`);
+      const ps = priceOnOrBefore(list, `${Y}-01-01`), end = endPrice(list), pe = end && end[0];
+      if (ps === null || !pe) {
+        warnings.push(`Kein Kurs zum ${ps === null ? '01.01.' : '31.12.'}${Y} für ${sec.name} – ${label} übersprungen`);
         continue;
       }
       const row = { year: Y, depot, security, wertAnfang: 0, wertEnde: 0, basiszins: bz, basisertrag: 0, wertsteigerung: 0, ausschuettungen: 0, vp: 0, tfs: ft.tfs };
       for (const lot of lots) {
         const aus = (lot.divPS[Y] || 0) * lot.shares;
         const r = vpForLot({ wertAnfang: lot.shares * ps, wertEnde: lot.shares * pe, basiszins: bz, ausschuettungen: aus, kaufdatum: lot.buyDate, jahr: Y });
-        lot.vpCum += r.vp;
+        if (commit) lot.vpCum += r.vp;
         row.wertAnfang += lot.shares * ps; row.wertEnde += lot.shares * pe; row.basisertrag += r.basisertrag;
         row.wertsteigerung += r.wertsteigerung; row.ausschuettungen += aus; row.vp += r.vp;
       }
       for (const k of ['wertAnfang', 'wertEnde', 'basisertrag', 'wertsteigerung', 'ausschuettungen', 'vp']) row[k] = round2(row[k]);
       row.taxable = round2(row.vp * (1 - ft.tfs));
       row.tax = round2(row.taxable * rate);
-      vpRows.push(row);
+      if (!commit) row.priceDate = end[1];
+      out.push(row);
     }
+    return out;
+  };
+  const yearEnd = Y => {
+    if (!hasParam('basiszins', Y)) {
+      if (Y >= 2018 && [...queues.values()].some(l => l.length)) warnings.push(`Kein Basiszins für ${Y} hinterlegt – Vorabpauschale ${Y} nicht berechnet`);
+      return;
+    }
+    vpRows.push(...vpYear(Y, list => { const p = priceOnOrBefore(list, `${Y}-12-31`); return p === null ? null : [p, `${Y}-12-31`]; }, true, `Vorabpauschale ${Y}`));
   };
 
   let doneYear = (events.length ? +events[0].date.slice(0, 4) : currentYear) - 1;
   const flush = upto => { while (doneYear < upto) yearEnd(++doneYear); };
   for (const ev of events) { flush(+ev.date.slice(0, 4) - 1); handle(ev); }
   flush(currentYear - 1);
+  // Prognose für das laufende Jahr (fließt im Januar des Folgejahres zu): letzter Kurs statt Kurs zum 31.12.
+  const vpForecast = hasParam('basiszins', currentYear)
+    ? vpYear(currentYear, list => list.length ? [list[list.length - 1][1], list[list.length - 1][0]] : null, false, `Prognose Vorabpauschale ${currentYear}`)
+    : [];
 
   const inView = d => !settings.depots || settings.depots.includes(d);
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);
   for (const y in realized) realized[y] = round2(realized[y]);
+  for (const y in distributions) distributions[y] = round2(distributions[y]);
   // Freibetrag gilt je Person: Summen nur über die ausgewählten Depots (eine Datei kann Depots mehrerer Personen enthalten)
   const vpTaxableByYear = {};
   for (const r of vpRows) if (inView(r.depot)) vpTaxableByYear[r.year] = round2((vpTaxableByYear[r.year] || 0) + r.taxable);
@@ -163,6 +182,7 @@ function replay(data, settings, today) {
     vpTaxableByYear,
     lots: [...queues.values()].flat().filter(l => inView(l.depot)),
     vpRows: vpRows.filter(r => inView(r.depot)),
+    vpForecast: vpForecast.filter(r => inView(r.depot)), distributions,
     errors, warnings: [...new Set(warnings)], latest, realized,
   };
 }

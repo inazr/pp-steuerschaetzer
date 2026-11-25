@@ -11,10 +11,13 @@ export default ({ g, check, near }) => {
   const st = mem();
   const def = load(st);
   check('state: defaults', def.veranlagung === 'single' && def.kirchensteuer === false && def.bundesland === 'default' && def.genutzt === null && JSON.stringify(def.fundTypes) === '{}', def);
+  check('state: fee defaults 0', def.gebuehrFix === 0 && def.gebuehrProz === 0, def);
   save(st, { ...def, kirchensteuer: true, fundTypes: { I1: 'mischfonds' }, txs: [1], prices: 2, lots: 3, depots: ['A'] });
   const raw = JSON.parse(st.getItem('pp-steuerschaetzer-v1'));
   check('state: never persists portfolio data', !('txs' in raw) && !('prices' in raw) && !('lots' in raw) && !('depots' in raw), Object.keys(raw));
   check('state: roundtrip', load(st).kirchensteuer === true && load(st).fundTypes.I1 === 'mischfonds');
+  save(st, { ...def, gebuehrFix: 4.9, gebuehrProz: 0.25 });
+  check('state: fees persist', load(st).gebuehrFix === 4.9 && load(st).gebuehrProz === 0.25, load(st));
   check('state: broken storage -> defaults', load({ getItem: () => '{kaputt' }).veranlagung === 'single');
   check('state: throwing storage tolerated', (() => { try { save({ setItem: () => { throw new Error('quota'); } }, def); return true; } catch { return false; } })());
 
@@ -45,6 +48,10 @@ export default ({ g, check, near }) => {
   const vis = ow.series.find(s => s.name !== '_base');
   check('chart waterfall: categories', JSON.stringify(ow.xAxis.data) === '["Welt","Schwellenländer","Steuer","Netto"]', ow.xAxis.data);
   check('chart waterfall: last bar = net', near(vis.data.at(-1).value ?? vis.data.at(-1), 1379.5), vis.data.at(-1));
+  const owf = g('optWaterfall')({ ...plan, fees: 10, net: 1369.5 }, data, TOK);
+  const visf = owf.series.find(s => s.name !== '_base'), basef = owf.series.find(s => s.name === '_base');
+  check('chart waterfall: fees bar before tax', JSON.stringify(owf.xAxis.data) === '["Welt","Schwellenländer","Gebühren","Steuer","Netto"]'
+    && near(visf.data[2].value ?? visf.data[2], 10) && near(basef.data[2], 1490) && near(basef.data[3], 1369.5) && near(visf.data.at(-1).value ?? visf.data.at(-1), 1369.5), [owf.xAxis.data, basef.data, visf.data]);
   const base = ow.series.find(s => s.name === '_base');
   check('chart waterfall: tax floats at net', near(base.data[2], 1379.5) && near(vis.data[2].value ?? vis.data[2], 120.5), [base.data[2], vis.data[2]]);
 
