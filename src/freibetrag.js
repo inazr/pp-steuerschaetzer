@@ -54,3 +54,10 @@ function optimizeAllowance(result, data, settings, year) {
   }
   return { total, used, remaining, rows, harvested: round2(rows.reduce((s, r) => s + r.gainTaxable, 0)) };
 }
+
+// Freibetrag des Folgejahres nach der prognostizierten Vorabpauschale (sie fließt im Januar des Folgejahres zu)
+function allowanceNextYear(result, settings, year) {
+  const next = year + 1, total = param('sparerpauschbetrag', next)[settings.veranlagung];
+  const used = round2(result.vpForecast.reduce((s, r) => s + r.taxable, 0));
+  return { year: next, total, used, remaining: round2(Math.max(0, total - used)), taxAfter: round2(Math.max(0, used - total) * taxRate(settings, next)) };
+}

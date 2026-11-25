@@ -38,4 +38,13 @@ export default ({ g, check, near }) => {
   const noStart = replay(mk(base, [], [['2025-06-02', 110], ['2025-11-20', 120]]), SET, '2025-11-24');
   check('forecast: no price on 01.01. -> skipped with warning', noStart.vpForecast.length === 0 && noStart.warnings.some(w => w.includes('Prognose')), noStart.warnings);
   check('forecast: none for single stocks', replay(mk(base, [], P), { ...SET, fundTypes: { IS: 'einzelaktie' } }, '2025-11-24').vpForecast.length === 0);
+
+  // Restfreibetrag des Folgejahres nach der prognostizierten Vorabpauschale
+  const next = g('allowanceNextYear');
+  const a1 = next(f, SET, 2025), fcT = f.vpForecast.reduce((s, r) => s + r.taxable, 0);
+  check('next: VP uses next year allowance', a1.year === 2026 && a1.total === 1000 && near(a1.used, fcT) && near(a1.remaining, 1000 - fcT) && a1.taxAfter === 0, a1);
+  check('next: joint 2000', next(f, { ...SET, veranlagung: 'joint' }, 2025).total === 2000);
+  const big = next({ vpForecast: [{ taxable: 900 }, { taxable: 300 }] }, SET, 2025);
+  check('next: above allowance -> remaining 0, tax on excess', big.remaining === 0 && near(big.used, 1200) && near(big.taxAfter, 200 * 0.26375, 0.006), big);
+  check('next: no forecast -> full allowance', next({ vpForecast: [] }, SET, 2025).remaining === 1000);
 };

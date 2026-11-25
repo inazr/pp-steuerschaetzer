@@ -140,6 +140,7 @@ function renderVp() {
   }).join('');
   const bz = Object.entries(LAW.basiszins.values).map(([y, v]) => `<tr><td>${y}</td><td>${fmtPct(v)}</td><td class="txt">${esc(LAW.basiszins.source[y])}</td></tr>`).join('');
   const fc = ui.result.vpForecast, fsum = k => fc.reduce((s, r) => s + r[k], 0);
+  const nx = allowanceNextYear(ui.result, S(), YEAR);
   const forecast = fc.length ? `
     <div class="card">
       <div class="card-h"><h2>Prognose ${YEAR}, fällig Januar ${YEAR + 1}</h2><span class="sub">Letzter Kurs statt Kurs zum 31.12. · ändert sich bis Jahresende mit dem Kurs</span></div>
@@ -148,7 +149,13 @@ function renderVp() {
         <tbody>${fc.map(r => `<tr>${multiDepot() ? `<td class="txt">${esc(depName(r.depot))}</td>` : ''}<td class="txt">${esc(secName(r.security))}</td>${eurTd(r.wertAnfang)}${eurTd(r.wertEnde)}<td class="sub">${esc(fmtDate(r.priceDate))}</td>${eurTd(r.basisertrag)}${eurTd(r.ausschuettungen)}${eurTd(r.vp)}${eurTd(r.taxable)}${eurTd(r.tax)}</tr>`).join('')}
         <tr class="sum"><td class="txt">Summe · Basiszins ${fmtPct(fc[0].basiszins)}</td>${multiDepot() ? '<td></td>' : ''}${eurTd(fsum('wertAnfang'))}${eurTd(fsum('wertEnde'))}<td></td>${eurTd(fsum('basisertrag'))}${eurTd(fsum('ausschuettungen'))}${eurTd(fsum('vp'))}${eurTd(fsum('taxable'))}${eurTd(fsum('tax'))}</tr></tbody>
       </table></div>
-      <p class="note">Die Steuer wird im Januar ${YEAR + 1} abgebucht und verbraucht den Freibetrag ${YEAR + 1}, nicht den von ${YEAR}. Fällt der Kurs bis 31.12., sinkt die Vorabpauschale.</p>
+      <div class="facts">
+        <div class="fact"><div class="l">Freibetrag ${nx.year}</div><div class="v">${fmtEur(nx.total)}</div></div>
+        <div class="fact"><div class="l">davon durch Vorabpauschale</div><div class="v">${fmtEur(nx.used)}</div></div>
+        <div class="fact"><div class="l">Restfreibetrag ${nx.year}</div><div class="v">${fmtEur(nx.remaining)}</div></div>
+        <div class="fact"><div class="l">Steuer nach Freibetrag</div><div class="v">${fmtEur(nx.taxAfter)}</div></div>
+      </div>
+      <p class="note">Die Vorabpauschale fließt im Januar ${nx.year} zu und verbraucht den Freibetrag ${nx.year}, nicht den von ${YEAR}. Mit passendem Freistellungsauftrag wird nur die Steuer nach Freibetrag abgebucht. Fällt der Kurs bis 31.12., sinkt die Vorabpauschale. Gilt für die ausgewählten Depots; andere Banken und Ausschüttungen ${nx.year} sind nicht eingerechnet.</p>
     </div>` : '';
   $('#p1').innerHTML = forecast + `
     <div class="card">
