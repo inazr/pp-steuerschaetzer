@@ -130,4 +130,15 @@ export default ({ g, check, near }) => {
   check('income: VP of Y counted on Y+1-01-02', inc(res, 'vp').every(e => e.date === `${e.year}-01-02` && res.vpRows.some(r => r.year === e.year - 1 && r.depot === e.owner)), inc(res, 'vp'));
   const stock = replay(mk({ txs: [tx('2005-01-10', 'BUY', 'A', 10, 500), tx('2024-02-01', 'SELL', 'A', 10, 1200)], prices: P, secs: [{ uuid: 'S', name: 'Siemens AG', isin: 'DE0007236101', currency: 'EUR' }] }), SET, '2024-05-01');
   check('income: Bestandsschutz sale has no event', stock.income.filter(e => e.kind === 'aktie').length === 0);
+  // Fix: genau ein div-Event je Ausschüttung und Depot, auch bei mehreren Lots
+  res = replay(mk({ txs: [tx('2025-01-10', 'BUY', 'A', 4, 400), tx('2025-01-11', 'BUY', 'A', 6, 600), tx('2025-01-12', 'BUY', 'B', 5, 500), tx('2025-01-13', 'BUY', 'B', 5, 500)],
+    dividends: [{ uuid: 'd2', date: '2025-05-01', depots: ['A', 'B'], security: 'S', gross: 100 }], prices: P }), SET, '2025-11-24');
+  check('income: one div event per depot with several lots', inc(res, 'div').length === 2 && ['A', 'B'].every(d => inc(res, 'div').filter(e => e.owner === d).length === 1), inc(res, 'div'));
+  check('income: div events sum equals distributions', near(inc(res, 'div').reduce((s, e) => s + e.amount, 0), res.distributions[2025], 0.011), [inc(res, 'div'), res.distributions]);
+  const vpRes = replay(mk({ txs: [tx('2023-01-10', 'BUY', 'A', 100, 10000)], prices: P }), SET, '2025-11-24');
+  check('income: VP events exist', inc(vpRes, 'vp').length > 0 && inc(vpRes, 'vp').every(e => e.date === `${e.year}-01-02`), [inc(vpRes, 'vp'), vpRes.vpRows]);
+  res = orphan('2025-05-01', '2025-05-11');
+  check('income: orphan distribution emits div event', inc(res, 'div').length === 1 && inc(res, 'div')[0].owner === 'A' && near(inc(res, 'div')[0].amount, 35), inc(res, 'div'));
+  const taxStock = replay(mk({ txs: [tx('2020-01-10', 'BUY', 'A', 10, 500), tx('2024-02-01', 'SELL', 'A', 10, 1200)], prices: P, secs: [{ uuid: 'S', name: 'Siemens AG', isin: 'DE0007236101', currency: 'EUR' }] }), SET, '2024-05-01');
+  check('income: taxable stock sale emits aktie event', inc(taxStock, 'aktie').length === 1 && near(inc(taxStock, 'aktie')[0].amount, 700), taxStock.income);
 };

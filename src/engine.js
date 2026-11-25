@@ -93,11 +93,14 @@ function replay(data, settings, today) {
         const held = queues.reduce((s, qu) => s + qu.reduce((a, l) => a + l.shares, 0), 0);
         const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
         const perDepot = new Map();
-        if (held > EPS) for (const qu of queues) for (const lot of qu) {
-          lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
-          perDepot.set(lot.depot, (perDepot.get(lot.depot) || 0) + ev.gross / held * lot.shares * (1 - ft.tfs));
-          // steuerpflichtiger Teil verbraucht den Freibetrag (nur ausgewählte Depots)
-          if (inView(lot.depot)) distributions[y] = (distributions[y] || 0) + ev.gross / held * lot.shares * (1 - ft.tfs);
+        if (held > EPS) {
+          for (const qu of queues) for (const lot of qu) {
+            lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
+            const a = ev.gross / held * lot.shares * (1 - ft.tfs);
+            perDepot.set(lot.depot, (perDepot.get(lot.depot) || 0) + a);
+            // steuerpflichtiger Teil verbraucht den Freibetrag (nur ausgewählte Depots)
+            if (inView(lot.depot)) distributions[y] = (distributions[y] || 0) + a;
+          }
           for (const [d, a] of perDepot) addIncome(ev.date, d, 'div', a);
         }
         else {
