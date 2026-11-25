@@ -4,7 +4,8 @@
 // Schritte 1–3: Aktiengewinne gegen Aktientopf, negative 'sonst' in den allgemeinen Topf,
 // allgemeiner Topf mindert dann alle positiven Einkünfte (inkl. restlicher Aktiengewinne).
 // byKind: Summen je Art; sonstGewinn / sonstVerlust als POSITIVE Beträge (Verlust als Betrag).
-function netYear(pots, events) {
+// rnd: Rundung der Ergebnisse (Standard Cent; der Verkaufsplan rechnet für seine Suche ungerundet mit x => x).
+function netYear(pots, events, rnd = round2) {
   const by = { aktie: 0, sonstGewinn: 0, sonstVerlust: 0, div: 0, vp: 0, zins: 0 };
   for (const e of events) {
     if (e.kind === 'sonst') { if (e.amount < 0) by.sonstVerlust += -e.amount; else by.sonstGewinn += e.amount; }
@@ -20,24 +21,24 @@ function netYear(pots, events) {
   const use = Math.min(allg, Math.max(0, pos));
   pos -= use; allg -= use;
   return {
-    positive: round2(pos),
-    potsAfter: { aktien: round2(aktien), allg: round2(allg) },
-    byKind: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, round2(v)])),
+    positive: rnd(pos),
+    potsAfter: { aktien: rnd(aktien), allg: rnd(allg) },
+    byKind: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, rnd(v)])),
   };
 }
 
 // Freistellungsaufträge anwenden. Nicht pooled: je Bank eigener Auftrag; pooled: ein gemeinsamer
-// Topf `spb`, in Reihenfolge der Schlüssel verteilt.
-function taxOf(positiveByBank, fsa, rate) {
+// Topf `spb`, in Reihenfolge der Schlüssel verteilt. rnd wie bei netYear.
+function taxOf(positiveByBank, fsa, rate, rnd = round2) {
   const used = {}; let pool = fsa.spb, taxable = 0;
   for (const k of Object.keys(positiveByBank)) {
     const pos = Math.max(0, positiveByBank[k]);
     const u = fsa.pooled ? Math.min(pool, pos) : Math.min(fsa.byBank[k] ?? 0, pos);
     if (fsa.pooled) pool -= u;
-    used[k] = round2(u); taxable += pos - u;
+    used[k] = rnd(u); taxable += pos - u;
   }
-  taxable = round2(taxable);
-  return { usedByBank: used, taxable, tax: round2(taxable * rate) };
+  taxable = rnd(taxable);
+  return { usedByBank: used, taxable, tax: rnd(taxable * rate) };
 }
 
 // Bank-Zuordnung (Spec §3): [{ key, depots, accounts }]. Nur ausgewählte Depots; Konten folgen dem ersten

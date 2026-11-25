@@ -10,7 +10,7 @@ const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default'
 const P = [['2022-12-30', 100], ['2023-12-29', 101], ['2024-12-30', 110], ['2025-11-20', 120]];
 
 export default ({ g, check, near }) => {
-  const replay = g('replay'), prefill = g('prefillUsed');
+  const replay = g('replay'), ledger = g('ledger');
 
   // Ausschüttungen des laufenden Jahres verbrauchen den Freibetrag (nach Teilfreistellung, nur ausgewählte Depots)
   const div = mk([tx('2022-12-01', 'BUY', 'A', 100, 10000), tx('2022-12-01', 'BUY', 'B', 300, 30000)],
@@ -19,7 +19,8 @@ export default ({ g, check, near }) => {
   check('dist: taxable distributions per year (30 % TFS)', near(all.distributions[2025], 280), all.distributions);
   check('dist: only selected depots', near(onlyA.distributions[2025], 70), onlyA.distributions);
   const vpA = onlyA.vpRows.filter(r => r.year === 2024).reduce((s, r) => s + r.taxable, 0);
-  check('dist: prefill = VP prev year + distributions + sales', near(prefill(onlyA, SET, 2025), vpA + 70), [prefill(onlyA, SET, 2025), vpA]);
+  const usedA = ledger(onlyA, div, { ...SET, depots: ['A'] }, 2025).banks[0].used;
+  check('dist: ledger used = VP prev year + distributions + sales', near(usedA, vpA + 70), [usedA, vpA]);
   const aktie = replay(div, { ...SET, fundTypes: { IS: 'einzelaktie' } }, '2025-11-24');
   check('dist: single stock dividends fully taxable', near(aktie.distributions[2025], 400), aktie.distributions);
 

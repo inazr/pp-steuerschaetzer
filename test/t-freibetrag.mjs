@@ -4,7 +4,7 @@ const lot = (id, buyDate, shares, cost, vpCum = 0) => ({ id, depot: 'A', securit
 const res = (lots, price, extra = {}) => ({ lots, vpRows: [], income: [], vpForecast: [], errors: [], warnings: [], realized: {}, latest: new Map([['S', ['2025-11-20', price]]]), ...extra });
 
 export default ({ g, check, near }) => {
-  const opt = g('optimizeAllowance'), prefill = g('prefillUsed');
+  const opt = g('optimizeAllowance');
 
   // FIFO: der jüngere, profitablere Lot kommt erst nach dem älteren
   let r = opt(res([lot(1, '2020-01-01', 10, 100), lot(2, '2021-01-01', 100, 50)], 120), data(), SET, 2025);
@@ -33,11 +33,8 @@ export default ({ g, check, near }) => {
   r = opt({ ...res([lot(1, '2020-01-01', 10, 50)], 0), latest: new Map() }, data(), SET, 2025);
   check('fb: no price -> no rows', r.rows.length === 0);
 
-  // Vorbelegung: steuerpflichtige VP des Vorjahres + realisierte Gewinne des Jahres, gedeckelt
-  const rr = res([lot(1, '2020-01-01', 1, 100)], 100, { vpTaxableByYear: { 2024: 134.95, 2023: 999 }, realized: { 2025: 300 } });
-  check('fb: prefill = VP prev year + realized', near(prefill(rr, SET, 2025), 434.95), prefill(rr, SET, 2025));
-  check('fb: prefill capped at SPB', prefill({ ...rr, realized: { 2025: 5000 } }, SET, 2025) === 1000);
-  check('fb: prefill never negative', prefill({ ...rr, realized: { 2025: -5000 } }, SET, 2025) === 0);
+  // Override „genutzt“ je Bank
+  const rr = res([lot(1, '2020-01-01', 1, 100)], 100);
   r = opt(rr, data(), { ...SET, genutzt: { '2025|A': 434.95 } }, 2025);
   check('fb: genutzt override -> used', near(r.used, 434.95) && near(r.remaining, 565.05), r);
   check('fb: joint SPB 2000', opt(rr, data(), { ...SET, veranlagung: 'joint' }, 2025).total === 2000);

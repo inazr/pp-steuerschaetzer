@@ -1,5 +1,7 @@
 // „Ich brauche X € netto“: verkauft FIFO je Depot × Wertpapier, wählt dabei immer den Lot mit der geringsten
-// Steuer je Euro netto. Freibetrag wird in Verkaufsreihenfolge verbraucht, Verluste werden nicht verrechnet.
+// Steuer je Euro netto. Steuer wie die Bank im Jahressaldo (Spec §6): je Bank netYear über die Ereignisse des laufenden
+// Jahres plus die Planzeilen, dann taxOf über alle Banken; Steuer eines Schritts = Steuer(mit ihm) − Steuer(ohne ihn).
+// Verluste geben so Topf/FSA frei oder erstatten Steuer (Zeilensteuer darf negativ sein).
 // Zwei Durchläufe: mit Bewertung der Fixgebühr (weniger Orders) und ohne (wie bis 0.2). Behalten wird der Plan mit
 // den geringeren Kosten (Gebühren + Steuer); so wird die Gebührenbewertung nie teurer als die reine Steuer-Reihenfolge.
 function planNetSale(result, data, settings, year, target) {
@@ -8,35 +10,61 @@ function planNetSale(result, data, settings, year, target) {
   return b.fees + b.tax < a.fees + a.tax - 0.005 ? b : a;
 }
 
+const EXACT = x => x; // ungerundet rechnen (Suche auf 1e-8 Stück)
+// Ereignisse je Art zusammenfassen (Gewinne und Verluste aus 'sonst' getrennt) – gleiches netYear, weniger Arbeit
+const compactEvents = evs => {
+  const s = {};
+  for (const e of evs) { const k = e.kind === 'sonst' && e.amount < 0 ? 'sonst-' : e.kind; s[k] = (s[k] || 0) + e.amount; }
+  return Object.entries(s).map(([k, amount]) => ({ kind: k === 'sonst-' ? 'sonst' : k, amount }));
+};
+
 function runNetSale(result, data, settings, year, target, feeAware) {
-  const total = param('sparerpauschbetrag', year)[settings.veranlagung];
-  const used = typeof settings.genutzt === 'number' ? settings.genutzt : prefillUsed(result, settings, year);
-  let allowLeft = Math.max(0, total - used);
-  const rate = taxRate(settings, year);
+  const led = ledger(result, data, settings, year), rate = led.rate;
+  // FSA-Regeln wie im Ledger, aus der heutigen Aktivität der Banken. Eine Bank, die erst durch den Plan aktiv würde,
+  // ändert die Automatik (eine Bank / gemeinsam) hier bewusst nicht – der Plan rechnet mit dem angezeigten FSA.
+  const cfg = fsaConfig(led.banks, settings, year), fsa = { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank };
+  const bankOf = new Map(led.banks.flatMap(b => b.depots.map(d => [d, b])));
+  const baseEvs = new Map(led.banks.map(b => [b.key, compactEvents(b.eventsYear)]));
+  const basePos = new Map(led.banks.map(b => [b.key, netYear(b.potsStart, baseEvs.get(b.key), EXACT).positive]));
+  const planned = new Map(led.banks.map(b => [b.key, []]));           // Plan-Events je Bank
+  // positiveEff mit Plan-Events: ein „genutzt“-Override bleibt Sockel, der Plan verschiebt ihn um seine Wirkung
+  const posEff = (b, evs) => evs.length ? b.positiveEff + netYear(b.potsStart, baseEvs.get(b.key).concat(evs), EXACT).positive - basePos.get(b.key) : b.positiveEff;
+  let pos = Object.fromEntries(led.banks.map(b => [b.key, b.positiveEff]));
+  const init = taxOf(pos, fsa, rate, EXACT);
+  let cur = init;
+  const usedSum = t => Object.values(t.usedByBank).reduce((s, u) => s + u, 0);
+
   // Ordergebühren: fester Betrag je Order (= erster Verkauf je Depot × Wertpapier) plus Prozent vom Erlös
   const feeFix = Math.max(0, +settings.gebuehrFix || 0), feePct = Math.max(0, +settings.gebuehrProz || 0) / 100;
-  const heads = fifoQueues(result.lots).map(lots => ({ lots, i: 0, left: lots[0].shares, price: (result.latest.get(lots[0].security) || [])[1], ordered: false }))
-    .filter(h => h.price > 0);
-  const tfsOf = lot => FUND_TYPES[fundTypeOf(settings, data.securities.find(s => s.uuid === lot.security))].tfs;
+  const heads = fifoQueues(result.lots || []).map(lots => ({ lots, i: 0, left: lots[0].shares, price: (result.latest.get(lots[0].security) || [])[1], ordered: false }))
+    .filter(h => h.price > 0 && bankOf.has(h.lots[0].depot));
+  const secOf = lot => data.securities.find(s => s.uuid === lot.security);
   const info = h => {
     const lot = h.lots[h.i], a = h.price * (1 - feePct); // Erlös je Stück nach Prozentgebühr
-    const g = taxableGainPerShare(lot, a, settings, data);
-    const taxablePS = g === null ? 0 : Math.max(0, g);
-    return { lot, a, exempt: g === null, taxablePS, ratio: taxablePS * rate / (a - taxablePS * rate) };
+    const g = taxableGainPerShare(lot, a, settings, data); // stpfl. Gewinn je Stück, bei Verlust negativ
+    const taxablePS = g === null ? 0 : Math.max(0, g);     // Auswahlquote: Verlust-Lots haben Quote 0
+    return { lot, a, exempt: g === null, g, ratio: taxablePS * rate / (a - taxablePS * rate) };
   };
   // Ein Verkaufsschritt dieses Kopfes für den aktuellen Restbedarf
   const step = (h, x) => {
-    const { lot, a, exempt, taxablePS } = x, price = h.price;
+    const { lot, a, exempt, g } = x, price = h.price, b = bankOf.get(lot.depot);
     const F = h.ordered ? 0 : feeFix;                          // feste Gebühr nur beim ersten Verkauf dieser Order
-    const fT = taxablePS > 0 ? F * (1 - tfsOf(lot)) : 0;       // die feste Gebühr mindert auch den steuerpflichtigen Gewinn
-    // Netto(n) = n·a − F − Steuer; steuerfrei solange n·t − fT ≤ freier Betrag
-    const nFree = taxablePS > 0 ? (allowLeft + fT) / taxablePS : Infinity;
-    const want = (needed + F) <= nFree * a ? (needed + F) / a : (needed + F - rate * (fT + allowLeft)) / (a - taxablePS * rate);
-    const n = Math.min(h.left, ceil8(want));
-    const fee = round2(F + n * price * feePct);
-    const taxableAmt = exempt ? 0 : Math.max(0, n * taxablePS - fT), free = Math.min(allowLeft, taxableAmt);
-    const tax = round2((taxableAmt - free) * rate);
-    return { lot, exempt, price, F, n, fee, taxableAmt, free, tax, net: round2(n * price - fee - tax) };
+    const ft = fundTypeOf(settings, secOf(lot)), tfs = FUND_TYPES[ft].tfs;
+    // Plan-Event: (n·a − n·(cost + vpCum/shares) − F) × (1 − tfs); Bestandsschutz-Lots: kein Event
+    const ev = n => ({ year, date: '', owner: lot.depot, kind: ft === 'einzelaktie' ? 'aktie' : 'sonst', amount: n * g - F * (1 - tfs) });
+    const after = n => {
+      if (exempt) return { pos, t: cur, ev: null };
+      const e = ev(n), p = { ...pos, [b.key]: posEff(b, planned.get(b.key).concat(e)) };
+      return { pos: p, t: taxOf(p, fsa, rate, EXACT), ev: e };
+    };
+    const netOf = n => n * a - F - (after(n).t.tax - cur.tax);
+    // Kleinste Stückzahl auf dem 1e-8-Raster mit Netto ≥ Restbedarf (Netto steigt monoton in n); sonst alles
+    const K = Math.round(h.left * 1e8), ok = k => netOf(k / 1e8) >= needed - 1e-9;
+    let hi = K;
+    if (ok(K)) { let lo = 0; while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (ok(m)) hi = m; else lo = m; } }
+    const n = hi === K ? h.left : hi / 1e8, st = after(n);
+    const fee = round2(F + n * price * feePct), tax = round2(st.t.tax - cur.tax);
+    return { lot, bank: b.key, exempt, price, F, n, fee, st, tax, net: round2(n * price - fee - tax) };
   };
   const rows = [];
   let needed = target;
@@ -49,16 +77,29 @@ function runNetSale(result, data, settings, year, target, feeAware) {
       if (!best || score < bScore || (score === bScore && st.lot.buyDate < bs.lot.buyDate)) { best = h; bs = st; bScore = score; }
     }
     if (!best) break;
-    const { lot, exempt, price, n, fee, taxableAmt, free, tax, net } = bs;
+    const { lot, bank, exempt, price, n, fee, st, tax, net } = bs;
     rows.push({
-      lot, shares: n, price, gross: round2(n * price), fee, gain: round2(n * (price - lot.cost - lot.vpCum / lot.shares) - fee),
-      taxable: round2(taxableAmt), allowance: round2(free), tax, net, exempt,
+      bank, lot, shares: n, price, gross: round2(n * price), fee, gain: round2(n * (price - lot.cost - lot.vpCum / lot.shares) - fee),
+      // Änderung der Bemessungsgrundlage bzw. des genutzten FSA durch diese Zeile (nach Töpfen; kann negativ sein)
+      taxable: round2(st.t.taxable - cur.taxable), allowance: round2(usedSum(st.t) - usedSum(cur)), tax, net, exempt,
     });
+    if (st.ev) planned.get(bank).push(st.ev);
+    pos = st.pos; cur = st.t;
     best.ordered = true;
-    allowLeft -= free; needed -= net;
+    needed -= net;
     best.left = round8(best.left - n);
     if (best.left <= EPS) { best.i++; best.left = best.i < best.lots.length ? best.lots[best.i].shares : 0; }
   }
-  const sum = k => round2(rows.reduce((s, r) => s + r[k], 0));
-  return { gross: sum('gross'), fees: sum('fee'), tax: sum('tax'), net: sum('net'), allowanceUsed: sum('allowance'), reached: needed <= 0.005, rows };
+  const sum = (rs, k) => round2(rs.reduce((s, r) => s + r[k], 0));
+  // Je Bank: fsaUsed = genutzter FSA mit Plan − ohne Plan (im gemeinsamen Modus kann sich Nutzung zwischen Banken
+  // verschieben); potsUsed = Topfstand Jahresende ohne Plan − mit Plan (negativ: der Plan füllt den Topf)
+  const banks = led.banks.map(b => {
+    const rs = rows.filter(r => r.bank === b.key), evs = planned.get(b.key);
+    const potsWith = netYear(b.potsStart, b.eventsYear.concat(evs)).potsAfter;
+    return { key: b.key, label: b.label, fees: sum(rs, 'fee'), tax: sum(rs, 'tax'),
+      fsaUsed: round2((cur.usedByBank[b.key] || 0) - (init.usedByBank[b.key] || 0)),
+      potsUsed: { aktien: round2(b.pots.aktien - potsWith.aktien), allg: round2(b.pots.allg - potsWith.allg) }, rows: rs.length };
+  }).filter(b => b.rows || b.fsaUsed).map(({ rows: _, ...b }) => b);
+  return { gross: sum(rows, 'gross'), fees: sum(rows, 'fee'), tax: sum(rows, 'tax'), net: sum(rows, 'net'),
+    allowanceUsed: round2(banks.reduce((s, b) => s + b.fsaUsed, 0)), reached: needed <= 0.005, rows, banks };
 }

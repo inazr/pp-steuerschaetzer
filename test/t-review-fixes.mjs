@@ -10,7 +10,7 @@ const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default'
 const P = [['2022-12-30', 100], ['2023-12-29', 101], ['2024-12-30', 110], ['2025-11-20', 120]];
 
 export default ({ g, check, near }) => {
-  const replay = g('replay'), prefill = g('prefillUsed');
+  const replay = g('replay'), ledger = g('ledger');
 
   // I1: Ausschüttung an gemeinsamem Konto -> nach Bestand der Depots am Zahltag
   let res = replay(mk([tx('2021-03-01', 'BUY', 'A', 100, 9000), tx('2022-02-01', 'TRANSFER_OUT', 'A', 100, 9000, { transferKey: 'k' }), tx('2022-02-01', 'TRANSFER_IN', 'B', 100, 9000, { transferKey: 'k' })],
@@ -26,9 +26,11 @@ export default ({ g, check, near }) => {
   const data = mk([tx('2022-12-01', 'BUY', 'A', 100, 10000), tx('2022-12-01', 'BUY', 'B', 100, 10000), tx('2025-03-03', 'SELL', 'B', 10, 1150)], [], P);
   const all = replay(data, SET, '2025-11-24'), onlyA = replay(data, { ...SET, depots: ['A'] }, '2025-11-24');
   const vpA = onlyA.vpRows.filter(r => r.year === 2024).reduce((s, r) => s + r.taxable, 0);
-  check('review I2: prefill follows depot filter', vpA > 0 && near(prefill(onlyA, SET, 2025), vpA) && prefill(all, SET, 2025) > prefill(onlyA, SET, 2025), [prefill(onlyA, SET, 2025), vpA, prefill(all, SET, 2025)]);
+  // Vorbelegung jetzt je Bank im Ledger: Summe der positiven Erträge der ausgewählten Depots
+  const pos = (r, depots) => ledger(r, data, { ...SET, depots }, 2025).banks.reduce((s, b) => s + b.positiveBase, 0);
+  check('review I2: ledger follows depot filter', vpA > 0 && near(pos(onlyA, ['A']), vpA) && pos(all, null) > pos(onlyA, ['A']), [pos(onlyA, ['A']), vpA, pos(all, null)]);
   const onlyB = replay(data, { ...SET, depots: ['B'] }, '2025-11-24');
-  check('review I2: sales of filtered-out depot not in prefill', near(prefill(all, SET, 2025), prefill(onlyA, SET, 2025) + prefill(onlyB, SET, 2025)), [prefill(all, SET, 2025), prefill(onlyA, SET, 2025), prefill(onlyB, SET, 2025)]);
+  check('review I2: sales of filtered-out depot not in ledger', near(pos(all, null), pos(onlyA, ['A']) + pos(onlyB, ['B'])), [pos(all, null), pos(onlyA, ['A']), pos(onlyB, ['B'])]);
   check('review I2: displayed rows still filtered', onlyA.vpRows.every(r => r.depot === 'A'));
 
   // Realisierter Gewinn vor einbehaltener Steuer (PP-Betrag ist netto)

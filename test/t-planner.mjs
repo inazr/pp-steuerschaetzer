@@ -1,7 +1,7 @@
-const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: 1000, fundTypes: {}, depots: null };
-const data = { securities: [{ uuid: 'X', name: 'X', isin: 'IEX', currency: 'EUR' }, { uuid: 'Y', name: 'Y', isin: 'IEY', currency: 'EUR' }], portfolios: [{ uuid: 'A', name: 'A' }], txs: [], dividends: [], prices: new Map(), warnings: [] };
-const lot = (id, security, buyDate, shares, cost, vpCum = 0) => ({ id, depot: 'A', security, buyDate, shares, cost, vpCum, divPS: {} });
-const res = (lots, prices) => ({ lots, vpRows: [], errors: [], warnings: [], realized: {}, latest: new Map(Object.entries(prices).map(([k, v]) => [k, ['2025-11-20', v]])) });
+const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: { '2025|A': 1000 }, fundTypes: {}, depots: ['A'], bankOf: {}, fsa: {}, vortrag: {}, zinsen: {} };
+const data = { securities: [{ uuid: 'X', name: 'X', isin: 'IEX', currency: 'EUR' }, { uuid: 'Y', name: 'Y', isin: 'IEY', currency: 'EUR' }], portfolios: [{ uuid: 'A', name: 'A' }], accounts: [], interest: [], txs: [], dividends: [], prices: new Map(), warnings: [] };
+const lot = (id, security, buyDate, shares, cost, vpCum = 0, depot = 'A') => ({ id, depot, security, buyDate, shares, cost, vpCum, divPS: {} });
+const res = (lots, prices, extra = {}) => ({ lots, vpRows: [], income: [], vpForecast: [], errors: [], warnings: [], realized: {}, latest: new Map(Object.entries(prices).map(([k, v]) => [k, ['2025-11-20', v]])), ...extra });
 
 export default ({ g, check, near }) => {
   const plan = g('planNetSale');
@@ -16,9 +16,9 @@ export default ({ g, check, near }) => {
   check('plan: tax = gross - net', near(p.gross - p.tax, p.net, 0.011), p);
 
   // Freibetrag zuerst verbrauchen
-  p = plan(res([lot(1, 'X', '2020-01-01', 100, 50)], { X: 100 }), data, { ...SET, genutzt: 0 }, 2025, 1000);
+  p = plan(res([lot(1, 'X', '2020-01-01', 100, 50)], { X: 100 }), data, { ...SET, genutzt: {} }, 2025, 1000);
   check('plan: allowance makes shares tax-free', p.rows.length === 1 && near(p.rows[0].shares, 10, 1e-8) && p.tax === 0 && near(p.allowanceUsed, 350), p);
-  p = plan(res([lot(1, 'X', '2020-01-01', 100, 50)], { X: 100 }), data, { ...SET, genutzt: 0 }, 2025, 5000);
+  p = plan(res([lot(1, 'X', '2020-01-01', 100, 50)], { X: 100 }), data, { ...SET, genutzt: {} }, 2025, 5000);
   const n1 = 1000 / 35, n = Math.ceil((n1 + (5000 - n1 * 100) / (100 - 35 * rate)) * 1e8) / 1e8;
   check('plan: allowance then taxed', near(p.rows[0].shares, n, 1e-8) && near(p.allowanceUsed, 1000) && near(p.tax, (n * 35 - 1000) * rate, 0.011), [p.rows[0].shares, n, p.tax]);
 
@@ -26,7 +26,7 @@ export default ({ g, check, near }) => {
   p = plan(res([lot(1, 'X', '2005-05-05', 10, 10)], { X: 100 }), data, { ...SET, fundTypes: { IEX: 'einzelaktie' } }, 2025, 300);
   check('plan: Bestandsschutz exempt', p.rows[0].exempt === true && p.tax === 0 && near(p.rows[0].shares, 3, 1e-8), p.rows[0]);
 
-  // Verlust: keine Steuer, keine Verrechnung
+  // Verlust ohne andere Erträge im Jahr: keine Steuer (Verlust geht in den Topf)
   p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }), data, SET, 2025, 200);
   check('plan: loss lot tax 0, gain negative', p.tax === 0 && p.rows[0].gain < 0 && p.rows[0].taxable === 0, p.rows[0]);
 
@@ -67,4 +67,33 @@ export default ({ g, check, near }) => {
   const i1 = [lot(1, 'X', '2015-01-01', 1, 95), lot(2, 'X', '2016-01-01', 100, 120), lot(3, 'Y', '2015-01-01', 100, 50)];
   p = plan(res(i1, { X: 100, Y: 100 }), data, { ...SET, gebuehrFix: 10 }, 2025, 3000);
   check('plan fee I1: sells the loss lots of X, no tax', p.reached && p.tax === 0 && near(p.fees, 10) && p.rows.every(r => r.lot.security === 'X'), [p.tax, p.fees, p.rows.map(r => [r.lot.security, r.shares])]);
+
+  // Erstattung: dieses Jahr schon 2000 Fondsgewinn (FSA verbraucht), Verlust-Lot -500 stpfl. -> negative Steuer
+  const done = { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'sonst', amount: 2000 }] };
+  p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }, done), data, { ...SET, genutzt: {}, fundTypes: { IEX: 'sonstige' } }, 2025, 300);
+  check('plan: loss triggers refund', p.rows[0].tax < 0 && near(p.rows[0].tax, -p.rows[0].shares * 50 * rate, 0.02) && near(p.net, 300, 0.011), p.rows[0]);
+  // Aktienverlust ohne Aktiengewinne im Jahr: keine Erstattung
+  p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }, done), data, { ...SET, genutzt: {}, fundTypes: { IEX: 'einzelaktie' } }, 2025, 300);
+  check('plan: stock loss without stock gains -> no refund', near(p.rows[0].tax, 0), p.rows[0]);
+  check('plan: stock loss grows stock pot', p.banks.length === 1 && p.banks[0].potsUsed.aktien < 0 && near(p.banks[0].potsUsed.aktien, -p.rows[0].shares * 50, 0.011), p.banks);
+  // Review Focus 4: Ziel unerreichbar, Summen konsistent auch bei negativer Steuer
+  p = plan(res([lot(1, 'X', '2020-01-01', 1, 150)], { X: 100 }, done), data, { ...SET, genutzt: {}, fundTypes: { IEX: 'sonstige' } }, 2025, 5000);
+  check('plan: unreachable with refund, sums consistent', !p.reached && near(p.net, p.gross - p.fees - p.tax, 0.011), p);
+
+  // Je Bank getrennt: zwei Banken mit eigenem FSA; Gewinn bei B nutzt nur den FSA von B
+  const two = { ...data, portfolios: [{ uuid: 'A', name: 'Bank A' }, { uuid: 'B', name: 'Bank B' }] };
+  const S2 = { ...SET, genutzt: {}, depots: ['A', 'B'], fsa: { A: 800, B: 200 }, fundTypes: { IEX: 'sonstige', IEY: 'sonstige' } };
+  p = plan(res([lot(1, 'Y', '2020-01-01', 100, 50, 0, 'B')], { Y: 100 }), two, S2, 2025, 2000);
+  const nB = 200 / 50 + (2000 - 400) / (100 - 50 * rate);
+  check('plan: per bank FSA', p.rows.every(r => r.bank === 'B') && near(p.allowanceUsed, 200) && near(p.tax, (nB * 50 - 200) * rate, 0.011)
+    && p.banks.length === 1 && p.banks[0].key === 'B' && p.banks[0].label === 'Bank B' && near(p.banks[0].fsaUsed, 200) && near(p.banks[0].tax, p.tax), p);
+  // Gemeinsamer Modus (zwei aktive Banken, kein FSA eingetragen): gemeinsamer spb
+  p = plan(res([lot(1, 'X', '2020-01-01', 100, 50), lot(2, 'Y', '2020-01-01', 100, 50, 0, 'B')], { X: 100, Y: 100 }), two, { ...S2, fsa: {} }, 2025, 2000);
+  check('plan: pooled FSA shared', p.tax === 0 && near(p.allowanceUsed, 1000) && near(p.gross, 2000), p);
+  // Topf vor FSA: allgemeiner Vortrag 300 bei A wird vor dem FSA verbraucht
+  p = plan(res([lot(1, 'X', '2020-01-01', 100, 50)], { X: 100 }), data, { ...SET, genutzt: {}, vortrag: { '2025|A': { aktien: 0, allg: 300 } }, fundTypes: { IEX: 'sonstige' } }, 2025, 2600);
+  check('plan: pot before FSA', p.tax === 0 && near(p.allowanceUsed, 1000) && near(p.banks[0].potsUsed.allg, 300) && near(p.rows[0].shares, 26, 1e-8), p);
+  // Verlust-Lot senkt die Steuer eines späteren Gewinns im selben Plan
+  p = plan(res([lot(1, 'X', '2020-01-01', 1, 400), lot(2, 'Y', '2020-01-01', 100, 50)], { X: 100, Y: 100 }), data, { ...SET, fundTypes: { IEX: 'sonstige', IEY: 'sonstige' } }, 2025, 1000);
+  check('plan: loss lot first, offsets later gain', p.rows[0].lot.security === 'X' && p.rows[0].tax === 0 && near(p.tax, (p.rows[1].shares * 50 - 300) * rate, 0.011), p.rows);
 };
