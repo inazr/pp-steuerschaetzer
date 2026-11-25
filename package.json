@@ -1,6 +1,6 @@
 {
   "name": "pp-steuerschaetzer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Steuerrechner für Portfolio Performance: Vorabpauschale, Freibetrag nutzen, Verkaufsplanung. Eine HTML-Datei, läuft offline.",
   "private": true,
   "type": "module",
