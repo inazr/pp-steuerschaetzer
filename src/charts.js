@@ -49,7 +49,7 @@ function optAllowance(a, t) {
   const parts = [['Bereits genutzt', a.used, t.ink3], ['Vorschlag', harvest, t.series[0]], ['Noch frei', Math.max(0, a.total - a.used - harvest), t.line]];
   return {
     ...chartBase(t),
-    grid: { left: 8, right: 16, top: 36, bottom: 8, containLabel: true },
+    grid: { left: 8, right: 40, top: 36, bottom: 8, containLabel: true },
     legend: chartLegend(t, true),
     tooltip: { ...chartBase(t).tooltip, trigger: 'item', formatter: p => tipRow(p.color, p.seriesName, fmtEur(p.value)) },
     xAxis: { ...chartValueAxis(t), max: a.total },
