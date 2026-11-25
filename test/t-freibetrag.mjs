@@ -48,4 +48,23 @@ export default ({ g, check, near }) => {
   // Aktientopf wird von Fondsgewinnen nicht berührt
   r = opt(res([lot(1, '2020-01-01', 100, 50)], 100, { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'aktie', amount: -300 }] }), data(), { ...SET, fundTypes: { IS: 'sonstige' } }, 2025);
   check('fb: stock pot untouched by fund gains', near(r.harvested, 1000, 0.02) && r.banks[0].potsUsed.aktien === 0, r.banks[0]);
+
+  // Zwei Depots A, B; Lot je 100 Stück, Einstand 50, Kurs 100, Sonstiger Fonds (TFS 0) -> 50 EUR stpfl. Gewinn je Stück
+  const two = { ...data(), portfolios: [{ uuid: 'A', name: 'A' }, { uuid: 'B', name: 'B' }] };
+  const lb = { ...lot(2, '2020-01-01', 100, 50), depot: 'B' };
+  const S2 = { ...SET, depots: ['A', 'B'], fundTypes: { IS: 'sonstige' } };
+  // 1) Gemeinsamer Modus (kein FSA-Eintrag): gemeinsamer Topf 1000 -> A erntet 20 Stück = 1000, B nichts mehr
+  r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, S2, 2025);
+  check('fb: pooled shares one allowance', r.pooled === true && near(r.harvested, 1000, 0.02) && r.total === 1000 && r.used === 0 && r.remaining === 1000
+    && r.banks.length === 2 && near(r.banks[0].harvested + r.banks[1].harvested, 1000, 0.02), r);
+  // 2) Eingetragene FSA 600/400 -> A 12 Stück (600), B 8 Stück (400)
+  r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, { ...S2, fsa: { A: 600, B: 400 } }, 2025);
+  check('fb: entered FSA per bank', r.pooled === false && near(r.banks[0].harvested, 600, 0.02) && near(r.banks[1].harvested, 400, 0.02)
+    && r.rows.length === 2 && r.rows[0].bank === 'A' && r.rows[1].bank === 'B' && r.total === 1000, r);
+  // 3) B ausgewählt, aber ohne Lots/Ereignisse/Topf: inaktiv, A bekommt den vollen Pauschbetrag
+  r = opt(res([lot(1, '2020-01-01', 100, 50)], 100), two, S2, 2025);
+  check('fb: inactive bank excluded', r.pooled === false && r.banks.length === 1 && r.banks[0].key === 'A' && near(r.harvested, 1000, 0.02) && r.total === 1000, r);
+  // 4) Einzelaktie (Kauf 2015), Aktientopf 300: Ernte 300 + 1000 = 1300 (26 Stück), nur Aktientopf genutzt
+  r = opt(res([lot(1, '2015-01-01', 100, 50)], 100, { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'aktie', amount: -300 }] }), data(), { ...SET, fundTypes: { IS: 'einzelaktie' } }, 2025);
+  check('fb: stock pot consumed by single-stock gains', near(r.harvested, 1300, 0.02) && near(r.banks[0].potsUsed.aktien, 300, 0.02) && r.banks[0].potsUsed.allg === 0, r.banks[0]);
 };
