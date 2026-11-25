@@ -48,8 +48,17 @@ export default ({ g, check, near }) => {
   check('fees: net = gross - fee - tax, target met', p.reached && near(p.net, p.gross - p.fees - p.tax, 0.011) && p.net > 499.99 && p.net < 500.02, p);
   p = plan(res([lot(1, 'X', '2019-01-01', 5, 90), lot(2, 'X', '2020-01-01', 50, 95)], { X: 100 }), data, { ...SET, gebuehrFix: 5 }, 2025, 800);
   check('fees: fixed fee once per order (depot x security)', p.rows.length === 2 && p.rows[0].fee === 5 && p.rows[1].fee === 0, p.rows.map(r => r.fee));
-  p = plan(res([lot(1, 'X', '2020-01-01', 2, 99), lot(2, 'Y', '2020-01-01', 50, 99)], { X: 100, Y: 100 }), data, { ...SET, gebuehrFix: 5 }, 2025, 400);
+  p = plan(res([lot(1, 'X', '2020-01-01', 2, 99), lot(2, 'Y', '2020-01-01', 3, 99)], { X: 100, Y: 100 }), data, { ...SET, gebuehrFix: 5 }, 2025, 400);
   check('fees: one fixed fee per security', p.rows.length === 2 && p.rows.every(r => r.fee === 5) && near(p.fees, 10), p.rows.map(r => [r.lot.security, r.fee]));
   p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }), data, { ...SET, gebuehrFix: 5 }, 2025, 200);
   check('fees: loss lot stays tax-free', p.tax === 0 && p.rows[0].taxable === 0 && p.net > 199.99, p.rows[0]);
+
+  // Kleiner, steuergünstigster Lot X würde eine zweite Order erzwingen: mit Fixgebühr lieber nur Y
+  const fee = { ...SET, gebuehrFix: 10 };
+  p = plan(res([lot(1, 'X', '2020-01-01', 1, 99), lot(2, 'Y', '2020-01-01', 100, 90)], { X: 100, Y: 100 }), data, fee, 2025, 500);
+  check('plan fee: single order instead of two', p.rows.length === 1 && p.rows[0].lot.security === 'Y' && near(p.fees, 10) && p.reached, p.rows.map(r => [r.lot.security, r.shares]));
+  p = plan(res([lot(1, 'X', '2020-01-01', 1, 99), lot(2, 'Y', '2020-01-01', 100, 90)], { X: 100, Y: 100 }), data, SET, 2025, 500);
+  check('plan fee 0: unchanged order (X first)', p.rows[0].lot.security === 'X' && p.rows.length === 2, p.rows.map(r => r.lot.security));
+  p = plan(res([lot(1, 'X', '2020-01-01', 100, 95)], { X: 100 }), data, fee, 2025, 500);
+  check('plan fee: one security, one order', p.rows.length === 1 && near(p.fees, 10) && p.net >= 500 && p.net < 500.01, p);
 };

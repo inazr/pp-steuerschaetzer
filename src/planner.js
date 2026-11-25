@@ -16,27 +16,32 @@ function planNetSale(result, data, settings, year, target) {
     const taxablePS = g === null ? 0 : Math.max(0, g);
     return { lot, a, exempt: g === null, taxablePS, ratio: taxablePS * rate / (a - taxablePS * rate) };
   };
-  const rows = [];
-  let needed = target;
-  while (needed > 0.005) {
-    let best = null, bi = null;
-    for (const h of heads) {
-      if (h.i >= h.lots.length) continue;
-      const x = info(h);
-      if (!best || x.ratio < bi.ratio || (x.ratio === bi.ratio && x.lot.buyDate < bi.lot.buyDate)) { best = h; bi = x; }
-    }
-    if (!best) break;
-    const { lot, a, exempt, taxablePS } = bi, price = best.price;
-    const F = best.ordered ? 0 : feeFix;                       // feste Gebühr nur beim ersten Verkauf dieser Order
+  // Ein Verkaufsschritt dieses Kopfes für den aktuellen Restbedarf
+  const step = (h, x) => {
+    const { lot, a, exempt, taxablePS } = x, price = h.price;
+    const F = h.ordered ? 0 : feeFix;                          // feste Gebühr nur beim ersten Verkauf dieser Order
     const fT = taxablePS > 0 ? F * (1 - tfsOf(lot)) : 0;       // die feste Gebühr mindert auch den steuerpflichtigen Gewinn
     // Netto(n) = n·a − F − Steuer; steuerfrei solange n·t − fT ≤ freier Betrag
     const nFree = taxablePS > 0 ? (allowLeft + fT) / taxablePS : Infinity;
     const want = (needed + F) <= nFree * a ? (needed + F) / a : (needed + F - rate * (fT + allowLeft)) / (a - taxablePS * rate);
-    const n = Math.min(best.left, ceil8(want));
+    const n = Math.min(h.left, ceil8(want));
     const fee = round2(F + n * price * feePct);
     const taxableAmt = exempt ? 0 : Math.max(0, n * taxablePS - fT), free = Math.min(allowLeft, taxableAmt);
     const tax = round2((taxableAmt - free) * rate);
-    const net = round2(n * price - fee - tax);
+    return { lot, exempt, price, F, n, fee, taxableAmt, free, tax, net: round2(n * price - fee - tax) };
+  };
+  const rows = [];
+  let needed = target;
+  while (needed > 0.005) {
+    // Steuer je Euro netto, plus die noch offene Fixgebühr umgelegt auf das Netto dieses Schritts (sonst splittet der Plan auf viele Orders)
+    let best = null, bs = null, bScore = 0;
+    for (const h of heads) {
+      if (h.i >= h.lots.length) continue;
+      const x = info(h), st = step(h, x), score = x.ratio + (st.F > 0 ? st.F / Math.max(st.net, 0.01) : 0);
+      if (!best || score < bScore || (score === bScore && st.lot.buyDate < bs.lot.buyDate)) { best = h; bs = st; bScore = score; }
+    }
+    if (!best) break;
+    const { lot, exempt, price, n, fee, taxableAmt, free, tax, net } = bs;
     rows.push({
       lot, shares: n, price, gross: round2(n * price), fee, gain: round2(n * (price - lot.cost - lot.vpCum / lot.shares) - fee),
       taxable: round2(taxableAmt), allowance: round2(free), tax, net, exempt,
