@@ -16,7 +16,9 @@ const chartValueAxis = t => ({
 });
 const chartCatAxis = (t, data) => ({ type: 'category', data, axisLine: { lineStyle: { color: t.line } }, axisTick: { show: false }, axisLabel: { color: t.ink2 } });
 const chartLegend = (t, show) => ({ show, top: 0, left: 0, icon: 'roundRect', itemWidth: 10, itemHeight: 10, textStyle: { color: t.ink2 } });
-const tipRow = (color, name, value) => `<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color};margin-right:6px"></span>${name}</span><b style="font-family:var(--font-num)">${value}</b></div>`;
+const htmlEsc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const tipHead = v => `<b>${htmlEsc(v)}</b>`;
+const tipRow = (color, name, value) => `<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color};margin-right:6px"></span>${htmlEsc(name)}</span><b style="font-family:var(--font-num)">${value}</b></div>`;
 // Farbe folgt dem Wertpapier (Reihenfolge in der Datei), nie dem Rang
 const secColor = (t, data, uuid) => t.series[Math.max(0, data.securities.findIndex(s => s.uuid === uuid)) % t.series.length];
 
@@ -29,7 +31,7 @@ function optVpByYear(vpRows, data, t) {
     legend: chartLegend(t, secs.length > 1),
     tooltip: {
       ...chartBase(t).tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: ps => `<b>${ps[0].axisValue}</b>` + ps.filter(p => p.value).map(p => tipRow(p.color, p.seriesName, fmtEur(p.value) + ` <span style="font-weight:400;color:${t.ink3}">Steuer ${fmtEur(p.data.tax)}</span>`)).join(''),
+      formatter: ps => tipHead(ps[0].axisValue) + ps.filter(p => p.value).map(p => tipRow(p.color, p.seriesName, fmtEur(p.value) + ` <span style="font-weight:400;color:${t.ink3}">Steuer ${fmtEur(p.data.tax)}</span>`)).join(''),
     },
     xAxis: chartCatAxis(t, years.map(String)),
     yAxis: chartValueAxis(t),
@@ -69,7 +71,7 @@ function optLotGains(result, data, settings, t) {
   return {
     ...chartBase(t),
     legend: chartLegend(t, true),
-    tooltip: { ...chartBase(t).tooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: ps => `<b>${ps[0].axisValue}</b>` + ps.map(p => tipRow(p.color, p.seriesName, fmtEur(p.value))).join('') },
+    tooltip: { ...chartBase(t).tooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: ps => tipHead(ps[0].axisValue) + ps.map(p => tipRow(p.color, p.seriesName, fmtEur(p.value))).join('') },
     xAxis: chartValueAxis(t),
     yAxis: { ...chartCatAxis(t, lots.map(label)), inverse: true },
     dataZoom: lots.length > 14 ? [{ type: 'slider', yAxisIndex: 0, right: 0, width: 14, startValue: 0, endValue: 13, brushSelect: false }, { type: 'inside', yAxisIndex: 0 }] : [],
