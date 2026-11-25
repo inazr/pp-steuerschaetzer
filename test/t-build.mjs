@@ -12,5 +12,6 @@ export default ({ check, root }) => {
   check('build: CSP forbids network', /http-equiv="Content-Security-Policy"[^>]*default-src 'none'/.test(html));
   check('build: no external src/href', !/(src|href)="https?:/i.test(html));
   check('build: lang de', html.includes('<html lang="de">'));
+  check('build: project name', html.includes('<title>Steuerschätzer für Portfolio Performance</title>') && !/pp-steuern|PP-Steuern/.test(html));
   check('build: version stamped', html.includes(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version));
 };

@@ -131,7 +131,7 @@ details > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 textarea { width: 100%; min-height: 120px; font-family: var(--font-num); font-size: 12px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); color: var(--ink); padding: 8px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-/* PP-Steuern */
+/* Steuerschätzer */
 .drop { border: 2px dashed var(--line-2); border-radius: var(--r); background: var(--surface); padding: 48px 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .drop.over, body.dragging .drop { border-color: var(--accent); background: var(--accent-soft); }
 .drop h2 { font-size: 18px; }
@@ -158,7 +158,7 @@ footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
     <div class="titlerow">
       <div>
         <h1>{{TITLE}}</h1>
-        <div class="sub">Vorabpauschale, Freibetrag und Verkaufsplanung für Portfolio Performance · Daten bleiben im Browser · Keine Steuerberatung · Version {{VERSION}}</div>
+        <div class="sub">Vorabpauschale, Freibetrag und Verkaufsplanung · Daten bleiben im Browser · Keine Steuerberatung · Version {{VERSION}}</div>
       </div>
       <div class="tools">
         <span class="sub" id="file-name"></span>
@@ -191,7 +191,7 @@ footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
   <section class="panel" data-panel="2" id="p2" hidden></section>
   <section class="panel" data-panel="3" id="p3" hidden></section>
 </main>
-<footer class="wrap">PP-Steuern {{VERSION}} · Keine Steuerberatung, alle Angaben ohne Gewähr · Läuft vollständig offline · ECharts (Apache-2.0), Public Sans und JetBrains Mono (OFL-1.1)</footer>
+<footer class="wrap">Steuerschätzer {{VERSION}} · Keine Steuerberatung, alle Angaben ohne Gewähr · Läuft vollständig offline · ECharts (Apache-2.0), Public Sans und JetBrains Mono (OFL-1.1)</footer>
 
 <script>
 /*ENGINE*/

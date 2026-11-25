@@ -1,14 +1,14 @@
 <div align="center">
 
-# PP-Steuern
+# Steuerschätzer für Portfolio Performance
 
-### Vorabpauschale, Freibetrag und Verkaufsplanung für Portfolio Performance – eine HTML-Datei, läuft offline
+### Vorabpauschale, Freibetrag und Verkaufsplanung – eine HTML-Datei, läuft offline
 
-[![Online öffnen](https://img.shields.io/badge/Online_öffnen-1f5f8b?style=for-the-badge)](https://inazr.github.io/pp-steuern/)
-[![Offline-Version laden](https://img.shields.io/badge/Offline--Version_laden-1a7f4b?style=for-the-badge)](https://github.com/inazr/pp-steuern/releases/latest)
+[![Online öffnen](https://img.shields.io/badge/Online_öffnen-1f5f8b?style=for-the-badge)](https://inazr.github.io/pp-steuerschaetzer/)
+[![Offline-Version laden](https://img.shields.io/badge/Offline--Version_laden-1a7f4b?style=for-the-badge)](https://github.com/inazr/pp-steuerschaetzer/releases/latest)
 
-![Release](https://img.shields.io/github/v/release/inazr/pp-steuern)
-![Pages](https://img.shields.io/github/actions/workflow/status/inazr/pp-steuern/pages.yml?label=Pages)
+![Release](https://img.shields.io/github/v/release/inazr/pp-steuerschaetzer)
+![Pages](https://img.shields.io/github/actions/workflow/status/inazr/pp-steuerschaetzer/pages.yml?label=Pages)
 ![Stand](https://img.shields.io/badge/Stand-25.11.2026-informational)
 ![Offline](https://img.shields.io/badge/läuft-offline-success)
 ![Abhängigkeiten](https://img.shields.io/badge/Abhängigkeiten-0-success)
@@ -20,7 +20,7 @@
 
 </div>
 
-PP-Steuern liest eine Datei aus [Portfolio Performance](https://www.portfolio-performance.info/) und rechnet die deutschen Kapitalertragsteuer-Themen eines ETF- und Fondsdepots durch: Vorabpauschale je Jahr, wie du den Sparerpauschbetrag mit Verkauf und Rückkauf ausnutzt, und wie viel du verkaufen musst, um einen Netto-Betrag zu erhalten.
+Der Steuerschätzer liest eine Datei aus [Portfolio Performance](https://www.portfolio-performance.info/) und rechnet die deutschen Kapitalertragsteuer-Themen eines ETF- und Fondsdepots durch: Vorabpauschale je Jahr, wie du den Sparerpauschbetrag mit Verkauf und Rückkauf ausnutzt, und wie viel du verkaufen musst, um einen Netto-Betrag zu erhalten.
 
 > [!TIP]
 > Die ganze Anwendung ist **eine einzige HTML-Datei** mit eingebetteten Charts (Apache ECharts) und Schriften. Sie funktioniert ohne Internet, auch per Doppelklick. Deine Datei wird nur im Browser gelesen. Eine Content-Security-Policy verhindert jede Netzwerkanfrage. Gespeichert werden nur deine Einstellungen und Fondstypen im Browser, nie Buchungen oder Kurse.
@@ -94,7 +94,7 @@ Node 22 oder neuer. Es gibt **keine npm-Abhängigkeiten**: `scripts/build.mjs` b
 
 ## Releases
 
-Version in `package.json` erhöhen und auf `main` pushen. Der Workflow `release.yml` legt den Tag `v<Version>` an und hängt `pp-steuern-<Version>.html` an das Release. `pages.yml` veröffentlicht jeden Stand von `main` auf GitHub Pages. Pages einmalig unter *Settings → Pages → Source: GitHub Actions* aktivieren.
+Version in `package.json` erhöhen und auf `main` pushen. Der Workflow `release.yml` legt den Tag `v<Version>` an und hängt `pp-steuerschaetzer-<Version>.html` an das Release. `pages.yml` veröffentlicht jeden Stand von `main` auf GitHub Pages. Pages einmalig unter *Settings → Pages → Source: GitHub Actions* aktivieren.
 
 ## Hinweis
 

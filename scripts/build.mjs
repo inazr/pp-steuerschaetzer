@@ -36,7 +36,7 @@ const sub = (page, needle, repl) => {
 // Kleine Platzhalter zuerst, Engine und UI zuletzt: so trifft nie eingebetteter Code einen Platzhalter.
 let page = rd('src/page.html');
 if (!page.includes('{{TITLE}}')) throw new Error('Platzhalter fehlt: {{TITLE}}');
-page = page.replaceAll('{{TITLE}}', 'PP-Steuern');
+page = page.replaceAll('{{TITLE}}', 'Steuerschätzer für Portfolio Performance');
 page = page.replaceAll('{{VERSION}}', version);
 page = sub(page, '{{HEAD}}', head);
 page = sub(page, '/*ENGINE*/', safe(engine));

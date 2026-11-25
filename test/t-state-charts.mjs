@@ -12,7 +12,7 @@ export default ({ g, check, near }) => {
   const def = load(st);
   check('state: defaults', def.veranlagung === 'single' && def.kirchensteuer === false && def.bundesland === 'default' && def.genutzt === null && JSON.stringify(def.fundTypes) === '{}', def);
   save(st, { ...def, kirchensteuer: true, fundTypes: { I1: 'mischfonds' }, txs: [1], prices: 2, lots: 3, depots: ['A'] });
-  const raw = JSON.parse(st.getItem('pp-steuern-v1'));
+  const raw = JSON.parse(st.getItem('pp-steuerschaetzer-v1'));
   check('state: never persists portfolio data', !('txs' in raw) && !('prices' in raw) && !('lots' in raw) && !('depots' in raw), Object.keys(raw));
   check('state: roundtrip', load(st).kirchensteuer === true && load(st).fundTypes.I1 === 'mischfonds');
   check('state: broken storage -> defaults', load({ getItem: () => '{kaputt' }).veranlagung === 'single');
