@@ -120,4 +120,14 @@ export default ({ g, check, near }) => {
     dividends: [{ uuid: 'd', date: '2025-05-15', depots: ['A', 'B'], security: 'S', gross: 100 }], prices: P }), { ...SET, depots }, '2025-11-24').distributions[2025] || 0;
   check('orphan after transfer: only target depot', near(m5(['A']), 0) && near(m5(['B']), 70) && near(m5(null), 70), [m5(['A']), m5(['B']), m5(null)]);
   check('transfer: dividend goes to target holdings, no orphan hint', near(res.distributions[2025], 35) && !res.warnings.some(w => w.includes('ohne Bestand')), [res.distributions, res.warnings]);
+  const inc = (r, kind) => r.income.filter(e => e.kind === kind);
+  res = replay({ ...mk({ txs: [tx('2023-01-10', 'BUY', 'A', 10, 1000), tx('2025-03-01', 'SELL', 'A', 5, 400), tx('2025-04-01', 'SELL', 'A', 5, 700)],
+    dividends: [{ uuid: 'd', date: '2025-02-01', depots: ['A', 'B'], security: 'S', gross: 20 }], prices: P }), interest: [{ uuid: 'z', date: '2025-06-30', account: 'k', gross: 12.5 }] }, SET, '2025-11-24');
+  check('income: one event per sale, loss and gain', inc(res, 'sonst').length === 2 && inc(res, 'sonst')[0].amount < 0 && inc(res, 'sonst')[1].amount > 0, inc(res, 'sonst'));
+  check('income: sale amount equals realized', near(inc(res, 'sonst').reduce((s, e) => s + e.amount, 0), res.realized[2025], 0.011));
+  check('income: dividend after TFS per depot', inc(res, 'div').length === 1 && inc(res, 'div')[0].owner === 'A' && near(inc(res, 'div')[0].amount, 14));
+  check('income: interest per account', inc(res, 'zins').length === 1 && inc(res, 'zins')[0].owner === 'k' && near(inc(res, 'zins')[0].amount, 12.5));
+  check('income: VP of Y counted on Y+1-01-02', inc(res, 'vp').every(e => e.date === `${e.year}-01-02` && res.vpRows.some(r => r.year === e.year - 1 && r.depot === e.owner)), inc(res, 'vp'));
+  const stock = replay(mk({ txs: [tx('2005-01-10', 'BUY', 'A', 10, 500), tx('2024-02-01', 'SELL', 'A', 10, 1200)], prices: P, secs: [{ uuid: 'S', name: 'Siemens AG', isin: 'DE0007236101', currency: 'EUR' }] }), SET, '2024-05-01');
+  check('income: Bestandsschutz sale has no event', stock.income.filter(e => e.kind === 'aktie').length === 0);
 };

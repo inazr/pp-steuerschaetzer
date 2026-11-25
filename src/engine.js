@@ -40,7 +40,8 @@ function replay(data, settings, today) {
   const depName = u => (data.portfolios.find(p => p.uuid === u) || {}).name || u;
   const queues = new Map();
   const q = (d, s) => { const k = d + '|' + s; let a = queues.get(k); if (!a) queues.set(k, a = []); return a; };
-  const errors = [], warnings = [], vpRows = [], realized = {}, distributions = {};
+  const errors = [], warnings = [], vpRows = [], realized = {}, distributions = {}, income = [];
+  const addIncome = (date, owner, kind, amount) => income.push({ year: +date.slice(0, 4), date, owner, kind, amount: round2(amount) });
   let lotId = 0;
   const inView = d => !settings.depots || settings.depots.includes(d);
   const lastHeld = new Map(); // depot|security -> { date, shares } unmittelbar bevor die Queue leer wurde
@@ -91,10 +92,13 @@ function replay(data, settings, today) {
         const queues = (ev.depots || [ev.depot]).map(d => q(d, ev.security));
         const held = queues.reduce((s, qu) => s + qu.reduce((a, l) => a + l.shares, 0), 0);
         const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
+        const perDepot = new Map();
         if (held > EPS) for (const qu of queues) for (const lot of qu) {
           lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
+          perDepot.set(lot.depot, (perDepot.get(lot.depot) || 0) + ev.gross / held * lot.shares * (1 - ft.tfs));
           // steuerpflichtiger Teil verbraucht den Freibetrag (nur ausgewählte Depots)
           if (inView(lot.depot)) distributions[y] = (distributions[y] || 0) + ev.gross / held * lot.shares * (1 - ft.tfs);
+          for (const [d, a] of perDepot) addIncome(ev.date, d, 'div', a);
         }
         else {
           // Kein Bestand am Zahltag (Verkauf zwischen Ex-Tag und Zahltag): Depots mit dem letzten Bestand, sonst ignorieren
@@ -103,7 +107,11 @@ function replay(data, settings, today) {
           const name = (secById.get(ev.security) || {}).name || ev.security;
           const total = last.reduce((s, [, h]) => s + h.shares, 0);
           if (!last.length) { warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${name} ohne Bestand ignoriert`); return; }
-          for (const [d, h] of last) if (inView(d)) distributions[y] = (distributions[y] || 0) + ev.gross * h.shares / total * (1 - ft.tfs);
+          for (const [d, h] of last) {
+            const a = ev.gross * h.shares / total * (1 - ft.tfs);
+            if (inView(d)) distributions[y] = (distributions[y] || 0) + a;
+            addIncome(ev.date, d, 'div', a);
+          }
           warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${name} ohne Bestand – dem letzten Bestand in ${last.map(([d]) => depName(d)).join(', ')} zugeordnet`);
         }
         return;
@@ -114,11 +122,14 @@ function replay(data, settings, today) {
         if (missing) oversold(ev, missing);
         const sec = secById.get(ev.security), ft = FUND_TYPES[fundTypeOf(settings, sec)];
         const pps = (ev.amount + (ev.taxes || 0)) / ev.shares; // PP-Betrag ist nach einbehaltener Steuer
+        let total = 0, counted = false;
         for (const p of pieces) {
           if (ft.bestandsschutz && p.buyDate < ft.bestandsschutz) continue;
           const gain = ((pps - p.cost) * p.shares - p.vpCum) * (1 - ft.tfs);
+          total += gain; counted = true;
           if (!settings.depots || settings.depots.includes(ev.depot)) realized[y] = (realized[y] || 0) + gain;
         }
+        if (counted) addIncome(ev.date, ev.depot, fundTypeOf(settings, sec) === 'einzelaktie' ? 'aktie' : 'sonst', total);
         return;
       }
       case 'DELIVERY_OUTBOUND': { const { missing } = takeFrom(ev); if (missing) oversold(ev, missing); return; }
@@ -190,6 +201,11 @@ function replay(data, settings, today) {
     ? vpYear(currentYear, list => list.length ? [list[list.length - 1][1], list[list.length - 1][0]] : null, false, `Prognose Vorabpauschale ${currentYear}`)
     : [];
 
+  // VP des Jahres Y fließt am 02.01. des Folgejahres zu; Zinsen je Konto
+  for (const r of vpRows) if (r.taxable > 0 && `${r.year + 1}-01-02` <= today) addIncome(`${r.year + 1}-01-02`, r.depot, 'vp', r.taxable);
+  for (const z of data.interest || []) if (z.date <= today) addIncome(z.date, z.account, 'zins', z.gross);
+  income.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);
   for (const y in realized) realized[y] = round2(realized[y]);
@@ -202,6 +218,6 @@ function replay(data, settings, today) {
     lots: [...queues.values()].flat().filter(l => inView(l.depot)),
     vpRows: vpRows.filter(r => inView(r.depot)),
     vpForecast: vpForecast.filter(r => inView(r.depot)), distributions,
-    errors, warnings: [...new Set(warnings)], latest, realized,
+    errors, warnings: [...new Set(warnings)], latest, realized, income,
   };
 }
