@@ -97,4 +97,22 @@ export default ({ g, check, near }) => {
   // sonstiges_wp: keine VP, voller Gewinn steuerpflichtig, auch bei Kauf vor 2009
   res = replay(mk({ txs: [tx('2005-01-10', 'BUY', 'A', 10, 500), tx('2024-02-01', 'SELL', 'A', 10, 1200)], prices: P }), { ...SET, fundTypes: { IS: 'sonstiges_wp' } }, '2024-05-01');
   check('sonstiges_wp: no VP, no Bestandsschutz, no TFS', res.vpRows.length === 0 && near(res.realized[2024], 700), [res.vpRows, res.realized]);
+
+  // Komplettverkauf zwischen Ex-Tag und Zahltag
+  const orphan = (sellDate, divDate, depots = null) => replay(mk({ txs: [tx('2025-01-10', 'BUY', 'A', 10, 1000), tx(sellDate, 'SELL', 'A', 10, 1100)],
+    dividends: [{ uuid: 'd', date: divDate, depots: ['A', 'B'], security: 'S', gross: 50 }], prices: P }), { ...SET, depots }, '2025-11-24');
+  res = orphan('2025-05-01', '2025-05-11');
+  check('orphan div: counted after TFS', near(res.distributions[2025], 35), res.distributions);
+  check('orphan div: hint names depot', res.warnings.some(w => w.includes('ohne Bestand') && w.includes('Depot A')), res.warnings);
+  res = orphan('2025-02-01', '2025-05-11');
+  check('orphan div: older than 60 days ignored', !res.distributions[2025] && res.warnings.some(w => w.includes('ignoriert')), [res.distributions, res.warnings]);
+  res = replay(mk({ txs: [tx('2025-01-10', 'BUY', 'A', 10, 1000), tx('2025-01-10', 'BUY', 'B', 30, 3000), tx('2025-05-01', 'SELL', 'A', 10, 1100), tx('2025-05-01', 'SELL', 'B', 30, 3300)],
+    dividends: [{ uuid: 'd', date: '2025-05-11', depots: ['A', 'B'], security: 'S', gross: 40 }], prices: P }), { ...SET, depots: ['A'] }, '2025-11-24');
+  check('orphan div: split by last holdings, only selected depot', near(res.distributions[2025], 40 * 0.25 * 0.7), res.distributions);
+  res = orphan('2025-05-11', '2025-05-11');
+  check('same-day div+sell: normal path, counted once, no orphan hint', near(res.distributions[2025], 35) && !res.warnings.some(w => w.includes('ohne Bestand')), [res.distributions, res.warnings]);
+  // Übertrag leert das Quelldepot nicht „verwaist“: Bestand liegt im Zieldepot, normaler Pfad
+  res = replay(mk({ txs: [tx('2025-01-10', 'BUY', 'A', 10, 1000), tx('2025-05-01', 'TRANSFER_OUT', 'A', 10, 1000, { transferKey: 'k1' }), tx('2025-05-01', 'TRANSFER_IN', 'B', 10, 1000, { transferKey: 'k1' })],
+    dividends: [{ uuid: 'd', date: '2025-05-11', depots: ['A', 'B'], security: 'S', gross: 50 }], prices: P }), SET, '2025-11-24');
+  check('transfer: dividend goes to target holdings, no orphan hint', near(res.distributions[2025], 35) && !res.warnings.some(w => w.includes('ohne Bestand')), [res.distributions, res.warnings]);
 };

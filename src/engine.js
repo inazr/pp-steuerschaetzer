@@ -5,6 +5,8 @@ const round8 = x => Math.sign(x) * Math.round(Math.abs(x) * 1e8 + 1e-6) / 1e8;
 const ceil8 = x => Math.ceil(x * 1e8 - 1e-6) / 1e8;
 const isoToDe = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const EPS = 1e-8;
+// Ex-Tag bis Zahltag liegt bei ETFs meist 1–4 Wochen: so lange gilt ein geleertes Depot noch als Empfänger einer Ausschüttung
+const DIV_ORPHAN_DAYS = 60;
 
 // Explizite Wahl des Nutzers (je ISIN, sonst UUID), sonst geraten
 const explicitFundType = (settings, sec) => { const key = settings.fundTypes && sec && settings.fundTypes[sec.isin || sec.uuid]; return FUND_TYPES[key] ? key : null; };
@@ -40,6 +42,8 @@ function replay(data, settings, today) {
   const q = (d, s) => { const k = d + '|' + s; let a = queues.get(k); if (!a) queues.set(k, a = []); return a; };
   const errors = [], warnings = [], vpRows = [], realized = {}, distributions = {};
   let lotId = 0;
+  const inView = d => !settings.depots || settings.depots.includes(d);
+  const lastHeld = new Map(); // depot|security -> { date, shares } unmittelbar bevor die Queue leer wurde
 
   const events = [...data.txs, ...data.dividends.map(d => ({ ...d, type: 'DIV' }))]
     .filter(e => e.date <= today)
@@ -69,6 +73,13 @@ function replay(data, settings, today) {
     }
     return { pieces, missing: left > EPS ? left : 0 };
   };
+  // FIFO-Abgang einer Buchung; merkt sich den Bestand, falls die Queue dadurch leer wird
+  const takeFrom = t => {
+    const queue = q(t.depot, t.security), before = queue.reduce((s, l) => s + l.shares, 0);
+    const r = take(queue, t.shares);
+    if (!queue.length && before > EPS) lastHeld.set(t.depot + '|' + t.security, { date: t.date, shares: before });
+    return r;
+  };
   const oversold = (ev, missing) => errors.push(`Buchung über Bestand am ${isoToDe(ev.date)}: ${(secById.get(ev.security) || {}).name || ev.security} in ${depName(ev.depot)} (${round8(missing)} Stück fehlen)`);
   const buy = ev => { if (ev.shares > EPS) insert(q(ev.depot, ev.security), { id: ++lotId, depot: ev.depot, security: ev.security, buyDate: ev.date, shares: ev.shares, cost: ev.amount / ev.shares, vpCum: 0, divPS: {} }); };
 
@@ -79,19 +90,27 @@ function replay(data, settings, today) {
         // Ausschüttung am Konto: auf alle Depots dieses Kontos nach Bestand am Zahltag verteilen
         const queues = (ev.depots || [ev.depot]).map(d => q(d, ev.security));
         const held = queues.reduce((s, qu) => s + qu.reduce((a, l) => a + l.shares, 0), 0);
+        const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
         if (held > EPS) for (const qu of queues) for (const lot of qu) {
           lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
           // steuerpflichtiger Teil verbraucht den Freibetrag (nur ausgewählte Depots)
-          if (!settings.depots || settings.depots.includes(lot.depot)) {
-            const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
-            distributions[y] = (distributions[y] || 0) + ev.gross / held * lot.shares * (1 - ft.tfs);
-          }
+          if (inView(lot.depot)) distributions[y] = (distributions[y] || 0) + ev.gross / held * lot.shares * (1 - ft.tfs);
+        }
+        else {
+          // Kein Bestand am Zahltag (Verkauf zwischen Ex-Tag und Zahltag): Depots mit dem letzten Bestand, sonst ignorieren
+          const since = Date.parse(ev.date) - DIV_ORPHAN_DAYS * 864e5;
+          const last = (ev.depots || [ev.depot]).map(d => [d, lastHeld.get(d + '|' + ev.security)]).filter(([, h]) => h && Date.parse(h.date) >= since);
+          const name = (secById.get(ev.security) || {}).name || ev.security;
+          const total = last.reduce((s, [, h]) => s + h.shares, 0);
+          if (!last.length) { warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${name} ohne Bestand ignoriert`); return; }
+          for (const [d, h] of last) if (inView(d)) distributions[y] = (distributions[y] || 0) + ev.gross * h.shares / total * (1 - ft.tfs);
+          warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${name} ohne Bestand – dem letzten Bestand in ${last.map(([d]) => depName(d)).join(', ')} zugeordnet`);
         }
         return;
       }
       case 'BUY': case 'DELIVERY_INBOUND': return buy(ev);
       case 'SELL': {
-        const { pieces, missing } = take(q(ev.depot, ev.security), ev.shares);
+        const { pieces, missing } = takeFrom(ev);
         if (missing) oversold(ev, missing);
         const sec = secById.get(ev.security), ft = FUND_TYPES[fundTypeOf(settings, sec)];
         const pps = (ev.amount + (ev.taxes || 0)) / ev.shares; // PP-Betrag ist nach einbehaltener Steuer
@@ -102,16 +121,16 @@ function replay(data, settings, today) {
         }
         return;
       }
-      case 'DELIVERY_OUTBOUND': { const { missing } = take(q(ev.depot, ev.security), ev.shares); if (missing) oversold(ev, missing); return; }
+      case 'DELIVERY_OUTBOUND': { const { missing } = takeFrom(ev); if (missing) oversold(ev, missing); return; }
       case 'TRANSFER_OUT': case 'TRANSFER_IN': {
         const p = pairs.get(ev.transferKey);
         if (!p || !p.out || !p.in) {
           if (ev.type === 'TRANSFER_IN') return buy(ev);
-          const { missing } = take(q(ev.depot, ev.security), ev.shares); if (missing) oversold(ev, missing); return;
+          const { missing } = takeFrom(ev); if (missing) oversold(ev, missing); return;
         }
         if (p.done) return;
         p.done = true;
-        const { pieces, missing } = take(q(p.out.depot, p.out.security), p.out.shares);
+        const { pieces, missing } = takeFrom(p.out);
         if (missing) oversold(p.out, missing);
         const target = q(p.in.depot, p.in.security);
         for (const piece of pieces) { piece.depot = p.in.depot; insert(target, piece); }
@@ -170,7 +189,6 @@ function replay(data, settings, today) {
     ? vpYear(currentYear, list => list.length ? [list[list.length - 1][1], list[list.length - 1][0]] : null, false, `Prognose Vorabpauschale ${currentYear}`)
     : [];
 
-  const inView = d => !settings.depots || settings.depots.includes(d);
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);
   for (const y in realized) realized[y] = round2(realized[y]);
