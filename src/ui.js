@@ -121,11 +121,9 @@ function renderOverview() {
       </table></div>
     </div>
     <div class="card">
-      <div class="card-h"><h2>Unrealisierte Gewinne je Lot</h2><span class="sub">Zum letzten Kurs · steuerpflichtig nach Teilfreistellung und Anrechnung bereits versteuerter Vorabpauschalen</span></div>
+      <div class="card-h"><h2>Unrealisierte Gewinne je Kauf</h2><span class="sub">Zum letzten Kurs · steuerpflichtig nach Teilfreistellung und Anrechnung bereits versteuerter Vorabpauschalen</span></div>
       <div class="chart" id="c-lots"></div>
     </div>`;
-  const lotsEl = $('#c-lots');
-  lotsEl.style.height = Math.min(560, Math.max(240, r.lots.length * 30 + 70)) + 'px';
 }
 
 // ---------- Reiter 2: Vorabpauschale ----------
@@ -239,7 +237,11 @@ async function renderCharts() {
   fontsReady = fontsReady || Promise.all([document.fonts.load('400 12px "Public Sans"'), document.fonts.load('400 12px "JetBrains Mono"')]).catch(() => {});
   await fontsReady;
   const t = tokens();
-  if (ui.tab === 0) chart('c-lots', optLotGains(ui.result, ui.data, S(), t));
+  if (ui.tab === 0) {
+    const o = optLotGains(ui.result, ui.data, S(), t), el = $('#c-lots');
+    if (el) el.style.height = lotChartHeight(o) + 'px'; // ein Diagramm je Wertpapier untereinander
+    chart('c-lots', o);
+  }
   if (ui.tab === 1 && ui.result.vpRows.length) chart('c-vp', optVpByYear(ui.result.vpRows, ui.data, t));
   if (ui.tab === 2) chart('c-fb', optAllowance(ui.alloc, t));
   if (ui.tab === 3 && ui.plan && ui.plan.rows.length) chart('c-plan', optWaterfall(ui.plan, ui.data, t));

@@ -7,7 +7,7 @@ export default ({ g, check }) => {
   const html1 = vp.tooltip.formatter([{ axisValue: EVIL, color: '#a1', seriesName: EVIL, value: 10, data: { tax: 2 } }]);
   check('xss: vp tooltip escapes names', !html1.includes('<img'), html1);
   const lots = g('optLotGains')({ lots: [{ depot: 'A', security: 'S', buyDate: '2020-01-01', cost: 1, vpCum: 0, shares: 1 }], latest: new Map([['S', ['2025-01-01', 2]]]) }, data, { fundTypes: {} }, TOK);
-  const html2 = lots.tooltip.formatter([{ axisValue: lots.yAxis.data[0], color: '#a1', seriesName: 'Gewinn brutto', value: 1 }]);
+  const html2 = lots.tooltip.formatter({ seriesIndex: 0, dataIndex: 0, color: '#a1', seriesName: EVIL, value: ['2020-01-01', 1] });
   check('xss: lot tooltip escapes names', !html2.includes('<img'), html2);
   const wf = g('optWaterfall')({ net: 1, tax: 0, rows: [{ lot: { security: 'S' }, gross: 1 }] }, data, TOK);
   const html3 = wf.tooltip.formatter({ seriesName: 'Betrag', color: '#a1', name: EVIL, value: 1 });

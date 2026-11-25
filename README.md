@@ -31,7 +31,7 @@ Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github
 
 | Reiter | Inhalt |
 |---|---|
-| **Übersicht** | Steuer-Einstellungen (Veranlagung, Kirchensteuer, Bundesland, bereits genutzter Freibetrag), Depotauswahl, Wertpapiere mit Fondstyp, Chart der unrealisierten Gewinne je Lot |
+| **Übersicht** | Steuer-Einstellungen (Veranlagung, Kirchensteuer, Bundesland, bereits genutzter Freibetrag), Depotauswahl, Wertpapiere mit Fondstyp, unrealisierte Gewinne je Wertpapier über die Kaufdaten, geteilt in steuerpflichtig und steuerfrei |
 | **Vorabpauschale** | § 18 InvStG je Jahr, Depot und Wertpapier: Basisertrag, Deckelung durch Wertsteigerung plus Ausschüttungen, Zwölftelung im Kaufjahr, Teilfreistellung, Steuer. Gestapelter Chart je Jahr, CSV-Export |
 | **Freibetrag nutzen** | Welche Lots du verkaufen und sofort zurückkaufen kannst, damit der steuerpflichtige Gewinn den freien Sparerpauschbetrag genau füllt. Streng FIFO je Depot, CSV-Export |
 | **Verkaufsplanung** | „Ich brauche X € netto“: verkauft je Depot nach FIFO und wählt zwischen Wertpapieren immer den Lot mit der geringsten Steuer je Euro netto. Wasserfall Brutto → Steuer → Netto, CSV-Export |
