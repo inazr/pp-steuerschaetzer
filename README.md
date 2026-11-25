@@ -42,7 +42,7 @@ Steuerlogik im Überblick:
 - **Vorabpauschale je Lot**, zum Jahresende verbucht und beim Verkauf auf den Gewinn angerechnet. Ausschüttungen zählen brutto (netto plus einbehaltene Steuern) und werden nach dem Bestand im jeweiligen Depot am Zahltag verteilt.
 - **Teilfreistellung** je Fondstyp: Aktienfonds 30 %, Mischfonds 15 %, Immobilienfonds 60 % (Inland) bzw. 80 % (Ausland). Für **Einzelaktien** gibt es keine Vorabpauschale und keine Teilfreistellung, Käufe vor 2009 sind steuerfrei (Bestandsschutz).
 - **Steuersatz** Abgeltungsteuer + Soli, wahlweise mit Kirchensteuer (8 % oder 9 %) und Ermäßigung nach § 32d Abs. 1 EStG.
-- **Bereits genutzter Freibetrag** ist mit der steuerpflichtigen Vorabpauschale des Vorjahres (sie fließt im Januar zu) plus den Verkäufen des laufenden Jahres vorbelegt und lässt sich überschreiben.
+- **Bereits genutzter Freibetrag** ist mit der steuerpflichtigen Vorabpauschale des Vorjahres (sie fließt im Januar zu) plus den Verkäufen des laufenden Jahres vorbelegt, jeweils für die ausgewählten Depots, und lässt sich überschreiben. Enthält eine Datei Depots mehrerer Personen (z. B. ein Kinderdepot), wählst du nur die Depots einer Person aus.
 
 ## Gesetzliche Werte
 

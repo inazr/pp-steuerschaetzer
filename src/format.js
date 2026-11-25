@@ -6,3 +6,5 @@ const fmtEur = x => NF_EUR.format(round2(x) || 0);
 const fmtPct = x => NF_PCT.format(x);
 const fmtDate = iso => isoToDe(iso);
 const fmtShares = x => NF_SH.format(x);
+// Welche Depots eine Zahl umfasst: "alle Depots" oder "1 von 2 Depots"
+const depotScope = (selected, total) => !selected || selected.length >= total ? 'alle Depots' : `${selected.length} von ${total} Depots`;

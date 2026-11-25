@@ -61,11 +61,12 @@ function renderKpis() {
   const vpPrev = r.vpRows.filter(x => x.year === YEAR - 1);
   const k = [
     ['Depotwert', fmtEur(marketValue()), (n => `${n} ${n === 1 ? 'Wertpapier' : 'Wertpapiere'}`)(new Set(r.lots.map(l => l.security)).size) + ` · ${r.lots.length} Lots`],
-    [`Vorabpauschale ${YEAR - 1}`, fmtEur(vpPrev.reduce((s, x) => s + x.vp, 0)), `Steuer ${fmtEur(vpPrev.reduce((s, x) => s + x.tax, 0))} vor Freibetrag, fällig Januar ${YEAR}`],
-    [`Freibetrag ${YEAR} frei`, fmtEur(ui.alloc.remaining), `von ${fmtEur(ui.alloc.total)} · genutzt ${fmtEur(ui.alloc.used)}`],
+    [`Vorabpauschale ${YEAR - 1}`, fmtEur(vpPrev.reduce((s, x) => s + x.vp, 0)),
+      `steuerpflichtig ${fmtEur(vpPrev.reduce((s, x) => s + x.taxable, 0))} · Steuer ${fmtEur(vpPrev.reduce((s, x) => s + x.tax, 0))} · ${depotScope(ui.depots, ui.data.portfolios.length)}`],
+    [`Freibetrag ${YEAR} frei`, fmtEur(ui.alloc.remaining), `von ${fmtEur(ui.alloc.total)} · genutzt ${fmtEur(ui.alloc.used)} · ${depotScope(ui.depots, ui.data.portfolios.length)}`],
     ['Steuersatz', fmtPct(taxRate(ui.settings, YEAR)), ui.settings.kirchensteuer ? 'inkl. Soli und Kirchensteuer' : 'inkl. Soli'],
   ];
-  $('#kpis').innerHTML = k.map(([l, v, d]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+  $('#kpis').innerHTML = k.map(([l, v, d]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d.split(' · ').map(x => `<span class="nw">${x}</span>`).join(' · ')}</div></div>`).join('');
 }
 
 function renderAll() { renderOverview(); renderVp(); renderAllowance(); renderPlan(); renderCharts(); }
@@ -98,13 +99,13 @@ function renderOverview() {
           <div class="f"><label for="s-land">Bundesland (Kirchensteuer)</label><div class="in"><select id="s-land"><option value="default"${s.bundesland === 'default' ? ' selected' : ''}>Übrige Länder (9 %)</option><option value="bayern"${s.bundesland === 'bayern' ? ' selected' : ''}>Bayern (8 %)</option><option value="baden_wuerttemberg"${s.bundesland === 'baden_wuerttemberg' ? ' selected' : ''}>Baden-Württemberg (8 %)</option></select></div></div>
           <label class="chk"><input type="checkbox" id="s-kist"${s.kirchensteuer ? ' checked' : ''}> Kirchensteuerpflichtig</label>
           <div class="f"><label for="s-used">Freibetrag ${YEAR} bereits genutzt</label><div class="in"><input id="s-used" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${prefill.toFixed(2)}" value="${s.genutzt ?? ''}"><span class="u">€</span></div>
-            <span class="h">Leer = Vorbelegung ${fmtEur(prefill)}: steuerpflichtige Vorabpauschale ${YEAR - 1} plus Verkäufe ${YEAR} aus dieser Datei. Andere Banken oder Ausschüttungen selbst eintragen.</span></div>
+            <span class="h">Leer = Vorbelegung ${fmtEur(prefill)}: steuerpflichtige Vorabpauschale ${YEAR - 1} plus Verkäufe ${YEAR} der ausgewählten Depots. Andere Banken oder Ausschüttungen selbst eintragen.</span></div>
         </div>
       </div>
       <div class="card">
         <h2>Depots</h2>
         ${d.portfolios.length > 1 ? `<div class="depots">${d.portfolios.map(p => `<label class="chk"><input type="checkbox" data-depot="${esc(p.uuid)}"${ui.depots.includes(p.uuid) ? ' checked' : ''}> ${esc(p.name)}</label>`).join('')}</div>
-          <p class="note">FIFO gilt je Depot. Die Auswahl filtert nur die Anzeige; Depotüberträge werden immer vollständig nachgebildet.</p>` : `<p>${esc(d.portfolios[0].name)}</p>`}
+          <p class="note">Wähle die Depots einer Person (bei Zusammenveranlagung beider Partner): Die Auswahl bestimmt Anzeige und Freibetrag. FIFO gilt je Depot, Depotüberträge werden immer vollständig nachgebildet.</p>` : `<p>${esc(d.portfolios[0].name)}</p>`}
         <div class="facts">
           <div class="fact"><div class="l">Buchungen</div><div class="v">${d.txs.length}</div></div>
           <div class="fact"><div class="l">Ausschüttungen</div><div class="v">${d.dividends.length}</div></div>

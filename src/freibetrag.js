@@ -2,11 +2,12 @@
 // genau den freien Betrag füllen. Je Depot × Wertpapier darf nur in FIFO-Reihenfolge verkauft werden.
 const floor8 = x => Math.floor(x * 1e8 + 1e-6) / 1e8;
 
-// Bereits genutzt: steuerpflichtige VP des Vorjahres (fließt im Januar zu) + realisierte Gewinne des Jahres
+// Bereits genutzt: steuerpflichtige VP des Vorjahres (fließt im Januar zu) + realisierte Gewinne des Jahres,
+// jeweils nur der ausgewählten Depots
 function prefillUsed(result, settings, year) {
   const spb = param('sparerpauschbetrag', year)[settings.veranlagung];
   const vp = result.vpTaxableByYear[year - 1] || 0;
-  return round2(Math.min(spb, Math.max(0, vp + (result.realizedAll[year] || 0))));
+  return round2(Math.min(spb, Math.max(0, vp + (result.realized[year] || 0))));
 }
 
 // Steuerpflichtiger Gewinn je Stück; null = Lot ist steuerfrei (Bestandsschutz)

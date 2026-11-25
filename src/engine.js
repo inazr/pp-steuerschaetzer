@@ -38,7 +38,7 @@ function replay(data, settings, today) {
   const depName = u => (data.portfolios.find(p => p.uuid === u) || {}).name || u;
   const queues = new Map();
   const q = (d, s) => { const k = d + '|' + s; let a = queues.get(k); if (!a) queues.set(k, a = []); return a; };
-  const errors = [], warnings = [], vpRows = [], realized = {}, realizedAll = {};
+  const errors = [], warnings = [], vpRows = [], realized = {};
   let lotId = 0;
 
   const events = [...data.txs, ...data.dividends.map(d => ({ ...d, type: 'DIV' }))]
@@ -91,7 +91,6 @@ function replay(data, settings, today) {
         for (const p of pieces) {
           if (ft.bestandsschutz && p.buyDate < ft.bestandsschutz) continue;
           const gain = ((pps - p.cost) * p.shares - p.vpCum) * (1 - ft.tfs);
-          realizedAll[y] = (realizedAll[y] || 0) + gain;
           if (!settings.depots || settings.depots.includes(ev.depot)) realized[y] = (realized[y] || 0) + gain;
         }
         return;
@@ -157,12 +156,11 @@ function replay(data, settings, today) {
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);
   for (const y in realized) realized[y] = round2(realized[y]);
-  for (const y in realizedAll) realizedAll[y] = round2(realizedAll[y]);
-  // Freibetrag gilt je Person: Summen über alle Depots, unabhängig vom Anzeigefilter
+  // Freibetrag gilt je Person: Summen nur über die ausgewählten Depots (eine Datei kann Depots mehrerer Personen enthalten)
   const vpTaxableByYear = {};
-  for (const r of vpRows) vpTaxableByYear[r.year] = round2((vpTaxableByYear[r.year] || 0) + r.taxable);
+  for (const r of vpRows) if (inView(r.depot)) vpTaxableByYear[r.year] = round2((vpTaxableByYear[r.year] || 0) + r.taxable);
   return {
-    vpTaxableByYear, realizedAll,
+    vpTaxableByYear,
     lots: [...queues.values()].flat().filter(l => inView(l.depot)),
     vpRows: vpRows.filter(r => inView(r.depot)),
     errors, warnings: [...new Set(warnings)], latest, realized,

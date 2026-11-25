@@ -34,10 +34,10 @@ export default ({ g, check, near }) => {
   check('fb: no price -> no rows', r.rows.length === 0);
 
   // Vorbelegung: steuerpflichtige VP des Vorjahres + realisierte Gewinne des Jahres, gedeckelt
-  const rr = res([], 100, { vpTaxableByYear: { 2024: 134.95, 2023: 999 }, realizedAll: { 2025: 300 } });
+  const rr = res([], 100, { vpTaxableByYear: { 2024: 134.95, 2023: 999 }, realized: { 2025: 300 } });
   check('fb: prefill = VP prev year + realized', near(prefill(rr, SET, 2025), 434.95), prefill(rr, SET, 2025));
-  check('fb: prefill capped at SPB', prefill({ ...rr, realizedAll: { 2025: 5000 } }, SET, 2025) === 1000);
-  check('fb: prefill never negative', prefill({ ...rr, realizedAll: { 2025: -5000 } }, SET, 2025) === 0);
+  check('fb: prefill capped at SPB', prefill({ ...rr, realized: { 2025: 5000 } }, SET, 2025) === 1000);
+  check('fb: prefill never negative', prefill({ ...rr, realized: { 2025: -5000 } }, SET, 2025) === 0);
   r = opt(rr, data(), { ...SET, genutzt: null }, 2025);
   check('fb: genutzt null -> prefill used', near(r.used, 434.95) && near(r.remaining, 565.05), r);
   check('fb: joint SPB 2000', opt(rr, data(), { ...SET, veranlagung: 'joint' }, 2025).total === 2000);
