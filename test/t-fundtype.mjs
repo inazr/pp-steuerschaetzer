@@ -31,6 +31,11 @@ export default ({ g, check }) => {
   const stocks = [['Unilever PLC', 'GB00B10RZP78'], ['Unilever', 'GB00B10RZP78'], ['UniCredit S.p.A.', 'IT0005239360'], ['Glencore plc', 'JE00B4T3BW64'],
     ['Fidelity National Information Services Inc.', 'US31620M1062'], ['Industrial Logistics Properties Trust', 'US4562371066']];
   check('ft: extended lists do not hit stocks', stocks.every(([n, i]) => guess(S(n, i)) === 'einzelaktie'), stocks.map(([n, i]) => [n, guess(S(n, i))]));
+  // Review M6: irische/luxemburgische Aktien ohne Gesellschaftsform im Namen (Broker-Kürzel)
+  const ieStocks = [['Linde', 'IE000S9YS762'], ['ACCENTURE A', 'IE00B4BNMY34'], ['ArcelorMittal', 'LU1598757687'], ['Spotify Technology', 'LU1778762911'],
+    ['Medtronic', 'IE00BTN1Y115'], ['CRH', 'IE0001827041'], ['Eaton', 'IE00B8KQN827'], ['Smurfit Westrock', 'IE00028FXN24']];
+  check('ft: IE/LU stocks without suffix -> einzelaktie', ieStocks.every(([n, i]) => guess(S(n, i)) === 'einzelaktie'), ieStocks.map(([n, i]) => [n, guess(S(n, i))]));
+  check('ft: stock list anchored at name start', guess(S('iShares MSCI Ireland', 'IE00B4M7GH52')) === 'aktienfonds' && guess(S('Core MSCI World (Acc)', 'IE00B4L5Y983')) === 'aktienfonds');
   const sec = S('Siemens AG', 'DE0007236101');
   check('ft: explicit wins', of({ fundTypes: { DE0007236101: 'mischfonds' } }, sec) === 'mischfonds' && !guessed({ fundTypes: { DE0007236101: 'mischfonds' } }, sec));
   check('ft: unknown explicit key -> guess', of({ fundTypes: { DE0007236101: 'kaputt' } }, sec) === 'einzelaktie' && guessed({ fundTypes: { DE0007236101: 'kaputt' } }, sec));

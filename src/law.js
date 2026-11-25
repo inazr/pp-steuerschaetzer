@@ -64,13 +64,15 @@ const FT_PROVIDER = /\b(iShares|Xtrackers|Vanguard|VANG|Amundi|Lyxor|LYX\w*|ISHS
 const FT_UNION = /\bUni[A-Z][a-z]/; // Union-Investment-Fonds (UniGlobal, UniRak); groß/klein-genau, sonst träfe es Unilever
 // „Corp“ vor „Bond/BD“ ist eine Unternehmensanleihe im Fondsnamen, keine Gesellschaftsform
 const FT_COMPANY = /\b(plc|AG|SE|S\.A\.?|SA|S\.p\.A\.?|N\.V\.?|NV|Inc\.?|Corp\.?(?!\s*(Bonds?|BD)\b)|Corporation|Ltd\.?|Holdings?|Group|KGaA)(\b|$)/i;
+// Bekannte Aktien mit irischer/luxemburgischer ISIN, deren Broker-Name oft keine Gesellschaftsform trägt (nur am Namensanfang)
+const FT_IELU_STOCK = /^(Linde|Accenture|ArcelorMittal|Spotify|Medtronic|CRH|Eaton|Smurfit|Johnson Controls|Trane|Allegion|Aptiv|Seagate|STERIS|Willis Towers|Aon|Ryanair|Kerry|Kingspan|AIB|Bank of Ireland|Flutter|Glanbia|Aroundtown|SES|Eurofins|Tenaris|Millicom|Globant|InPost|Grand City|Shurgard)\b/i;
 const FT_BOND_FUND = /anleihe|renten|geldmarkt|€\s?STR|\b(Bonds?|BD|Treasury|Govt|Government|Aggregate|Corporate|Corp|Money Market|Overnight|Ester)\b/i;
 const FT_BOND_SINGLE = /anleihe|pfandbrief|\bAnl\.|\b(Bond|Note|Schatz\w*)\b/i;
 
 function guessFundType(sec) {
   const name = (sec && sec.name) || '', isin = (sec && sec.isin) || '';
   if (FT_ETC.test(name)) return 'sonstiges_wp';
-  const company = FT_COMPANY.test(name);
+  const company = FT_COMPANY.test(name) || (/^(IE|LU)/.test(isin) && FT_IELU_STOCK.test(name));
   // Jersey: Rohstoff-ETCs (WisdomTree, Invesco); Jersey-Aktien tragen „plc“
   if (/^JE/.test(isin) && !company) return 'sonstiges_wp';
   const fund = FT_FUND_WORD.test(name) || (!company && (FT_PROVIDER.test(name) || FT_UNION.test(name) || /^(IE|LU)/.test(isin)));
