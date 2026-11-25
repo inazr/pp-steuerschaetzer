@@ -51,6 +51,13 @@ export default ({ g, check, near }) => {
   // Lot-Gewinne
   const res = { lots: [lot('S'), { ...lot('T'), cost: 120 }], latest: new Map([['S', ['2025-01-01', 100]], ['T', ['2025-01-01', 100]]]) };
   const ol = g('optLotGains')(res, data, { fundTypes: {} }, TOK);
-  check('chart lots: two series (brutto, steuerpflichtig)', ol.series.length === 2, ol.series.map(s => s.name));
-  check('chart lots: values', near(ol.series[0].data[0], 500) && near(ol.series[1].data[0], 350) && near(ol.series[0].data[1], -200), ol.series.map(s => s.data));
+  const v = x => x?.value ?? x, rad = x => x?.itemStyle?.borderRadius;
+  check('chart lots: one stacked bar of two parts', ol.series.length === 2 && ol.series.every(x => x.stack === 'gain') && ol.series.map(x => x.name).join() === 'steuerpflichtig,steuerfrei', ol.series.map(x => [x.name, x.stack]));
+  const [tx, fr] = ol.series.map(x => x.data.map(v));
+  check('chart lots: parts add up to gross gain', near(tx[0], 350) && near(fr[0], 150) && near(tx[1], -140) && near(fr[1], -60), [tx, fr]);
+  check('chart lots: rounded outer end only', JSON.stringify(rad(ol.series[1].data[0])) === '[0,4,4,0]' && !rad(ol.series[0].data[0]) && JSON.stringify(rad(ol.series[1].data[1])) === '[4,0,0,4]', [ol.series[0].data[0], ol.series[1].data[0], ol.series[1].data[1]]);
+  const tip = ol.tooltip.formatter([{ dataIndex: 0, axisValue: ol.yAxis.data[0], color: '#a2', seriesName: 'steuerpflichtig', value: 350 }]);
+  check('chart lots: tooltip shows gross gain', tip.includes('Gewinn brutto') && tip.includes('500,00'), tip);
+  const solo = g('optLotGains')(res, data, { fundTypes: { I1: 'sonstige' } }, TOK);
+  check('chart lots: no tax-free part -> taxable part gets rounded end', JSON.stringify(rad(solo.series[0].data[0])) === '[0,4,4,0]' && near(v(solo.series[1].data[0]), 0), [solo.series[0].data[0], solo.series[1].data[0]]);
 };

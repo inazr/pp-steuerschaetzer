@@ -68,16 +68,27 @@ function optLotGains(result, data, settings, t) {
   };
   const brutto = lots.map(l => round2((result.latest.get(l.security)[1] - l.cost) * l.shares));
   const taxable = lots.map(l => { const g = taxableGainPerShare(l, result.latest.get(l.security)[1], settings, data); return g === null ? 0 : round2(g * l.shares); });
+  const free = brutto.map((b, i) => round2(b - taxable[i]));
+  // Ein Balken je Lot = Bruttogewinn, geteilt in steuerpflichtig (an der Null) und steuerfrei (außen).
+  // Abgerundet wird nur das äußere Ende des Segments, das in seiner Richtung zuletzt liegt.
+  const end = v => v > 0 ? [0, 4, 4, 0] : v < 0 ? [4, 0, 0, 4] : 0;
+  const part = (vals, outer) => vals.map((v, i) => ({ value: v, itemStyle: { borderRadius: outer(i) ? end(v) : 0 } }));
+  const TIP = { steuerpflichtig: 'steuerpflichtig', steuerfrei: 'steuerfrei (Teilfreistellung, versteuerte VP)' };
+  const seg = (name, color, data) => ({ name, type: 'bar', stack: 'gain', barMaxWidth: 14, data, itemStyle: { color, borderColor: t.surface, borderWidth: 1 } });
   return {
     ...chartBase(t),
     legend: chartLegend(t, true),
-    tooltip: { ...chartBase(t).tooltip, trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: ps => tipHead(ps[0].axisValue) + ps.map(p => tipRow(p.color, p.seriesName, fmtEur(p.value))).join('') },
+    tooltip: {
+      ...chartBase(t).tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: ps => tipHead(ps[0].axisValue) + tipRow('transparent', 'Gewinn brutto', fmtEur(brutto[ps[0].dataIndex]))
+        + ps.map(p => tipRow(p.color, TIP[p.seriesName] || p.seriesName, fmtEur(p.value))).join(''),
+    },
     xAxis: chartValueAxis(t),
     yAxis: { ...chartCatAxis(t, lots.map(label)), inverse: true },
     dataZoom: lots.length > 14 ? [{ type: 'slider', yAxisIndex: 0, right: 0, width: 14, startValue: 0, endValue: 13, brushSelect: false }, { type: 'inside', yAxisIndex: 0 }] : [],
     series: [
-      { name: 'Gewinn brutto', type: 'bar', barMaxWidth: 12, data: brutto, itemStyle: { color: t.series[0], borderRadius: 4 } },
-      { name: 'Gewinn steuerpflichtig', type: 'bar', barMaxWidth: 12, data: taxable, itemStyle: { color: t.series[1], borderRadius: 4 } },
+      seg('steuerpflichtig', t.series[1], part(taxable, i => !free[i] || Math.sign(free[i]) !== Math.sign(taxable[i]))),
+      seg('steuerfrei', t.series[0], part(free, i => !!free[i])),
     ],
   };
 }
