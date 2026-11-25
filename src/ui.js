@@ -9,7 +9,7 @@ const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, alloc: null, plan: null, target: '', tab: 0 };
 try { ui.tab = Math.min(3, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
-const S = () => ({ ...ui.settings, depots: ui.depots, genutzt: null });
+const S = () => ({ ...ui.settings, depots: ui.depots });
 const secName = u => (ui.data.securities.find(s => s.uuid === u) || {}).name || u;
 const secIsin = u => (ui.data.securities.find(s => s.uuid === u) || {}).isin || '';
 const depName = u => (ui.data.portfolios.find(p => p.uuid === u) || {}).name || u;
@@ -144,7 +144,7 @@ function renderVp() {
   }).join('');
   const bz = Object.entries(LAW.basiszins.values).map(([y, v]) => `<tr><td>${y}</td><td>${fmtPct(v)}</td><td class="txt">${esc(LAW.basiszins.source[y])}</td></tr>`).join('');
   const fc = ui.result.vpForecast, fsum = k => fc.reduce((s, r) => s + r[k], 0);
-  const nx = allowanceNextYear(ui.result, S(), YEAR);
+  const nx = ledgerNextYear(ui.result, ui.data, S(), YEAR);
   const forecast = fc.length ? `
     <div class="card">
       <div class="card-h"><h2>Prognose ${YEAR}, fällig Januar ${YEAR + 1}</h2><span class="sub">Letzter Kurs statt Kurs zum 31.12. · ändert sich bis Jahresende mit dem Kurs</span></div>

@@ -10,7 +10,7 @@ function planNetSale(result, data, settings, year, target) {
 
 function runNetSale(result, data, settings, year, target, feeAware) {
   const total = param('sparerpauschbetrag', year)[settings.veranlagung];
-  const used = settings.genutzt ?? prefillUsed(result, settings, year);
+  const used = typeof settings.genutzt === 'number' ? settings.genutzt : prefillUsed(result, settings, year);
   let allowLeft = Math.max(0, total - used);
   const rate = taxRate(settings, year);
   // Ordergebühren: fester Betrag je Order (= erster Verkauf je Depot × Wertpapier) plus Prozent vom Erlös
