@@ -58,17 +58,21 @@ export default ({ g, check, near }) => {
   check('chart lots: two stacked parts per panel', ol.series.length === 4 && ol.series.map(x => x.name).join() === 'steuerpflichtig,steuerfrei,steuerpflichtig,steuerfrei'
     && ol.series.every(x => x.type === 'custom' && !x.stack) && ol.series.map(x => x.xAxisIndex).join() === '0,0,1,1' && ol.series.map(x => x.yAxisIndex).join() === '0,0,1,1', ol.series.map(x => [x.name, x.stack, x.xAxisIndex]));
   const val = (si) => v(ol.series[si].data[0]);
-  check('chart lots: x = buy date, parts add up to gross gain', val(0)[0] === '2020-01-01' && near(val(0)[1], 350) && near(val(1)[1], 150) && near(val(2)[1], -140) && near(val(3)[1], -60), [0, 1, 2, 3].map(val));
+  check('chart lots: x = Monday of ISO week, parts add up to gross gain', val(0)[0] === '2019-12-30' && near(val(0)[1], 350) && near(val(1)[1], 150) && near(val(2)[1], -140) && near(val(3)[1], -60), [0, 1, 2, 3].map(val));
   check('chart lots: tax-free part starts where taxable part ends', val(0)[2] === 0 && near(val(1)[2], 350) && near(val(1)[3], 500) && near(val(3)[2], -140) && near(val(3)[3], -200), [0, 1, 2, 3].map(val));
   const mixed = g('optLotGains')({ lots: [{ ...lot('S'), vpCum: 60 }], latest: new Map([['S', ['2025-01-01', 55]]]) }, data, { fundTypes: {} }, TOK);
   const mv = mixed.series.map(x => v(x.data[0]));
   check('chart lots: opposite signs both start at zero', near(mv[0][1], -7) && mv[0][2] === 0 && near(mv[1][1], 57) && mv[1][2] === 0, mv);
   check('chart lots: rounded outer end only', JSON.stringify(rad(ol.series[1].data[0])) === '[4,4,0,0]' && !rad(ol.series[0].data[0]) && JSON.stringify(rad(ol.series[3].data[0])) === '[0,0,4,4]', [ol.series[0].data[0], ol.series[1].data[0], ol.series[3].data[0]]);
-  const two = g('optLotGains')({ ...res, lots: [...res.lots, { ...lot('S'), depot: 'B' }] }, data, { fundTypes: {} }, TOK);
-  check('chart lots: same security + date -> one column', two.series[0].data.length === 1 && near(v(two.series[0].data[0])[1], 700), two.series[0].data);
+  const two = g('optLotGains')({ ...res, lots: [...res.lots, { ...lot('S'), depot: 'B', buyDate: '2020-01-05' }] }, data, { fundTypes: {} }, TOK);
+  check('chart lots: same security + calendar week -> one column', two.series[0].data.length === 1 && near(v(two.series[0].data[0])[1], 700), two.series[0].data);
   const tip = two.tooltip.formatter({ seriesIndex: 0, dataIndex: 0, color: '#a2', seriesName: 'steuerpflichtig' });
-  check('chart lots: tooltip has date, depots, gross gain and parts', tip.includes('Welt') && tip.includes('Kauf 01.01.2020') && tip.includes('Depot A') && tip.includes('Depot B')
+  check('chart lots: tooltip has date, depots, gross gain and parts', tip.includes('Welt') && tip.includes('KW 1/2020') && tip.includes('01.01.2020') && tip.includes('05.01.2020') && tip.includes('Depot A') && tip.includes('Depot B')
     && tip.includes('Gewinn brutto') && tip.includes('1.000,00') && tip.includes('700,00') && tip.includes('300,00'), tip);
+  const wk = g('optLotGains')({ ...res, lots: [lot('S'), { ...lot('S'), buyDate: '2020-01-06' }] }, data, { fundTypes: {} }, TOK);
+  check('chart lots: Monday starts a new week', wk.series[0].data.map(x => v(x)[0]).join() === '2019-12-30,2020-01-06', wk.series[0].data.map(v));
+  const w53 = g('optLotGains')({ ...res, lots: [{ ...lot('S'), buyDate: '2021-01-01' }] }, data, { fundTypes: {} }, TOK);
+  check('chart lots: ISO week-year (01.01.2021 = KW 53/2020)', w53.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 }).includes('KW 53/2020'), w53.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 }));
   const solo = g('optLotGains')(res, data, { fundTypes: { I1: 'sonstige' } }, TOK);
   check('chart lots: no tax-free part -> taxable part gets rounded end', JSON.stringify(rad(solo.series[0].data[0])) === '[4,4,0,0]' && near(v(solo.series[1].data[0])[1], 0), [solo.series[0].data[0], solo.series[1].data[0]]);
   const one = g('optLotGains')({ ...res, lots: [lot('S')] }, data, { fundTypes: {} }, TOK);

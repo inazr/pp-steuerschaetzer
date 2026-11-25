@@ -62,6 +62,14 @@ function optAllowance(a, t) {
 // Jede Säule = Bruttogewinn der Lots eines Kauftags, geteilt in steuerpflichtig (an der Null) und steuerfrei (außen).
 const LOT_TOP = 36, LOT_PANEL = 210, LOT_PLOT = 140, DAY = 864e5;
 const NF_MON = new Intl.DateTimeFormat('de-DE', { month: 'short', year: 'numeric' });
+// ISO-Kalenderwoche: Montag als Datum, Wochennummer und Wochenjahr (das Jahr des Donnerstags)
+function isoWeek(iso) {
+  const d = new Date(iso + 'T00:00:00Z'), dow = (d.getUTCDay() + 6) % 7;
+  const mon = new Date(d.getTime() - dow * DAY), thu = new Date(mon.getTime() + 3 * DAY);
+  const year = thu.getUTCFullYear(), jan4 = new Date(Date.UTC(year, 0, 4));
+  const week1 = jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * DAY;
+  return { monday: mon.toISOString().slice(0, 10), week: Math.round((mon.getTime() - week1) / (7 * DAY)) + 1, year };
+}
 const lotChartHeight = opt => LOT_TOP + Math.max(1, opt.grid.length) * LOT_PANEL;
 
 function optLotGains(result, data, settings, t) {
@@ -69,17 +77,18 @@ function optLotGains(result, data, settings, t) {
   const depName = id => (data.portfolios.find(p => p.uuid === id) || {}).name || '';
   const panels = data.securities.map(sec => {
     const price = (result.latest.get(sec.uuid) || [])[1];
-    const byDate = new Map();
+    const byWeek = new Map(); // je Kalenderwoche eine Säule, sonst überdecken sich Käufe weniger Tage Abstand
     for (const l of result.lots) {
       if (l.security !== sec.uuid || !(price > 0)) continue;
-      const g = taxableGainPerShare(l, price, settings, data);
-      const e = byDate.get(l.buyDate) || { date: l.buyDate, brutto: 0, taxable: 0, depots: new Set() };
+      const g = taxableGainPerShare(l, price, settings, data), w = isoWeek(l.buyDate);
+      const e = byWeek.get(w.monday) || { date: w.monday, week: w.week, weekYear: w.year, brutto: 0, taxable: 0, depots: new Set(), buys: new Set() };
       e.brutto += (price - l.cost) * l.shares;
       e.taxable += g === null ? 0 : g * l.shares;
       e.depots.add(l.depot);
-      byDate.set(l.buyDate, e);
+      e.buys.add(l.buyDate);
+      byWeek.set(w.monday, e);
     }
-    const cols = [...byDate.values()].sort((a, b) => a.date < b.date ? -1 : 1).map(e => {
+    const cols = [...byWeek.values()].sort((a, b) => a.date < b.date ? -1 : 1).map(e => {
       const brutto = round2(e.brutto), taxable = round2(e.taxable);
       return { ...e, brutto, taxable, free: round2(brutto - taxable) };
     });
@@ -120,9 +129,10 @@ function optLotGains(result, data, settings, t) {
       ...chartBase(t).tooltip, trigger: 'item', confine: true,
       formatter: p => {
         const c = panels[Math.floor(p.seriesIndex / 2)].cols[p.dataIndex];
-        const head = `${panels[Math.floor(p.seriesIndex / 2)].sec.name} · Kauf ${fmtDate(c.date)}`;
+        const head = `${panels[Math.floor(p.seriesIndex / 2)].sec.name} · KW ${c.week}/${c.weekYear}`;
+        const buys = `<div>${c.buys.size === 1 ? 'Kauf' : 'Käufe'} ${[...c.buys].sort().map(fmtDate).join(', ')}</div>`;
         const dep = showDepot ? `<div>${htmlEsc([...c.depots].map(depName).join(', '))}</div>` : '';
-        return tipHead(head) + dep + tipRow('transparent', 'Gewinn brutto', fmtEur(c.brutto))
+        return tipHead(head) + buys + dep + tipRow('transparent', 'Gewinn brutto', fmtEur(c.brutto))
           + tipRow(t.series[1], TIP.steuerpflichtig, fmtEur(c.taxable)) + tipRow(t.series[0], TIP.steuerfrei, fmtEur(c.free));
       },
     },
