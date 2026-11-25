@@ -5,8 +5,8 @@ const floor8 = x => Math.floor(x * 1e8 + 1e-6) / 1e8;
 // Bereits genutzt: steuerpflichtige VP des Vorjahres (fließt im Januar zu) + realisierte Gewinne des Jahres
 function prefillUsed(result, settings, year) {
   const spb = param('sparerpauschbetrag', year)[settings.veranlagung];
-  const vp = result.vpRows.filter(r => r.year === year - 1).reduce((s, r) => s + r.taxable, 0);
-  return round2(Math.min(spb, Math.max(0, vp + (result.realized[year] || 0))));
+  const vp = result.vpTaxableByYear[year - 1] || 0;
+  return round2(Math.min(spb, Math.max(0, vp + (result.realizedAll[year] || 0))));
 }
 
 // Steuerpflichtiger Gewinn je Stück; null = Lot ist steuerfrei (Bestandsschutz)

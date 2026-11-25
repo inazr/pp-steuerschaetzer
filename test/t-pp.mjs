@@ -37,7 +37,7 @@ export default ({ g, check, near, skipped, root }) => {
   const s = byId['pt-sell1'];
   check('pp: sell decoded', s && s.type === 'SELL' && s.date === '2023-06-01' && s.shares === 2 && near(s.amount, 239) && near(s.fees, 1), s);
   check('pp: delivery inbound', byId['pt-del1'] && byId['pt-del1'].type === 'DELIVERY_INBOUND' && near(byId['pt-del1'].amount, 550));
-  check('pp: dividend gross = net + tax', d.dividends.length === 1 && d.dividends[0].date === '2023-07-10' && d.dividends[0].depot === 'pf-1'
+  check('pp: dividend gross = net + tax', d.dividends.length === 1 && d.dividends[0].date === '2023-07-10' && d.dividends[0].depots.join() === 'pf-1'
     && d.dividends[0].security === 'sec-etf' && near(d.dividends[0].gross, 12.64), d.dividends);
   const pr = d.prices.get('sec-etf');
   check('pp: prices sorted and scaled', pr.length === 3 && pr[0][0] === '2022-12-30' && near(pr[0][1], 100) && near(pr[2][1], 130), pr);

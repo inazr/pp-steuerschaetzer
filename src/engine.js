@@ -38,7 +38,7 @@ function replay(data, settings, today) {
   const depName = u => (data.portfolios.find(p => p.uuid === u) || {}).name || u;
   const queues = new Map();
   const q = (d, s) => { const k = d + '|' + s; let a = queues.get(k); if (!a) queues.set(k, a = []); return a; };
-  const errors = [], warnings = [], vpRows = [], realized = {};
+  const errors = [], warnings = [], vpRows = [], realized = {}, realizedAll = {};
   let lotId = 0;
 
   const events = [...data.txs, ...data.dividends.map(d => ({ ...d, type: 'DIV' }))]
@@ -76,9 +76,10 @@ function replay(data, settings, today) {
     const y = +ev.date.slice(0, 4);
     switch (ev.type) {
       case 'DIV': {
-        const queue = q(ev.depot, ev.security);
-        const held = queue.reduce((s, l) => s + l.shares, 0);
-        if (held > EPS) for (const lot of queue) lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
+        // Ausschüttung am Konto: auf alle Depots dieses Kontos nach Bestand am Zahltag verteilen
+        const queues = (ev.depots || [ev.depot]).map(d => q(d, ev.security));
+        const held = queues.reduce((s, qu) => s + qu.reduce((a, l) => a + l.shares, 0), 0);
+        if (held > EPS) for (const qu of queues) for (const lot of qu) lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
         return;
       }
       case 'BUY': case 'DELIVERY_INBOUND': return buy(ev);
@@ -86,11 +87,12 @@ function replay(data, settings, today) {
         const { pieces, missing } = take(q(ev.depot, ev.security), ev.shares);
         if (missing) oversold(ev, missing);
         const sec = secById.get(ev.security), ft = FUND_TYPES[fundTypeOf(settings, sec)];
-        const pps = ev.amount / ev.shares;
+        const pps = (ev.amount + (ev.taxes || 0)) / ev.shares; // PP-Betrag ist nach einbehaltener Steuer
         for (const p of pieces) {
           if (ft.bestandsschutz && p.buyDate < ft.bestandsschutz) continue;
-          const gain = (pps - p.cost) * p.shares - p.vpCum;
-          if (!settings.depots || settings.depots.includes(ev.depot)) realized[y] = (realized[y] || 0) + gain * (1 - ft.tfs);
+          const gain = ((pps - p.cost) * p.shares - p.vpCum) * (1 - ft.tfs);
+          realizedAll[y] = (realizedAll[y] || 0) + gain;
+          if (!settings.depots || settings.depots.includes(ev.depot)) realized[y] = (realized[y] || 0) + gain;
         }
         return;
       }
@@ -155,7 +157,12 @@ function replay(data, settings, today) {
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);
   for (const y in realized) realized[y] = round2(realized[y]);
+  for (const y in realizedAll) realizedAll[y] = round2(realizedAll[y]);
+  // Freibetrag gilt je Person: Summen über alle Depots, unabhängig vom Anzeigefilter
+  const vpTaxableByYear = {};
+  for (const r of vpRows) vpTaxableByYear[r.year] = round2((vpTaxableByYear[r.year] || 0) + r.taxable);
   return {
+    vpTaxableByYear, realizedAll,
     lots: [...queues.values()].flat().filter(l => inView(l.depot)),
     vpRows: vpRows.filter(r => inView(r.depot)),
     errors, warnings: [...new Set(warnings)], latest, realized,

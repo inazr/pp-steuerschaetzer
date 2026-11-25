@@ -54,10 +54,9 @@ function extractPortfolio(xmlText) {
       used.add(security);
       if (!eur.has(security)) continue;
       const date = day(childText(tx, 'date'));
-      // Mehrere Depots am selben Konto: das Depot, das das Wertpapier vor dem Zahltag gebucht hat
-      const owner = owners.find(p => txs.some(t => t.depot === p.uuid && t.security === security && t.date <= date)) || owners[0];
-      if (!owner) { warnings.push(`Ausschüttung ohne Depot ignoriert: ${date}`); continue; }
-      dividends.push({ uuid, date, depot: owner.uuid, security, gross: +childText(tx, 'amount') / 100 + units(tx, 'TAX') + units(tx, 'FEE') });
+      // Alle Depots am Konto; die Engine verteilt nach Bestand am Zahltag
+      if (!owners.length) { warnings.push(`Ausschüttung ohne Depot ignoriert: ${date}`); continue; }
+      dividends.push({ uuid, date, depots: owners.map(p => p.uuid), security, gross: +childText(tx, 'amount') / 100 + units(tx, 'TAX') + units(tx, 'FEE') });
     }
   }
   dividends.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
@@ -67,7 +66,8 @@ function extractPortfolio(xmlText) {
   const prices = new Map();
   for (const s of allSecs) {
     if (!eur.has(s.uuid)) continue;
-    const list = kids(child(s.node, 'prices'), 'price').map(p => [p.attrs.t, +p.attrs.v / 1e8]);
+    const list = kids(child(s.node, 'prices'), 'price').map(p => [p.attrs.t || '', +p.attrs.v / 1e8])
+      .filter(([t, v]) => /^\d{4}-\d{2}-\d{2}$/.test(t) && Number.isFinite(v) && v > 0);
     list.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
     prices.set(s.uuid, list);
   }

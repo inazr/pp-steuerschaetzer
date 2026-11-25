@@ -14,9 +14,10 @@ function parseXml(s) {
     const lt = s.indexOf('<', i);
     if (lt < 0) break;
     if (cur && lt > i) text += s.slice(i, lt);
-    if (s.startsWith('<!--', lt)) { i = s.indexOf('-->', lt) + 3; continue; }
-    if (s.startsWith('<![CDATA[', lt)) { const e = s.indexOf(']]>', lt); if (cur) text += '\u0000' + s.slice(lt + 9, e); i = e + 3; continue; }
-    if (s[lt + 1] === '?' || s[lt + 1] === '!') { i = s.indexOf('>', lt) + 1; continue; }
+    const until = (mark, from) => { const e = s.indexOf(mark, from); if (e < 0) throw new Error('XML_BROKEN'); return e; };
+    if (s.startsWith('<!--', lt)) { i = until('-->', lt) + 3; continue; }
+    if (s.startsWith('<![CDATA[', lt)) { const e = until(']]>', lt); if (cur) text += '\u0000' + s.slice(lt + 9, e); i = e + 3; continue; }
+    if (s[lt + 1] === '?' || s[lt + 1] === '!') { i = until('>', lt) + 1; continue; }
     const gt = s.indexOf('>', lt);
     if (gt < 0) throw new Error('XML_BROKEN');
     if (s[lt + 1] === '/') {
