@@ -90,7 +90,6 @@ function messages() {
 
 function renderOverview() {
   const s = ui.settings, d = ui.data, r = ui.result;
-  const prefill = prefillUsed(r, S(), YEAR);
   const held = sec => r.lots.filter(l => l.security === sec).reduce((a, l) => a + l.shares, 0);
   const secs = tradedSecs();
   const ftSelect = x => `<select data-ft="${esc(x.isin || x.uuid)}" aria-label="Fondstyp ${esc(x.name)}">${Object.entries(FUND_TYPES).map(([k, v]) => `<option value="${k}"${fundTypeOf(s, x) === k ? ' selected' : ''}>${v.label}${v.vp ? ` (TFS ${v.tfs * 100} %)` : ''}</option>`).join('')}</select>`;
@@ -107,7 +106,6 @@ function renderOverview() {
           <div class="f"><label for="s-veranl">Veranlagung</label><div class="in"><select id="s-veranl"><option value="single"${s.veranlagung === 'single' ? ' selected' : ''}>Einzeln</option><option value="joint"${s.veranlagung === 'joint' ? ' selected' : ''}>Zusammen (Ehe/Lebenspartnerschaft)</option></select></div></div>
           <div class="f"><label for="s-land">Bundesland (Kirchensteuer)</label><div class="in"><select id="s-land"><option value="default"${s.bundesland === 'default' ? ' selected' : ''}>Übrige Länder (9 %)</option><option value="bayern"${s.bundesland === 'bayern' ? ' selected' : ''}>Bayern (8 %)</option><option value="baden_wuerttemberg"${s.bundesland === 'baden_wuerttemberg' ? ' selected' : ''}>Baden-Württemberg (8 %)</option></select></div></div>
           <label class="chk"><input type="checkbox" id="s-kist"${s.kirchensteuer ? ' checked' : ''}> Kirchensteuerpflichtig</label>
-            <span class="h">Leer = Vorbelegung ${fmtEur(prefill)}: steuerpflichtige Vorabpauschale ${YEAR - 1} plus Ausschüttungen und Verkäufe ${YEAR} der ausgewählten Depots. Andere Banken selbst eintragen.</span></div>
         </div>
       </div>
       <div class="card">
