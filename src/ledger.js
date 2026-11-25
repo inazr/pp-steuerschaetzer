@@ -144,7 +144,9 @@ function ledger(result, data, settings, year) {
     b.fsa = cfg.byBank[b.key]; b.fsaSource = cfg.source[b.key];
     const ov = genutzt[`${year}|${b.key}`];
     b.usedOverridden = typeof ov === 'number';
-    b.positiveEff = b.usedOverridden ? round2(Math.min(b.fsa, Math.max(0, ov))) : b.positiveBase;
+    // Override < FSA: genau so viel positiv; Override ≥ FSA heißt „FSA voll genutzt“ – was darüber hinaus berechnet
+    // ist, bleibt Bemessungsgrundlage (der Plan kann so auch jenseits des FSA versteuerte Erträge erstatten)
+    b.positiveEff = !b.usedOverridden ? b.positiveBase : ov >= b.fsa ? Math.max(b.fsa, b.positiveBase) : round2(Math.max(0, ov));
   }
   const fsa = { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank };
   const base = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveBase])), fsa, rate).usedByBank;

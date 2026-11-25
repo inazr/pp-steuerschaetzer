@@ -46,6 +46,11 @@ export default ({ g, check, near }) => {
   check('ledger: vortrag override', l.banks[0].vortragOverridden && l.banks[0].used === 50, l.banks[0]);
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, genutzt: { '2026|A': 1500 } }, 2026);
   check('ledger: genutzt override capped to fsa', l.banks[0].usedOverridden && l.banks[0].used === 1000 && l.banks[0].fsaLeft === 0, l.banks[0]);
+  // Final review M2: Override ≥ FSA hält die Bemessungsgrundlage über dem FSA (Steuer jenseits des FSA bleibt erstattbar)
+  l = L(R([ev('A', 'sonst', 3000)]), dat, { ...base, genutzt: { '2026|A': 1000 } }, 2026);
+  check('ledger M2: genutzt override = fsa keeps positiveBase above fsa', l.banks[0].used === 1000 && l.banks[0].fsaLeft === 0 && l.banks[0].positiveEff === 3000, l.banks[0]);
+  l = L(R([ev('A', 'sonst', 3000)]), dat, { ...base, genutzt: { '2026|A': 400 } }, 2026);
+  check('ledger M2: genutzt override below fsa unchanged', l.banks[0].used === 400 && l.banks[0].positiveEff === 400, l.banks[0]);
   const two = { ...base, depots: ['A', 'B'] };
   l = L(R([ev('A', 'sonst', 700), ev('B', 'sonst', 600)]), dat, two, 2026);
   check('ledger: two active banks without FSA -> pooled + warning', l.pooled && l.banks.every(b => b.fsaSource === 'gemeinsam') && l.warnings.some(w => w.includes('Freistellungsaufträge je Bank')), l);

@@ -72,6 +72,10 @@ export default ({ g, check, near }) => {
   const done = { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'sonst', amount: 2000 }] };
   p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }, done), data, { ...SET, genutzt: {}, fundTypes: { IEX: 'sonstige' } }, 2025, 300);
   check('plan: loss triggers refund', p.rows[0].tax < 0 && near(p.rows[0].tax, -p.rows[0].shares * 50 * rate, 0.02) && near(p.net, 300, 0.011), p.rows[0]);
+  // Final review M2: genutzt-Override = FSA bei 3000 Gewinn im Jahr – der Verlust erstattet Steuer
+  const done3 = { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'sonst', amount: 3000 }] };
+  p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }, done3), data, { ...SET, genutzt: { '2025|A': 1000 }, fundTypes: { IEX: 'sonstige' } }, 2025, 5000);
+  check('plan M2: genutzt override = fsa, loss refunds tax', p.rows.length === 1 && near(p.rows[0].shares, 10, 1e-8) && near(p.rows[0].tax, -500 * rate, 0.011), p.rows[0]);
   // Aktienverlust ohne Aktiengewinne im Jahr: keine Erstattung
   p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }, done), data, { ...SET, genutzt: {}, fundTypes: { IEX: 'einzelaktie' } }, 2025, 300);
   check('plan: stock loss without stock gains -> no refund', near(p.rows[0].tax, 0), p.rows[0]);
