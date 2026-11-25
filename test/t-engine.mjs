@@ -114,5 +114,10 @@ export default ({ g, check, near }) => {
   // Übertrag leert das Quelldepot nicht „verwaist“: Bestand liegt im Zieldepot, normaler Pfad
   res = replay(mk({ txs: [tx('2025-01-10', 'BUY', 'A', 10, 1000), tx('2025-05-01', 'TRANSFER_OUT', 'A', 10, 1000, { transferKey: 'k1' }), tx('2025-05-01', 'TRANSFER_IN', 'B', 10, 1000, { transferKey: 'k1' })],
     dividends: [{ uuid: 'd', date: '2025-05-11', depots: ['A', 'B'], security: 'S', gross: 50 }], prices: P }), SET, '2025-11-24');
+  // Review M5: Übertrag A→B, Verkauf aus B, Ausschüttung danach – nur B hatte den letzten Bestand
+  const m5 = depots => replay(mk({ txs: [tx('2025-01-10', 'BUY', 'A', 10, 1000), tx('2025-05-01', 'TRANSFER_OUT', 'A', 10, 1000, { transferKey: 'k5' }),
+    tx('2025-05-01', 'TRANSFER_IN', 'B', 10, 1000, { transferKey: 'k5' }), tx('2025-05-05', 'SELL', 'B', 10, 1100)],
+    dividends: [{ uuid: 'd', date: '2025-05-15', depots: ['A', 'B'], security: 'S', gross: 100 }], prices: P }), { ...SET, depots }, '2025-11-24').distributions[2025] || 0;
+  check('orphan after transfer: only target depot', near(m5(['A']), 0) && near(m5(['B']), 70) && near(m5(null), 70), [m5(['A']), m5(['B']), m5(null)]);
   check('transfer: dividend goes to target holdings, no orphan hint', near(res.distributions[2025], 35) && !res.warnings.some(w => w.includes('ohne Bestand')), [res.distributions, res.warnings]);
 };

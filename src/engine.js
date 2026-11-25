@@ -131,6 +131,7 @@ function replay(data, settings, today) {
         if (p.done) return;
         p.done = true;
         const { pieces, missing } = takeFrom(p.out);
+        lastHeld.delete(p.out.depot + '|' + p.out.security); // Bestand ist nur umgezogen, nicht abgegangen
         if (missing) oversold(p.out, missing);
         const target = q(p.in.depot, p.in.security);
         for (const piece of pieces) { piece.depot = p.in.depot; insert(target, piece); }
