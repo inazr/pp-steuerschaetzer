@@ -15,13 +15,16 @@ function csvVp(rows, data) {
       csvMoney(r.wertsteigerung), csvMoney(r.ausschuettungen), csvMoney(r.vp), csvPct(r.tfs), csvMoney(r.taxable), csvMoney(r.tax)]));
 }
 
+// Bank-Label aus dem Ergebnis (res.banks), sonst Name des gründenden Depots/Kontos
+const csvBank = (res, data, key) => ((res.banks || []).find(b => b.key === key) || {}).label || bankLabel(data, key);
 const csvLotCols = (r, data) => [...csvNames(data, r.lot.depot, r.lot.security), csvShares(r.shares), fmtDate(r.lot.buyDate), csvMoney(r.lot.cost), csvMoney(r.price), csvMoney(r.gross)];
-const CSV_LOT_HEAD = ['Depot', 'Wertpapier', 'ISIN', 'Stück', 'Kaufdatum', 'Einstandskurs', 'Aktueller Kurs', 'Brutto-Erlös'];
+const CSV_LOT_HEAD = ['Bank', 'Depot', 'Wertpapier', 'ISIN', 'Stück', 'Kaufdatum', 'Einstandskurs', 'Aktueller Kurs', 'Brutto-Erlös'];
 
 function csvAllowance(res, data) {
-  return csvDoc([...CSV_LOT_HEAD, 'Gewinn steuerpflichtig'], res.rows.map(r => [...csvLotCols(r, data), csvMoney(r.gainTaxable)]));
+  return csvDoc([...CSV_LOT_HEAD, 'Gewinn steuerpflichtig'], res.rows.map(r => [csvBank(res, data, r.bank), ...csvLotCols(r, data), csvMoney(r.gainTaxable)]));
 }
 function csvPlan(plan, data) {
-  return csvDoc([...CSV_LOT_HEAD, 'Gebühr', 'Gewinn', 'Gewinn steuerpflichtig', 'Freibetrag', 'Steuer', 'Netto-Erlös'],
-    plan.rows.map(r => [...csvLotCols(r, data), csvMoney(r.fee || 0), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net)]));
+  // Steuerbasis Δ / Freibetrag Δ: Änderung durch die Zeile im Jahressaldo der Bank (kann negativ sein)
+  return csvDoc([...CSV_LOT_HEAD, 'Gebühr', 'Gewinn', 'Steuerbasis Δ', 'Freibetrag Δ', 'Steuer (negativ = Erstattung)', 'Netto-Erlös'],
+    plan.rows.map(r => [csvBank(plan, data, r.bank), ...csvLotCols(r, data), csvMoney(r.fee || 0), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net)]));
 }

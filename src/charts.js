@@ -155,17 +155,19 @@ function optWaterfall(plan, data, t) {
     e.gross += r.gross;
   }
   const fees = plan.fees || 0;
-  const cats = [...bySec.map(e => e.name), ...(fees > 0 ? ['Gebühren'] : []), 'Steuer', 'Netto'];
+  const cats = [...bySec.map(e => e.name), ...(fees > 0 ? ['Gebühren'] : []), plan.tax < 0 ? 'Erstattung' : 'Steuer', 'Netto'];
   const base = [], vis = [];
   let acc = 0;
   for (const e of bySec) { base.push(round2(acc)); vis.push({ value: round2(e.gross), itemStyle: { color: secColor(t, data, e.uuid) } }); acc += e.gross; }
   // Gebühren und Steuer hängen von oben herab: Gebühren ab Brutto, Steuer darunter bis Netto
   if (fees > 0) { base.push(round2(acc - fees)); vis.push({ value: round2(fees), itemStyle: { color: t.ink2 } }); }
-  base.push(round2(plan.net)); vis.push({ value: round2(plan.tax), itemStyle: { color: t.ink3 } });
+  // Erstattung (negative Steuer): Balken steigt von Brutto − Gebühren bis Netto
+  const refund = plan.tax < 0;
+  base.push(round2(refund ? plan.net + plan.tax : plan.net)); vis.push({ value: round2(Math.abs(plan.tax)), itemStyle: { color: refund ? t.series[1] : t.ink3 } });
   base.push(0); vis.push({ value: round2(plan.net), itemStyle: { color: t.series[2] } });
   return {
     ...chartBase(t),
-    tooltip: { ...chartBase(t).tooltip, trigger: 'item', formatter: p => p.seriesName === '_base' ? '' : tipRow(p.color, p.name, (p.name === 'Steuer' || p.name === 'Gebühren' ? '− ' : '') + fmtEur(p.value)) },
+    tooltip: { ...chartBase(t).tooltip, trigger: 'item', formatter: p => p.seriesName === '_base' ? '' : tipRow(p.color, p.name, (p.name === 'Steuer' || p.name === 'Gebühren' ? '− ' : p.name === 'Erstattung' ? '+ ' : '') + fmtEur(p.value)) },
     xAxis: chartCatAxis(t, cats),
     yAxis: chartValueAxis(t),
     series: [

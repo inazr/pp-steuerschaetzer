@@ -6,16 +6,21 @@ const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String
 const YEAR = +TODAY.slice(0, 4);
 const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 
-const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, alloc: null, plan: null, target: '', tab: 0 };
+const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, plan: null, target: '', tab: 0, banksOffOpen: false };
 try { ui.tab = Math.min(3, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
 const S = () => ({ ...ui.settings, depots: ui.depots });
 const secName = u => (ui.data.securities.find(s => s.uuid === u) || {}).name || u;
 const secIsin = u => (ui.data.securities.find(s => s.uuid === u) || {}).isin || '';
 const depName = u => (ui.data.portfolios.find(p => p.uuid === u) || {}).name || u;
+const accName = u => ((ui.data.accounts || []).find(a => a.uuid === u) || {}).name || u;
 const tradedSecs = () => ui.data.securities.filter(x => ui.data.txs.some(t => t.security === x.uuid));
 const multiDepot = () => (ui.depots || []).length > 1;
 const eurTd = (x, cls = '') => `<td class="${x < 0 ? 'neg ' : ''}${cls}">${fmtEur(x)}</td>`;
+const fact = (l, v) => `<div class="fact"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+// Negative Steuer = Erstattung (Jahressaldo wie die Bank)
+const taxFact = x => x < -0.005 ? fact('Erstattung', fmtEur(-x)) : fact('Steuer', fmtEur(x));
+const nBanks = n => `${n} ${n === 1 ? 'Bank' : 'Banken'}`;
 const save = () => saveSettings(localStorage, ui.settings);
 
 // ---------- Datei laden ----------
@@ -47,6 +52,7 @@ async function loadFile(file) {
 // ---------- Berechnung ----------
 function recompute() {
   ui.result = replay(ui.data, S(), TODAY);
+  ui.led = ledger(ui.result, ui.data, S(), YEAR);
   ui.alloc = optimizeAllowance(ui.result, ui.data, S(), YEAR);
   if (ui.plan) ui.plan = planNetSale(ui.result, ui.data, S(), YEAR, ui.planTarget);
   renderKpis();
@@ -66,7 +72,7 @@ function renderKpis() {
       `steuerpflichtig ${fmtEur(vpPrev.reduce((s, x) => s + x.taxable, 0))} · Steuer ${fmtEur(vpPrev.reduce((s, x) => s + x.tax, 0))} · ${depotScope(ui.depots, ui.data.portfolios.length)}`],
     (fc => [`Vorabpauschale ${YEAR} (Prognose)`, fc.length ? fmtEur(fc.reduce((s, x) => s + x.vp, 0)) : '–',
       fc.length ? `steuerpflichtig ${fmtEur(fc.reduce((s, x) => s + x.taxable, 0))} · Steuer ${fmtEur(fc.reduce((s, x) => s + x.tax, 0))} · fällig Januar ${YEAR + 1}` : 'keine Prognose möglich'])(r.vpForecast),
-    [`Freibetrag ${YEAR} frei`, fmtEur(ui.alloc.remaining), `von ${fmtEur(ui.alloc.total)} · genutzt ${fmtEur(ui.alloc.used)} · ${depotScope(ui.depots, ui.data.portfolios.length)}`],
+    [`Freibetrag ${YEAR} frei`, fmtEur(ui.alloc.remaining), `von ${fmtEur(ui.alloc.total)} · genutzt ${fmtEur(ui.alloc.used)} · ${nBanks(ui.led.banks.filter(b => b.active).length)}${ui.led.pooled ? ' gemeinsam' : ''}`],
     ['Steuersatz', fmtPct(taxRate(ui.settings, YEAR)), ui.settings.kirchensteuer ? 'inkl. Soli und Kirchensteuer' : 'inkl. Soli'],
   ];
   $('#kpis').innerHTML = k.map(([l, v, d]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d.split(' · ').map(x => `<span class="nw">${x}</span>`).join(' · ')}</div></div>`).join('');
@@ -119,6 +125,7 @@ function renderOverview() {
         </div>
       </div>
     </div>
+    ${renderBanks()}
     <div class="card">
       <div class="card-h"><h2>Wertpapiere</h2><span class="sub">Fondstyp bestimmt Teilfreistellung und Vorabpauschale. Wird je ISIN gespeichert.</span></div>
       <div class="tablebox"><table>
@@ -130,6 +137,59 @@ function renderOverview() {
       <div class="card-h"><h2>Unrealisierte Gewinne je Kauf</h2><span class="sub">Zum letzten Kurs · steuerpflichtig nach Teilfreistellung und Anrechnung bereits versteuerter Vorabpauschalen</span></div>
       <div class="chart" id="c-lots"></div>
     </div>`;
+}
+
+// ---------- Banken & Freistellungsaufträge ----------
+const fmtNum = x => (round2(x) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Eingabefeld: eingetragener Wert oder leer (= berechnet, als Placeholder)
+const amountField = (id, label, attr, key, value, computed, hint = '') => `<div class="f"><label for="${id}">${label}</label>
+  <div class="in"><input id="${id}" type="number" min="0" step="0.01" inputmode="decimal" ${attr}="${esc(key)}" value="${typeof value === 'number' ? value : ''}" placeholder="${fmtNum(computed)}"><span class="u">€</span></div>${hint ? `<span class="h">${hint}</span>` : ''}</div>`;
+// Eingabe lesen: leer = null (berechneter Wert gilt), sonst ≥ 0
+const amountOf = el => el.value.trim() === '' ? null : Math.max(0, round2(+el.value.replace(',', '.') || 0));
+
+// Bank-Auswahl je Mitglied: „eigene Bank“ (Depots, Konten ohne Depot) bzw. „wie Depot“ (Verrechnungskonten) plus alle anderen Banken
+function memberSelect(u, name, isAcc, bank) {
+  const refd = isAcc && ui.data.portfolios.some(p => p.accountUuid === u);
+  const cur = u !== bank.key && (ui.settings.bankOf || {})[u] === bank.key ? bank.key : '';
+  const opts = [['', refd ? 'wie Depot' : 'eigene Bank'], ...ui.led.banks.filter(b => b.key !== u).map(b => [b.key, b.label])];
+  return `<select data-bank-of="${esc(u)}" aria-label="Bank für ${esc(name)}">${opts.map(([k, l]) => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+}
+
+function bankBox(b, i) {
+  const s = ui.settings, inc = b.income, id = `bk${i}`, pooled = ui.led.pooled;
+  const vt = (s.vortrag || {})[`${YEAR}|${b.key}`] || {};
+  const members = [...b.depots.map(u => [u, depName(u), false]), ...b.accounts.map(u => [u, accName(u), true])].map(([u, name, isAcc]) =>
+    `<div class="member"><span class="mname">${esc(name)}</span>${memberSelect(u, name, isAcc, b)}${isAcc ? `<label class="chk"><input type="checkbox" data-zins="${esc(u)}"${zinsOn(ui.data, S(), u) ? ' checked' : ''}> Zinsen</label>` : ''}</div>`).join('');
+  const src = { eingetragen: 'eingetragen', gemeinsam: `gemeinsam: ${fmtEur(ui.led.spb)} für alle Banken`,
+    automatisch: b.fsa > 0 ? 'automatisch: Sparerpauschbetrag' : 'automatisch: 0 (Aufträge bei anderen Banken)' }[b.fsaSource];
+  const sales = inc.aktie + inc.sonstGewinn - inc.sonstVerlust;
+  const calc = `berechnet: VP ${YEAR - 1} ${fmtEur(inc.vp)} · Ausschüttungen ${fmtEur(inc.div)} · Verkäufe ${fmtEur(sales)} · Zinsen ${fmtEur(inc.zins)}, nach Verlusttöpfen`;
+  return `<div class="bank">
+    <div class="bank-h"><span>Bank: ${esc(b.label)}</span>${b.vortragOverridden ? '<span class="pill info">Vortrag eingetragen</span>' : ''}${b.usedOverridden ? '<span class="pill info">genutzt eingetragen</span>' : ''}</div>
+    <div class="members">${members}</div>
+    <div class="fields four">
+      ${amountField(`${id}-fsa`, 'Freistellungsauftrag', 'data-fsa', b.key, (s.fsa || {})[b.key], b.fsa, src)}
+      ${amountField(`${id}-used`, `genutzt ${YEAR}`, 'data-genutzt', b.key, (s.genutzt || {})[`${YEAR}|${b.key}`], b.usedComputed, calc)}
+      ${amountField(`${id}-va`, `Vortrag 1.1. Aktien`, 'data-vortrag-aktien', b.key, b.vortragOverridden ? vt.aktien : undefined, b.vortragComputed.aktien, b.vortragOverridden ? `berechnet: ${fmtEur(b.vortragComputed.aktien)}` : 'berechnet aus der Datei')}
+      ${amountField(`${id}-vg`, `Vortrag 1.1. allgemein`, 'data-vortrag-allg', b.key, b.vortragOverridden ? vt.allg : undefined, b.vortragComputed.allg, b.vortragOverridden ? `berechnet: ${fmtEur(b.vortragComputed.allg)}` : 'berechnet aus der Datei')}
+    </div>
+    <div class="facts">
+      ${fact('Aktientopf jetzt', fmtEur(b.pots.aktien))}${fact('allg. Topf jetzt', fmtEur(b.pots.allg))}
+      ${fact(pooled ? 'Frei (gemeinsam)' : 'Frei', fmtEur(b.fsaLeft))}
+    </div>
+    ${b.closedWithPot ? '<p class="note">Kein Bestand mehr: Der Verlusttopf ist nur per Verlustbescheinigung oder bei vollständigem Depotübertrag nutzbar (§ 43a Abs. 3 EStG).</p>' : ''}
+  </div>`;
+}
+
+function renderBanks() {
+  const led = ui.led, on = led.banks.filter(b => b.active), off = led.banks.filter(b => !b.active);
+  return `<div class="card" id="banks">
+    <div class="card-h"><h2>Banken & Freistellungsaufträge ${YEAR}</h2>${led.pooled ? '<span class="pill warn">⚠ FSA je Bank eintragen</span>' : ''}</div>
+    ${led.warnings.length ? `<div class="msg warn"><ul>${led.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    ${on.map((b, i) => bankBox(b, i)).join('') || '<p class="note">Keine Bank mit Erträgen, Bestand oder Verlusttopf.</p>'}
+    ${off.length ? `<details id="banks-off"${ui.banksOffOpen ? ' open' : ''}><summary>Inaktive Banken (${off.length}) – ohne Erträge ${YEAR}, Bestand und Verlusttopf</summary><div class="banks-off">${off.map((b, i) => bankBox(b, on.length + i)).join('')}</div></details>` : ''}
+    <p class="note">Leere Felder = berechneter Wert (grau). Verlusttöpfe werden ab 2018 aus der Datei fortgeschrieben; ein eingetragener Vortrag zum 1.1. ersetzt den berechneten Stand. Der Freistellungsauftrag wirkt erst auf das, was nach der Verlustverrechnung positiv bleibt. Zinsen zählen brutto; Soll- und Negativzinsen sind nicht abziehbar.</p>
+  </div>`;
 }
 
 // ---------- Reiter 2: Vorabpauschale ----------
@@ -154,12 +214,14 @@ function renderVp() {
         <tr class="sum"><td class="txt">Summe · Basiszins ${fmtPct(fc[0].basiszins)}</td>${multiDepot() ? '<td></td>' : ''}${eurTd(fsum('wertAnfang'))}${eurTd(fsum('wertEnde'))}<td></td>${eurTd(fsum('basisertrag'))}${eurTd(fsum('ausschuettungen'))}${eurTd(fsum('vp'))}${eurTd(fsum('taxable'))}${eurTd(fsum('tax'))}</tr></tbody>
       </table></div>
       <div class="facts">
-        <div class="fact"><div class="l">Freibetrag ${nx.year}</div><div class="v">${fmtEur(nx.total)}</div></div>
-        <div class="fact"><div class="l">davon durch Vorabpauschale</div><div class="v">${fmtEur(nx.used)}</div></div>
-        <div class="fact"><div class="l">Restfreibetrag ${nx.year}</div><div class="v">${fmtEur(nx.remaining)}</div></div>
-        <div class="fact"><div class="l">Steuer nach Freibetrag</div><div class="v">${fmtEur(nx.taxAfter)}</div></div>
+        ${fact(`Freibetrag ${nx.year}${nx.pooled ? ' (gemeinsam)' : ''}`, fmtEur(nx.total))}${fact('davon durch Vorabpauschale', fmtEur(nx.used))}
+        ${fact(`Restfreibetrag ${nx.year}`, fmtEur(nx.remaining))}${fact('Steuer nach Freibetrag', fmtEur(nx.taxAfter))}
       </div>
-      <p class="note">Die Vorabpauschale fließt im Januar ${nx.year} zu und verbraucht den Freibetrag ${nx.year}, nicht den von ${YEAR}. Mit passendem Freistellungsauftrag wird nur die Steuer nach Freibetrag abgebucht. Fällt der Kurs bis 31.12., sinkt die Vorabpauschale. Gilt für die ausgewählten Depots; andere Banken und Ausschüttungen ${nx.year} sind nicht eingerechnet.</p>
+      ${nx.banks.length > 1 ? `<div class="tablebox"><table>
+        <thead><tr><th>Bank</th>${nx.pooled ? '' : '<th>Freistellungsauftrag</th>'}<th>durch Vorabpauschale</th>${nx.pooled ? '' : `<th>Restfreibetrag ${nx.year}</th>`}</tr></thead>
+        <tbody>${nx.banks.map(b => `<tr><td class="txt">${esc(b.label)}</td>${nx.pooled ? '' : eurTd(b.fsa)}${eurTd(b.used)}${nx.pooled ? '' : eurTd(b.fsaLeft)}</tr>`).join('')}</tbody>
+      </table></div>` : ''}
+      <p class="note">Die Vorabpauschale fließt im Januar ${nx.year} zu und verbraucht den Freibetrag ${nx.year}, nicht den von ${YEAR}. Je Bank wird sie zuerst mit dem allgemeinen Verlusttopf zum Jahresende ${YEAR} verrechnet, dann mit dem Freistellungsauftrag dieser Bank; abgebucht wird nur die Steuer danach. ${nx.pooled ? 'Ohne eingetragene Freistellungsaufträge ist der Freibetrag gemeinsam gerechnet. ' : ''}Fällt der Kurs bis 31.12., sinkt die Vorabpauschale. Ausschüttungen, Verkäufe und Zinsen ${nx.year} sind nicht eingerechnet.</p>
     </div>` : '';
   $('#p1').innerHTML = forecast + `
     <div class="card">
@@ -198,29 +260,49 @@ function lotTable(rows, cols) {
 }
 
 // ---------- Reiter 3: Freibetrag ----------
+const potsSum = p => round2(p.aktien + p.allg);
+function allowanceBank(b, pooled) {
+  // fsaLeft ist der Stand vor dem Vorschlag; „nach Vorschlag“ = fsaLeft − fsaUsed
+  const facts = pooled
+    ? [fact('Bereits genutzt', fmtEur(b.used)), fact('Vorschlag: Gewinn', fmtEur(b.harvested)), fact('davon gegen Verlusttöpfe', fmtEur(potsSum(b.potsUsed))), fact('davon gemeinsamer Freibetrag', fmtEur(b.fsaUsed))]
+    : [fact('Freistellungsauftrag', fmtEur(b.fsa)), fact('Bereits genutzt', fmtEur(b.used)), fact('Frei', fmtEur(b.fsaLeft)), fact('Vorschlag: Gewinn', fmtEur(b.harvested)),
+      fact('davon gegen Verlusttöpfe', fmtEur(potsSum(b.potsUsed))), fact('Frei nach Vorschlag', fmtEur(Math.max(0, b.fsaLeft - b.fsaUsed)))];
+  return `<div class="card">
+    <h2>Bank: ${esc(b.label)}</h2>
+    <div class="facts">${facts.join('')}</div>
+    ${b.hint ? `<p class="note">${esc(b.hint)}</p>` : ''}
+    ${b.rows.length ? lotTable(b.rows, [['Erlös', r => r.gross], ['Gewinn stpfl.', r => r.gainTaxable]]) : `<p class="note">${b.fsaLeft < 0.01 ? 'Der Freibetrag ist bereits ausgeschöpft.' : 'Keine Lots mit steuerpflichtigem Gewinn an der FIFO-Spitze.'}</p>`}
+  </div>`;
+}
 function renderAllowance() {
-  const a = ui.alloc;
+  const a = ui.alloc, fsaHarvest = round2(a.banks.reduce((s, b) => s + b.fsaUsed, 0));
   $('#p2').innerHTML = `
     <div class="card">
       <div class="card-h"><h2>Sparerpauschbetrag ${YEAR}</h2><button class="btn" id="csv-fb"${a.rows.length ? '' : ' disabled'}>CSV exportieren</button></div>
       <div class="facts">
-        <div class="fact"><div class="l">Gesamt</div><div class="v">${fmtEur(a.total)}</div></div>
-        <div class="fact"><div class="l">Bereits genutzt</div><div class="v">${fmtEur(a.used)}</div></div>
-        <div class="fact"><div class="l">Verbleibend</div><div class="v">${fmtEur(a.remaining)}</div></div>
-        <div class="fact"><div class="l">Vorschlag nutzt</div><div class="v">${fmtEur(a.harvested)}</div></div>
+        ${fact(a.pooled ? 'Gesamt (gemeinsam)' : 'Freistellungsaufträge', fmtEur(a.total))}${fact('Bereits genutzt', fmtEur(a.used))}${fact('Verbleibend', fmtEur(a.remaining))}
+        ${fact('Vorschlag nutzt Freibetrag', fmtEur(fsaHarvest))}${a.harvested - fsaHarvest > 0.005 ? fact('plus gegen Verlusttöpfe', fmtEur(a.harvested - fsaHarvest)) : ''}
       </div>
       <div class="chart sm" id="c-fb" style="height:120px"></div>
-      <p class="note">Verkaufen und sofort zurückkaufen: Der steuerpflichtige Gewinn füllt den freien Betrag, der Einstandskurs steigt, spätere Gewinne fallen niedriger aus. Verkauft wird je Depot streng nach FIFO, steht ein Lot mit Verlust vorn, endet der Vorschlag für dieses Wertpapier. Ordergebühren und Kursbewegungen zwischen Verkauf und Rückkauf sind nicht berücksichtigt. Gerechnet mit dem letzten Kurs aus der Datei.</p>
+      <p class="note">Verkaufen und sofort zurückkaufen: Der steuerpflichtige Gewinn füllt den freien Betrag, der Einstandskurs steigt, spätere Gewinne fallen niedriger aus. Gerechnet wird je Bank wie die Bank: ein Gewinn wird erst mit ihren Verlusttöpfen verrechnet (Aktiengewinne zuerst mit dem Aktientopf), erst dann greift ihr Freistellungsauftrag. ${a.pooled ? 'Ohne eingetragene Freistellungsaufträge teilen sich die Banken einen gemeinsamen Freibetrag. ' : ''}Verkauft wird je Depot streng nach FIFO, steht ein Lot mit Verlust vorn, endet der Vorschlag für dieses Wertpapier. Ordergebühren und Kursbewegungen zwischen Verkauf und Rückkauf sind nicht berücksichtigt. Gerechnet mit dem letzten Kurs aus der Datei.</p>
     </div>
-    <div class="card">
-      <h2>Vorschlag</h2>
-      ${a.rows.length ? lotTable(a.rows, [['Erlös', r => r.gross], ['Gewinn stpfl.', r => r.gainTaxable]]) : `<p class="note">${a.remaining < 0.01 ? 'Der Freibetrag ist bereits ausgeschöpft.' : 'Keine Lots mit steuerpflichtigem Gewinn an der FIFO-Spitze.'}</p>`}
-    </div>`;
+    ${a.banks.map(b => allowanceBank(b, a.pooled)).join('') || '<div class="card"><p class="note">Keine Bank mit Bestand.</p></div>'}`;
 }
 
 // ---------- Reiter 4: Verkaufsplanung ----------
+// Topf-Wirkung des Plans: positiv = verrechnet, negativ = Verlust kommt in den Topf
+const potTd = x => `<td>${x < -0.005 ? '+' + fmtEur(-x) + ' hinein' : fmtEur(x)}</td>`;
+function planBanks(p) {
+  const pooled = ui.led.pooled;
+  return `<div class="tablebox"><table>
+    <thead><tr><th>Bank</th><th>Gebühren</th><th>Steuer (− = Erstattung)</th>${pooled ? '' : '<th>Freibetrag genutzt</th>'}<th>Aktientopf</th><th>allg. Topf</th></tr></thead>
+    <tbody>${p.banks.map(b => `<tr><td class="txt">${esc(b.label)}</td>${eurTd(b.fees)}${eurTd(b.tax)}${pooled ? '' : eurTd(b.fsaUsed)}${potTd(b.potsUsed.aktien)}${potTd(b.potsUsed.allg)}</tr>`).join('')}</tbody>
+  </table></div>${pooled ? `<p class="note">Gemeinsamer Freibetrag (keine Freistellungsaufträge eingetragen): insgesamt ${p.allowanceUsed < 0 ? 'frei geworden ' + fmtEur(-p.allowanceUsed) : 'genutzt ' + fmtEur(p.allowanceUsed)}.</p>` : ''}`;
+}
 function renderPlan() {
   const p = ui.plan;
+  const cols = [['Erlös', r => r.gross], ['Gebühr', r => r.fee], ['Gewinn', r => r.gain], ['Steuerbasis Δ', r => r.taxable], ['Freibetrag Δ', r => r.allowance], ['Steuer (− = Erstattung)', r => r.tax], ['Netto', r => r.net]];
+  const groups = p ? p.banks.filter(b => p.rows.some(r => r.bank === b.key)) : [];
   $('#p3').innerHTML = `
     <div class="card">
       <h2>Wie viel muss ich verkaufen?</h2>
@@ -231,17 +313,17 @@ function renderPlan() {
         <button class="btn primary" type="submit">Berechnen</button>
         ${p ? '<button class="btn" type="button" id="csv-plan">CSV exportieren</button>' : ''}
       </form>
-      <p class="note">Verkauft wird je Depot nach FIFO; zwischen Wertpapieren wählt der Plan immer den Lot mit der geringsten Steuer je Euro netto. Freibetrag (${fmtEur(ui.alloc.remaining)} frei) wird zuerst verbraucht. Verluste werden nicht verrechnet (konservativ). Die feste Gebühr fällt einmal je Depot und Wertpapier an; Gebühren mindern den steuerpflichtigen Gewinn.</p>
+      <p class="note">Verkauft wird je Depot nach FIFO; zwischen Wertpapieren wählt der Plan immer den Lot mit der geringsten Steuer je Euro netto. Gerechnet wird wie die Bank im Jahressaldo: Die Verkäufe kommen zu den Erträgen ${YEAR} ihrer Bank hinzu, Gewinne werden mit den Verlusttöpfen verrechnet und dann mit dem Freistellungsauftrag (${fmtEur(ui.alloc.remaining)} frei). Verluste geben bereits genutzten Freibetrag wieder frei oder führen zur <b>Erstattung</b> schon gezahlter Steuer (negative Steuer); Aktienverluste nur mit Aktiengewinnen, sonst wachsen sie den Aktientopf. Die feste Gebühr fällt einmal je Depot und Wertpapier an; Gebühren mindern den steuerpflichtigen Gewinn. Steuerbasis Δ und Freibetrag Δ zeigen, wie sich die Zeile auf das Jahr ihrer Bank auswirkt.</p>
       ${p ? `<div class="facts">
-        <div class="fact"><div class="l">Brutto-Erlös</div><div class="v">${fmtEur(p.gross)}</div></div>
-        <div class="fact"><div class="l">Gebühren</div><div class="v">${fmtEur(p.fees)}</div></div>
-        <div class="fact"><div class="l">Steuer</div><div class="v">${fmtEur(p.tax)}</div></div>
-        <div class="fact"><div class="l">Netto</div><div class="v">${fmtEur(p.net)}</div></div>
-        <div class="fact"><div class="l">Freibetrag genutzt</div><div class="v">${fmtEur(p.allowanceUsed)}</div></div>
+        ${fact('Brutto-Erlös', fmtEur(p.gross))}${fact('Gebühren', fmtEur(p.fees))}${taxFact(p.tax)}${fact('Netto', fmtEur(p.net))}
+        ${p.allowanceUsed < -0.005 ? fact('Freibetrag frei geworden', fmtEur(-p.allowanceUsed)) : fact('Freibetrag genutzt', fmtEur(p.allowanceUsed))}
       </div>${p.reached ? '' : `<div class="msg warn">Das Ziel ist mit dem Bestand nicht erreichbar. Gezeigt wird der Verkauf aller Lots mit Kurs.</div>`}` : ''}
     </div>
     ${p && p.rows.length ? `<div class="card"><h2>Von Brutto zu Netto</h2><div class="chart" id="c-plan"></div></div>
-    <div class="card"><h2>Verkaufsplan</h2>${lotTable(p.rows, [['Erlös', r => r.gross], ['Gebühr', r => r.fee], ['Gewinn', r => r.gain], ['Freibetrag', r => r.allowance], ['Steuer', r => r.tax], ['Netto', r => r.net]])}</div>` : ''}`;
+    <div class="card"><h2>Je Bank</h2>${planBanks(p)}</div>
+    <div class="card"><h2>Verkaufsplan</h2>${groups.length > 1
+      ? groups.map(b => `<h3>Bank: ${esc(b.label)}</h3>${lotTable(p.rows.filter(r => r.bank === b.key), cols)}`).join('')
+      : lotTable(p.rows, cols)}</div>` : ''}`;
 }
 
 // ---------- Charts ----------
@@ -270,7 +352,7 @@ async function renderCharts() {
     chart('c-lots', o);
   }
   if (ui.tab === 1 && ui.result.vpRows.length) chart('c-vp', optVpByYear(ui.result.vpRows, ui.data, t));
-  if (ui.tab === 2) chart('c-fb', optAllowance(ui.alloc, t));
+  if (ui.tab === 2) chart('c-fb', optAllowance({ ...ui.alloc, harvested: round2(ui.alloc.banks.reduce((s, b) => s + b.fsaUsed, 0)) }, t));
   if (ui.tab === 3 && ui.plan && ui.plan.rows.length) chart('c-plan', optWaterfall(ui.plan, ui.data, t));
 }
 
@@ -311,6 +393,17 @@ document.addEventListener('change', e => {
     const t = $('#plan-target'); if (t) ui.target = t.value; // eingetipptes Ziel nicht verlieren
   }
   else if (el.dataset.ft) ui.settings.fundTypes = { ...ui.settings.fundTypes, [el.dataset.ft]: el.value };
+  else if (el.dataset.bankOf) ui.settings.bankOf = setKey(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
+  else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
+  else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
+  else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
+  else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
+    // Vortrag immer als Paar: ein leeres Feld übernimmt den berechneten Stand; gleich dem berechneten Stand = kein Eintrag.
+    // Einträge anderer Jahre bleiben (sie wirken auf die Fortschreibung).
+    const key = el.dataset.vortragAktien || el.dataset.vortragAllg, c = ui.led.banks.find(x => x.key === key).vortragComputed;
+    const a = amountOf($(`[data-vortrag-aktien="${CSS.escape(key)}"]`)) ?? c.aktien, l = amountOf($(`[data-vortrag-allg="${CSS.escape(key)}"]`)) ?? c.allg;
+    ui.settings.vortrag = setYearBankKeep(ui.settings.vortrag, YEAR, key, a === c.aktien && l === c.allg ? null : { aktien: a, allg: l });
+  }
   else if (el.dataset.depot) {
     ui.depots = $$('[data-depot]').filter(x => x.checked).map(x => x.dataset.depot);
     if (!ui.depots.length) { el.checked = true; ui.depots = [el.dataset.depot]; }
@@ -339,6 +432,9 @@ document.addEventListener('click', e => {
   else if (id === 'csv-fb') download(`freibetrag-${YEAR}.csv`, csvAllowance(ui.alloc, ui.data));
   else if (id === 'csv-plan') download(`verkaufsplan-${TODAY}.csv`, csvPlan(ui.plan, ui.data));
 });
+
+// Aufgeklappte inaktive Banken bleiben beim Neuzeichnen offen
+document.addEventListener('toggle', e => { if (e.target.id === 'banks-off') ui.banksOffOpen = e.target.open; }, true);
 
 // Hinweis einmal je Sitzung
 try { if (sessionStorage.getItem(DISC_KEY)) $('#disclaimer').hidden = true; } catch { /* egal */ }

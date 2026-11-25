@@ -42,6 +42,7 @@ export default ({ g, check, near }) => {
   // allgemeiner Topf 300 wird vor dem FSA verbraucht: Ernte = 300 + 1000
   r = opt(res([lot(1, '2020-01-01', 100, 50)], 100, { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'sonst', amount: -300 }] }), data(), { ...SET, fundTypes: { IS: 'sonstige' } }, 2025);
   check('fb: general pot consumed before FSA', near(r.harvested, 1300, 0.02) && near(r.banks[0].potsUsed.allg, 300, 0.02) && r.banks[0].hint, r.banks[0]);
+  check('fb: fsaUsed per bank excludes pot share', near(r.banks[0].fsaUsed, 1000, 0.02), r.banks[0]);
   // Aktientopf wird von Fondsgewinnen nicht berührt
   r = opt(res([lot(1, '2020-01-01', 100, 50)], 100, { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'aktie', amount: -300 }] }), data(), { ...SET, fundTypes: { IS: 'sonstige' } }, 2025);
   check('fb: stock pot untouched by fund gains', near(r.harvested, 1000, 0.02) && r.banks[0].potsUsed.aktien === 0, r.banks[0]);
@@ -58,6 +59,7 @@ export default ({ g, check, near }) => {
   r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, { ...S2, fsa: { A: 600, B: 400 } }, 2025);
   check('fb: entered FSA per bank', r.pooled === false && near(r.banks[0].harvested, 600, 0.02) && near(r.banks[1].harvested, 400, 0.02)
     && r.rows.length === 2 && r.rows[0].bank === 'A' && r.rows[1].bank === 'B' && r.total === 1000, r);
+  check('fb: fsaUsed per entered bank', near(r.banks[0].fsaUsed, 600, 0.02) && near(r.banks[1].fsaUsed, 400, 0.02), r.banks);
   // 3) B ausgewählt, aber ohne Lots/Ereignisse/Topf: inaktiv, A bekommt den vollen Pauschbetrag
   r = opt(res([lot(1, '2020-01-01', 100, 50)], 100), two, S2, 2025);
   check('fb: inactive bank excluded', r.pooled === false && r.banks.length === 1 && r.banks[0].key === 'A' && near(r.harvested, 1000, 0.02) && r.total === 1000, r);

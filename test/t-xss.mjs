@@ -12,4 +12,10 @@ export default ({ g, check }) => {
   const wf = g('optWaterfall')({ net: 1, tax: 0, rows: [{ lot: { security: 'S' }, gross: 1 }] }, data, TOK);
   const html3 = wf.tooltip.formatter({ seriesName: 'Betrag', color: '#a1', name: EVIL, value: 1 });
   check('xss: waterfall tooltip escapes names', !html3.includes('<img'), html3);
+  // CSV ist kein HTML: Bank-Label bleibt unverändert
+  const lot = { depot: 'A', security: 'S', buyDate: '2020-01-01', cost: 1, vpCum: 0, shares: 1 };
+  const csvA = g('csvAllowance')({ rows: [{ bank: 'A', lot, shares: 1, price: 2, gross: 2, gainTaxable: 1 }], banks: [{ key: 'A', label: EVIL }] }, data);
+  check('xss: csv keeps bank label verbatim', csvA.split('\r\n')[1].startsWith(EVIL + ';'), csvA);
+  const csvP = g('csvPlan')({ rows: [{ bank: 'A', lot, shares: 1, price: 2, gross: 2, fee: 0, gain: 1, taxable: 1, allowance: 1, tax: 0, net: 2 }] }, data);
+  check('xss: csv plan bank label verbatim (fallback name)', csvP.split('\r\n')[1].startsWith(EVIL + ';'), csvP);
 };

@@ -22,6 +22,10 @@ export default ({ g, check, near }) => {
   const syb = g('setYearBank'), sk = g('setKey');
   check('state: setYearBank drops other years', JSON.stringify(syb({ '2025|A': 1, '2026|B': 2 }, 2026, 'A', 5)) === '{"2026|B":2,"2026|A":5}');
   check('state: setYearBank null clears', JSON.stringify(syb({ '2026|A': 1 }, 2026, 'A', null)) === '{}');
+  const sybk = g('setYearBankKeep');
+  check('state: setYearBankKeep keeps other years', JSON.stringify(sybk({ '2019|A': { aktien: 1, allg: 2 }, '2026|B': 3 }, 2026, 'A', { aktien: 0, allg: 5 }))
+    === '{"2019|A":{"aktien":1,"allg":2},"2026|B":3,"2026|A":{"aktien":0,"allg":5}}');
+  check('state: setYearBankKeep null clears only that key', JSON.stringify(sybk({ '2019|A': 1, '2026|A': 2 }, 2026, 'A', null)) === '{"2019|A":1}');
   check('state: setKey set/clear', JSON.stringify(sk({ a: 1 }, 'b', 2)) === '{"a":1,"b":2}' && JSON.stringify(sk({ a: 1 }, 'a', null)) === '{}');
   const sel = g('selectedDepots'), nextOff = g('nextDepotsOff');
   check('depots: unknown default on', JSON.stringify(sel({ depotsOff: ['X'] }, ['A', 'B'])) === '["A","B"]');
@@ -74,6 +78,10 @@ export default ({ g, check, near }) => {
   const visf = owf.series.find(s => s.name !== '_base'), basef = owf.series.find(s => s.name === '_base');
   check('chart waterfall: fees bar before tax', JSON.stringify(owf.xAxis.data) === '["Welt","Schwellenländer","Gebühren","Steuer","Netto"]'
     && near(visf.data[2].value ?? visf.data[2], 10) && near(basef.data[2], 1490) && near(basef.data[3], 1369.5) && near(visf.data.at(-1).value ?? visf.data.at(-1), 1369.5), [owf.xAxis.data, basef.data, visf.data]);
+  // Erstattung (negative Steuer): Balken nach oben von Brutto − Gebühren bis Netto
+  const owr = g('optWaterfall')({ ...plan, tax: -50, net: 1550 }, data, TOK);
+  const visr = owr.series.find(s => s.name !== '_base'), baser = owr.series.find(s => s.name === '_base');
+  check('chart waterfall: refund bar', owr.xAxis.data[2] === 'Erstattung' && near(baser.data[2], 1500) && near(visr.data[2].value, 50) && near(visr.data.at(-1).value, 1550), [owr.xAxis.data, baser.data, visr.data]);
   const base = ow.series.find(s => s.name === '_base');
   check('chart waterfall: tax floats at net', near(base.data[2], 1379.5) && near(vis.data[2].value ?? vis.data[2], 120.5), [base.data[2], vis.data[2]]);
 

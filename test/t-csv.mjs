@@ -17,13 +17,17 @@ export default ({ g, check }) => {
   check('csv vp: row', lines[1] === '2023;Depot A;"ETF; ""World""";IE00X;10000,00;12000,00;2,55 %;178,50;2000,00;0,00;178,50;30,00 %;124,95;32,96', lines[1]);
   check('csv: CRLF terminated', vp.endsWith('\r\n'));
 
-  const fb = g('csvAllowance')({ rows: [{ lot, shares: 1.123456789, price: 100, gross: 112.35, gainTaxable: 3.54 }] }, data);
+  // Spalte „Bank“ zuerst: Label aus res.banks, sonst Name des gründenden Depots/Kontos
+  const fb = g('csvAllowance')({ rows: [{ bank: 'A', lot, shares: 1.123456789, price: 100, gross: 112.35, gainTaxable: 3.54 }], banks: [{ key: 'A', label: 'Hausbank' }] }, data);
   const fl = fb.split('\r\n');
-  check('csv fb: header', fl[0] === '﻿Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn steuerpflichtig', fl[0]);
-  check('csv fb: shares 8 dp, date', fl[1] === 'Depot A;"ETF; ""World""";IE00X;1,12345679;15.03.2020;95,50;100,00;112,35;3,54', fl[1]);
+  check('csv fb: header', fl[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn steuerpflichtig', fl[0]);
+  check('csv fb: bank label, shares 8 dp, date', fl[1] === 'Hausbank;Depot A;"ETF; ""World""";IE00X;1,12345679;15.03.2020;95,50;100,00;112,35;3,54', fl[1]);
+  const fb2 = g('csvAllowance')({ rows: [{ bank: 'A', lot, shares: 1, price: 100, gross: 100, gainTaxable: 4.5 }] }, data).split('\r\n');
+  check('csv fb: bank label falls back to founder name', fb2[1].startsWith('Depot A;Depot A;'), fb2[1]);
 
-  const pl = g('csvPlan')({ rows: [{ lot, shares: 2, price: 100, gross: 200, fee: 5.5, gain: 9, taxable: 6.3, allowance: 0, tax: 1.66, net: 198.34, exempt: false }] }, data);
+  // Verkaufsplan: Steuerbasis und Freibetrag sind Änderungen (Δ) und können negativ sein; negative Steuer = Erstattung
+  const pl = g('csvPlan')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, fee: 5.5, gain: -9, taxable: -6.3, allowance: -2, tax: -1.66, net: 196.16, exempt: false }], banks: [{ key: 'A', label: 'Hausbank' }] }, data);
   const pls = pl.split('\r\n');
-  check('csv plan: header', pls[0] === '﻿Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gebühr;Gewinn;Gewinn steuerpflichtig;Freibetrag;Steuer;Netto-Erlös', pls[0]);
-  check('csv plan: row', pls[1] === 'Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;5,50;9,00;6,30;0,00;1,66;198,34', pls[1]);
+  check('csv plan: header', pls[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gebühr;Gewinn;Steuerbasis Δ;Freibetrag Δ;Steuer (negativ = Erstattung);Netto-Erlös', pls[0]);
+  check('csv plan: row', pls[1] === 'Hausbank;Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;5,50;-9,00;-6,30;-2,00;-1,66;196,16', pls[1]);
 };

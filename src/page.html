@@ -155,6 +155,17 @@ td.sub, span.sub { color: var(--ink-3); }
 .target .f { width: 220px; }
 .target .f.sm { width: 150px; }
 .depots { display: flex; gap: 6px 16px; flex-wrap: wrap; }
+.bank { border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bank-h { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 600; font-size: 14px; }
+.members { display: flex; flex-direction: column; gap: 6px; }
+.member { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.member .mname { min-width: 0; overflow-wrap: anywhere; }
+.member select { font: inherit; font-size: 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 4px; max-width: 100%; }
+.fields.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 860px) { .fields.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .fields.four { grid-template-columns: minmax(0, 1fr); } }
+.banks-off { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.card h3 { margin-top: 4px; }
 footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
 </style>
 

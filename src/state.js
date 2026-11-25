@@ -24,13 +24,17 @@ function saveSettings(storage, s) {
   catch { /* privater Modus / voll: nicht speichern */ }
 }
 
-// Neues Objekt mit Jahreswert je Bank (`Jahr|bankKey`, für genutzt und vortrag); null löscht.
+// Neues Objekt mit Jahreswert je Bank (`Jahr|bankKey`, für genutzt); null löscht.
 // Einträge anderer Jahre fallen weg, damit der Speicher nicht wächst.
 function setYearBank(obj, year, bankKey, value) {
   const out = {};
   for (const [k, v] of Object.entries(obj || {})) if (k.startsWith(year + '|')) out[k] = v;
   if (value === null) delete out[`${year}|${bankKey}`]; else out[`${year}|${bankKey}`] = value;
   return out;
+}
+// Wie setYearBank, behält aber alle anderen Jahre (vortrag: Einträge früherer Jahre wirken auf die Fortschreibung).
+function setYearBankKeep(obj, year, bankKey, value) {
+  return setKey(obj, `${year}|${bankKey}`, value);
 }
 // Neues Objekt mit Eintrag je Schlüssel (fsa, bankOf, zinsen); null löscht.
 function setKey(obj, key, value) {

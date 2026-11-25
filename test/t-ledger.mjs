@@ -64,7 +64,7 @@ export default ({ g, check, near }) => {
   let n = N({ income: [ev('A', 'sonst', -100)], lots: [{ depot: 'A' }], vpForecast: [{ depot: 'A', taxable: 1200 }] }, dat, base, 2026);
   check('ledgerNextYear: vp against pot then FSA', n.year === 2027 && n.used === 1000 && n.remaining === 0 && n.banks[0].fsaLeft === 0 && near(n.taxAfter, 100 * g('taxRate')(base, 2027)), n);
   n = N({ income: [], lots: [{ depot: 'A' }, { depot: 'B' }], vpForecast: [{ depot: 'A', taxable: 300 }, { depot: 'B', taxable: 200 }] }, dat, two, 2026);
-  check('ledgerNextYear: pooled over both banks', n.total === 1000 && n.used === 500 && n.remaining === 500 && n.banks.every(b => b.fsaLeft === 500) && n.taxAfter === 0, n);
+  check('ledgerNextYear: pooled over both banks', n.total === 1000 && n.used === 500 && n.remaining === 500 && n.banks.every(b => b.fsaLeft === 500) && n.taxAfter === 0 && n.pooled === true, n);
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: 0, allg: 500 } } }, 2026);
   check('ledger: earlier-year vortrag override is carried forward', l.banks[0].vortragComputed.allg === 500 && l.banks[0].used === 0 && l.banks[0].pots.allg === 200 && !l.banks[0].vortragOverridden, l.banks[0]);
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: 0, allg: 500 }, '2026|A': { aktien: 0, allg: 100 } } }, 2026);

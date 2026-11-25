@@ -27,6 +27,7 @@ function optimizeAllowance(result, data, settings, year) {
   for (const b of active) {
     const st = { aktien: b.pots.aktien, allg: b.pots.allg };
     let left = led.pooled ? poolLeft : b.fsaLeft;
+    const leftStart = left;
     const start = { ...st }, potsUsed = { aktien: 0, allg: 0 }, brows = [];
     const lots = (result.lots || []).filter(l => b.depots.includes(l.depot));
     const heads = fifoQueues(lots).map(q => ({ lots: q, i: 0, left: q[0].shares, price: (result.latest.get(q[0].security) || [])[1] }))
@@ -57,7 +58,7 @@ function optimizeAllowance(result, data, settings, year) {
     if (led.pooled) poolLeft = left;
     const hint = start.allg > 0 ? `Verluste von ${fmtEur(start.allg)} werden zuerst verrechnet. Alternative: bis 15.12. Verlustbescheinigung beantragen, dann wirkt der Freistellungsauftrag sofort.` : '';
     banks.push({ key: b.key, label: b.label, fsa: b.fsa, used: b.used, fsaLeft: b.fsaLeft, potsStart: start, rows: brows,
-      harvested: round2(brows.reduce((s, r) => s + r.gainTaxable, 0)), potsUsed, hint });
+      harvested: round2(brows.reduce((s, r) => s + r.gainTaxable, 0)), potsUsed, fsaUsed: round2(leftStart - left), hint });
     rows.push(...brows);
   }
   const total = led.pooled ? led.spb : round2(active.reduce((s, b) => s + b.fsa, 0));
