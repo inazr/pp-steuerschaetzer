@@ -39,3 +39,37 @@ function taxOf(positiveByBank, fsa, rate) {
   taxable = round2(taxable);
   return { usedByBank: used, taxable, tax: round2(taxable * rate) };
 }
+
+// Bank-Zuordnung (Spec §3): [{ key, depots, accounts }]. Nur ausgewählte Depots; Konten folgen dem ersten
+// ausgewählten Depot mit diesem Referenzkonto, lose Konten mit Zinsen gründen eine eigene Bank.
+function bankMembers(data, settings) {
+  const ports = data.portfolios || [], bankOf = settings.bankOf || {};
+  const sel = new Set(settings.depots || ports.map(p => p.uuid));
+  const depots = ports.filter(p => sel.has(p.uuid));
+  const refd = new Set(ports.map(p => p.accountUuid).filter(Boolean));
+  const withInterest = new Set((data.interest || []).map(i => i.account));
+  const loose = (data.accounts || []).filter(a => !refd.has(a.uuid) && withInterest.has(a.uuid));
+  const base = new Set([...depots.map(p => p.uuid), ...loose.map(a => a.uuid)]);
+  // Gründer: kein (gültiger) Eintrag in bankOf; Ziele müssen selbst Gründer sein
+  const founder = k => !(bankOf[k] && bankOf[k] !== k && base.has(bankOf[k]));
+  const target = k => founder(k) ? k : (founder(bankOf[k]) ? bankOf[k] : k);
+  const banks = new Map();
+  const bank = k => { if (!banks.has(k)) banks.set(k, { key: k, depots: [], accounts: [] }); return banks.get(k); };
+  for (const k of base) if (founder(k)) bank(k);
+  for (const p of depots) bank(target(p.uuid)).depots.push(p.uuid);
+  const placed = new Set();
+  const put = (acc, key) => { if (placed.has(acc)) return; placed.add(acc); bank(key).accounts.push(acc); };
+  for (const p of depots) if (p.accountUuid) {
+    const e = bankOf[p.accountUuid];
+    put(p.accountUuid, e && base.has(e) && founder(e) ? e : target(p.uuid));
+  }
+  for (const a of loose) { const e = bankOf[a.uuid]; put(a.uuid, e && base.has(e) && founder(e) ? e : target(a.uuid)); }
+  return [...banks.values()];
+}
+// Zinsen eines Kontos zählen: expliziter Schalter, sonst an genau dann, wenn ein ausgewähltes Depot es referenziert
+function zinsOn(data, settings, accountUuid) {
+  const z = (settings.zinsen || {})[accountUuid];
+  if (typeof z === 'boolean') return z;
+  const sel = new Set(settings.depots || (data.portfolios || []).map(p => p.uuid));
+  return (data.portfolios || []).some(p => sel.has(p.uuid) && p.accountUuid === accountUuid);
+}

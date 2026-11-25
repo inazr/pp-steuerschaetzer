@@ -1,8 +1,8 @@
 // Einstellungen im Browser speichern. Nie Buchungen, Kurse oder Lots – nur Steuer-Einstellungen, Fondstypen je ISIN,
-// abgewählte Depots (nur UUIDs) und „Freibetrag genutzt“ je Jahr und Depotauswahl.
+// abgewählte Depots (nur UUIDs) und Bankzuordnung, Freistellungsaufträge und Überschreibungen je Bank.
 const STORE_KEY = 'pp-steuerschaetzer-v1';
-const SETTINGS_KEYS = ['veranlagung', 'kirchensteuer', 'bundesland', 'genutzt', 'fundTypes', 'gebuehrFix', 'gebuehrProz', 'depotsOff'];
-const defaultSettings = () => ({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: {}, fundTypes: {}, gebuehrFix: 0, gebuehrProz: 0, depotsOff: [] });
+const SETTINGS_KEYS = ['veranlagung', 'kirchensteuer', 'bundesland', 'genutzt', 'fundTypes', 'gebuehrFix', 'gebuehrProz', 'depotsOff', 'bankOf', 'fsa', 'vortrag', 'zinsen', 'settingsVersion'];
+const defaultSettings = () => ({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: {}, fundTypes: {}, gebuehrFix: 0, gebuehrProz: 0, depotsOff: [], bankOf: {}, fsa: {}, vortrag: {}, zinsen: {} });
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 
 function loadSettings(storage) {
@@ -12,8 +12,10 @@ function loadSettings(storage) {
     for (const k of SETTINGS_KEYS) if (k in raw) s[k] = raw[k];
   } catch { /* defekter Speicher: Standardwerte */ }
   if (!isObj(s.fundTypes)) s.fundTypes = {};
-  // bis 0.2 eine Zahl ohne Jahr: nicht zuordenbar, verwerfen
-  if (!isObj(s.genutzt)) s.genutzt = {};
+  // bis 0.2 eine Zahl ohne Jahr, bis 0.3 Schlüssel `Jahr|Depots`: keiner Bank zuordenbar, verwerfen
+  if (!isObj(s.genutzt) || !(s.settingsVersion >= 4)) s.genutzt = {};
+  s.settingsVersion = 4;
+  for (const k of ['bankOf', 'fsa', 'vortrag', 'zinsen']) if (!isObj(s[k])) s[k] = {};
   if (!Array.isArray(s.depotsOff)) s.depotsOff = [];
   return s;
 }
@@ -22,14 +24,17 @@ function saveSettings(storage, s) {
   catch { /* privater Modus / voll: nicht speichern */ }
 }
 
-// „Freibetrag genutzt“ gilt je Jahr und Depotauswahl (eine Datei kann Depots mehrerer Personen enthalten)
-const usedKey = (year, depots) => `${year}|${[...depots].sort().join(',')}`;
-const getUsed = (settings, year, depots) => { const v = (settings.genutzt || {})[usedKey(year, depots)]; return typeof v === 'number' ? v : null; };
-// Neues genutzt-Objekt; null löscht. Einträge anderer Jahre fallen weg, damit der Speicher nicht wächst.
-function setUsed(settings, year, depots, value) {
+// Neues Objekt mit Jahreswert je Bank (`Jahr|bankKey`, für genutzt und vortrag); null löscht.
+// Einträge anderer Jahre fallen weg, damit der Speicher nicht wächst.
+function setYearBank(obj, year, bankKey, value) {
   const out = {};
-  for (const [k, v] of Object.entries(settings.genutzt || {})) if (k.startsWith(year + '|')) out[k] = v;
-  const key = usedKey(year, depots);
+  for (const [k, v] of Object.entries(obj || {})) if (k.startsWith(year + '|')) out[k] = v;
+  if (value === null) delete out[`${year}|${bankKey}`]; else out[`${year}|${bankKey}`] = value;
+  return out;
+}
+// Neues Objekt mit Eintrag je Schlüssel (fsa, bankOf, zinsen); null löscht.
+function setKey(obj, key, value) {
+  const out = { ...(obj || {}) };
   if (value === null) delete out[key]; else out[key] = value;
   return out;
 }

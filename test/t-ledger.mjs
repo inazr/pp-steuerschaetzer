@@ -19,4 +19,16 @@ export default ({ g, check, near }) => {
   const p = tax({ A: 700, B: 600 }, { pooled: true, spb: 1000, byBank: {} }, 0.25);
   check('tax: pooled FSA over the sum', p.usedByBank.A + p.usedByBank.B === 1000 && p.taxable === 300, p);
   check('tax: negative positive is 0', tax({ A: -50 }, { pooled: false, spb: 1000, byBank: { A: 1000 } }, 0.25).tax === 0);
+  const members = g('bankMembers'), zinsOn = g('zinsOn');
+  const D = { portfolios: [{ uuid: 'A', accountUuid: 'kA' }, { uuid: 'B', accountUuid: 'kB' }, { uuid: 'C', accountUuid: 'kA' }],
+    accounts: [{ uuid: 'kA' }, { uuid: 'kB' }, { uuid: 'kT' }, { uuid: 'kX' }], interest: [{ account: 'kT', date: '2026-01-31', gross: 5 }] };
+  let m = members(D, { depots: ['A', 'C'], bankOf: {} });
+  check('banks: each depot own bank, account follows first depot', JSON.stringify(m.map(b => [b.key, b.depots, b.accounts])) === '[["A",["A"],["kA"]],["C",["C"],[]],["kT",[],["kT"]]]', m);
+  m = members(D, { depots: ['A', 'C'], bankOf: { C: 'A' } });
+  check('banks: grouping', m.length === 2 && JSON.stringify(m[0].depots) === '["A","C"]', m);
+  m = members(D, { depots: ['C'], bankOf: { C: 'A' } });
+  check('banks: missing target bank -> default', m.length === 2 && m[0].key === 'C' && JSON.stringify(m[0].accounts) === '["kA"]', m);
+  check('banks: account of deselected depot excluded', !members(D, { depots: ['A'], bankOf: {} }).some(b => b.accounts.includes('kB')));
+  check('zins: default on for depot account, off for loose account', zinsOn(D, { depots: ['A'], zinsen: {} }, 'kA') && !zinsOn(D, { depots: ['A'], zinsen: {} }, 'kT'));
+  check('zins: explicit switch wins', !zinsOn(D, { depots: ['A'], zinsen: { kA: false } }, 'kA'));
 };
