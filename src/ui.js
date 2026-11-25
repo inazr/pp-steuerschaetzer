@@ -9,7 +9,7 @@ const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, alloc: null, plan: null, target: '', tab: 0 };
 try { ui.tab = Math.min(3, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
-const S = () => ({ ...ui.settings, depots: ui.depots });
+const S = () => ({ ...ui.settings, depots: ui.depots, genutzt: getUsed(ui.settings, YEAR, ui.depots || []) });
 const secName = u => (ui.data.securities.find(s => s.uuid === u) || {}).name || u;
 const secIsin = u => (ui.data.securities.find(s => s.uuid === u) || {}).isin || '';
 const depName = u => (ui.data.portfolios.find(p => p.uuid === u) || {}).name || u;
@@ -26,7 +26,7 @@ async function loadFile(file) {
     const data = extractPortfolio(text);
     if (!data.portfolios.length) throw new Error('NO_PORTFOLIOS');
     ui.data = data;
-    ui.depots = data.portfolios.map(p => p.uuid);
+    ui.depots = selectedDepots(ui.settings, data.portfolios.map(p => p.uuid));
     ui.plan = null;
     $('#file-name').textContent = file.name;
     $('#empty').hidden = true; $('#tabs').hidden = false; $('#kpis').hidden = false;
@@ -100,7 +100,7 @@ function renderOverview() {
           <div class="f"><label for="s-veranl">Veranlagung</label><div class="in"><select id="s-veranl"><option value="single"${s.veranlagung === 'single' ? ' selected' : ''}>Einzeln</option><option value="joint"${s.veranlagung === 'joint' ? ' selected' : ''}>Zusammen (Ehe/Lebenspartnerschaft)</option></select></div></div>
           <div class="f"><label for="s-land">Bundesland (Kirchensteuer)</label><div class="in"><select id="s-land"><option value="default"${s.bundesland === 'default' ? ' selected' : ''}>Übrige Länder (9 %)</option><option value="bayern"${s.bundesland === 'bayern' ? ' selected' : ''}>Bayern (8 %)</option><option value="baden_wuerttemberg"${s.bundesland === 'baden_wuerttemberg' ? ' selected' : ''}>Baden-Württemberg (8 %)</option></select></div></div>
           <label class="chk"><input type="checkbox" id="s-kist"${s.kirchensteuer ? ' checked' : ''}> Kirchensteuerpflichtig</label>
-          <div class="f"><label for="s-used">Freibetrag ${YEAR} bereits genutzt</label><div class="in"><input id="s-used" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${prefill.toFixed(2)}" value="${s.genutzt ?? ''}"><span class="u">€</span></div>
+          <div class="f"><label for="s-used">Freibetrag ${YEAR} bereits genutzt</label><div class="in"><input id="s-used" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${prefill.toFixed(2)}" value="${getUsed(s, YEAR, ui.depots) ?? ''}"><span class="u">€</span></div>
             <span class="h">Leer = Vorbelegung ${fmtEur(prefill)}: steuerpflichtige Vorabpauschale ${YEAR - 1} plus Ausschüttungen und Verkäufe ${YEAR} der ausgewählten Depots. Andere Banken selbst eintragen.</span></div>
         </div>
       </div>
@@ -301,7 +301,7 @@ document.addEventListener('change', e => {
   if (el.id === 's-veranl') ui.settings.veranlagung = el.value;
   else if (el.id === 's-land') ui.settings.bundesland = el.value;
   else if (el.id === 's-kist') ui.settings.kirchensteuer = el.checked;
-  else if (el.id === 's-used') { const v = el.value.replace(',', '.').trim(); ui.settings.genutzt = v === '' || !isFinite(+v) ? null : Math.max(0, +v); }
+  else if (el.id === 's-used') { const v = el.value.replace(',', '.').trim(); ui.settings.genutzt = setUsed(ui.settings, YEAR, ui.depots, v === '' || !isFinite(+v) ? null : Math.max(0, +v)); }
   else if (el.id === 'p-fix' || el.id === 'p-pct') {
     const v = Math.max(0, +el.value.replace(',', '.') || 0);
     ui.settings[el.id === 'p-fix' ? 'gebuehrFix' : 'gebuehrProz'] = v;
@@ -311,6 +311,7 @@ document.addEventListener('change', e => {
   else if (el.dataset.depot) {
     ui.depots = $$('[data-depot]').filter(x => x.checked).map(x => x.dataset.depot);
     if (!ui.depots.length) { el.checked = true; ui.depots = [el.dataset.depot]; }
+    ui.settings.depotsOff = nextDepotsOff(ui.settings, ui.data.portfolios.map(p => p.uuid), ui.depots);
   } else return;
   save();
   recompute();
