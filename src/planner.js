@@ -27,8 +27,19 @@ function runNetSale(result, data, settings, year, target, feeAware) {
   const baseEvs = new Map(led.banks.map(b => [b.key, compactEvents(b.eventsYear)]));
   const basePos = new Map(led.banks.map(b => [b.key, netYear(b.potsStart, baseEvs.get(b.key), EXACT).positive]));
   const planned = new Map(led.banks.map(b => [b.key, []]));           // Plan-Events je Bank
+  // Plan-Events je Bank laufend zusammengefasst (Aktien netto, 'sonst' Gewinne, 'sonst' Verluste): netYear sieht so je
+  // Schritt drei zusammengefasste Plan-Events statt des ganzen Plans – gleiches Ergebnis, Laufzeit linear in der Planlänge
+  const sums = new Map(led.banks.map(b => [b.key, { aktie: 0, gewinn: 0, verlust: 0 }]));
+  const addPlanned = (key, e) => {
+    planned.get(key).push(e);
+    sums.get(key)[e.kind === 'aktie' ? 'aktie' : e.amount < 0 ? 'verlust' : 'gewinn'] += e.amount;
+  };
+  const plannedCompact = key => {
+    const s = sums.get(key);
+    return [{ kind: 'aktie', amount: s.aktie }, { kind: 'sonst', amount: s.gewinn }, { kind: 'sonst', amount: s.verlust }];
+  };
   // positiveEff mit Plan-Events: ein „genutzt“-Override bleibt Sockel, der Plan verschiebt ihn um seine Wirkung
-  const posEff = (b, evs) => evs.length ? b.positiveEff + netYear(b.potsStart, baseEvs.get(b.key).concat(evs), EXACT).positive - basePos.get(b.key) : b.positiveEff;
+  const posEff = (b, e) => b.positiveEff + netYear(b.potsStart, baseEvs.get(b.key).concat(plannedCompact(b.key), [e]), EXACT).positive - basePos.get(b.key);
   let pos = Object.fromEntries(led.banks.map(b => [b.key, b.positiveEff]));
   const init = taxOf(pos, fsa, rate, EXACT);
   let cur = init;
@@ -54,7 +65,7 @@ function runNetSale(result, data, settings, year, target, feeAware) {
     const ev = n => ({ year, date: '', owner: lot.depot, kind: ft === 'einzelaktie' ? 'aktie' : 'sonst', amount: n * g - F * (1 - tfs) });
     const after = n => {
       if (exempt) return { pos, t: cur, ev: null };
-      const e = ev(n), p = { ...pos, [b.key]: posEff(b, planned.get(b.key).concat(e)) };
+      const e = ev(n), p = { ...pos, [b.key]: posEff(b, e) };
       return { pos: p, t: taxOf(p, fsa, rate, EXACT), ev: e };
     };
     const netOf = n => n * a - F - (after(n).t.tax - cur.tax);
@@ -83,7 +94,7 @@ function runNetSale(result, data, settings, year, target, feeAware) {
       // Änderung der Bemessungsgrundlage bzw. des genutzten FSA durch diese Zeile (nach Töpfen; kann negativ sein)
       taxable: round2(st.t.taxable - cur.taxable), allowance: round2(usedSum(st.t) - usedSum(cur)), tax, net, exempt,
     });
-    if (st.ev) planned.get(bank).push(st.ev);
+    if (st.ev) addPlanned(bank, st.ev);
     pos = st.pos; cur = st.t;
     best.ordered = true;
     needed -= net;

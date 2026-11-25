@@ -100,4 +100,17 @@ export default ({ g, check, near }) => {
   // Verlust-Lot senkt die Steuer eines späteren Gewinns im selben Plan
   p = plan(res([lot(1, 'X', '2020-01-01', 1, 400), lot(2, 'Y', '2020-01-01', 100, 50)], { X: 100, Y: 100 }), data, { ...SET, fundTypes: { IEX: 'sonstige', IEY: 'sonstige' } }, 2025, 1000);
   check('plan: loss lot first, offsets later gain', p.rows[0].lot.security === 'X' && p.rows[0].tax === 0 && near(p.tax, (p.rows[1].shares * 50 - 300) * rate, 0.011), p.rows);
+  timing({ g, check });
+};
+// Final review M3: Laufzeit linear in der Planlänge (Plan-Events je Bank laufend zusammengefasst)
+const timing = ({ g, check }) => {
+  const secs = [], lots = [], prices = {};
+  for (let s = 0; s < 30; s++) {
+    secs.push({ uuid: 'S' + s, name: 'S' + s, isin: 'I' + s, currency: 'EUR' }); prices['S' + s] = 100;
+    for (let i = 0; i < 100; i++) lots.push(lot(s * 1000 + i, 'S' + s, `2020-01-${String(1 + i % 28).padStart(2, '0')}`, 1, 40 + (i * 7 + s * 3) % 120));
+  }
+  const t0 = performance.now();
+  const p = g('planNetSale')(res(lots, prices), { ...data, securities: secs }, { ...SET, genutzt: {}, gebuehrFix: 5 }, 2025, 1e9);
+  const ms = performance.now() - t0;
+  check('plan M3: 30 securities x 100 lots, unreachable, < 1.5 s', !p.reached && p.rows.length === 3000 && ms < 1500, Math.round(ms));
 };
