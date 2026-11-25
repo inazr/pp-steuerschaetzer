@@ -1,0 +1,22 @@
+const E = (kind, amount, year = 2026) => ({ year, date: `${year}-06-01`, owner: 'A', kind, amount });
+export default ({ g, check, near }) => {
+  const net = g('netYear'), tax = g('taxOf');
+  const z = { aktien: 0, allg: 0 };
+  let r = net(z, [E('sonst', 500)]);
+  check('net: fund gain', r.positive === 500 && r.potsAfter.aktien === 0 && r.potsAfter.allg === 0, r);
+  r = net(z, [E('aktie', -300), E('sonst', 500)]);
+  check('net: stock loss stays in stock pot', r.positive === 500 && r.potsAfter.aktien === 300, r);
+  r = net(z, [E('sonst', -300), E('aktie', 500)]);
+  check('net: fund loss offsets stock gain', r.positive === 200 && r.potsAfter.allg === 0, r);
+  r = net(z, [E('aktie', -300), E('aktie', 500)]);
+  check('net: stock loss offsets stock gain', r.positive === 200 && r.potsAfter.aktien === 0, r);
+  r = net({ aktien: 0, allg: 400 }, [E('div', 300)]);
+  check('net: carried pot absorbs dividend', r.positive === 0 && r.potsAfter.allg === 100, r);
+  r = net({ aktien: 100, allg: 50 }, [E('aktie', 300), E('zins', 20)]);
+  check('net: stock gain uses stock pot first, then general', r.positive === 170 && r.potsAfter.aktien === 0 && r.potsAfter.allg === 0, r);
+  const t = tax({ A: 500, B: 300 }, { pooled: false, spb: 1000, byBank: { A: 600, B: 100 } }, 0.25);
+  check('tax: per bank FSA', t.usedByBank.A === 500 && t.usedByBank.B === 100 && t.taxable === 200 && t.tax === 50, t);
+  const p = tax({ A: 700, B: 600 }, { pooled: true, spb: 1000, byBank: {} }, 0.25);
+  check('tax: pooled FSA over the sum', p.usedByBank.A + p.usedByBank.B === 1000 && p.taxable === 300, p);
+  check('tax: negative positive is 0', tax({ A: -50 }, { pooled: false, spb: 1000, byBank: { A: 1000 } }, 0.25).tax === 0);
+};
