@@ -73,3 +73,93 @@ function zinsOn(data, settings, accountUuid) {
   const sel = new Set(settings.depots || (data.portfolios || []).map(p => p.uuid));
   return (data.portfolios || []).some(p => sel.has(p.uuid) && p.accountUuid === accountUuid);
 }
+
+// Ledger je Bank und Jahr (Spec §4). Töpfe laufen ab 2018 (bzw. ab dem ersten Ereignisjahr) bis `year`.
+const POT_START = 2018;
+const W_PRE2018 = 'Verluste aus 2009–2017 sind nicht berechnet – bitte als Vortrag zum 1.1. eintragen (Jahressteuerbescheinigung der Bank).';
+const W_POOLED = 'Freistellungsaufträge je Bank eintragen, sonst stimmt der Abzug der einzelnen Bank nicht.';
+const bankLabel = (data, key) => ((data.portfolios || []).find(p => p.uuid === key) || (data.accounts || []).find(a => a.uuid === key) || {}).name || key;
+const potsPositive = p => p.aktien > EPS || p.allg > EPS;
+const lotsIn = (result, depots) => (result.lots || []).some(l => depots.includes(l.depot));
+
+// FSA-Bestimmung für die Banken eines Jahres: banks = [{ key, active }]
+function fsaConfig(banks, settings, year) {
+  const spb = param('sparerpauschbetrag', year)[settings.veranlagung], fsaIn = settings.fsa || {};
+  const entered = banks.some(b => typeof fsaIn[b.key] === 'number');
+  const active = banks.filter(b => b.active);
+  const pooled = !entered && active.length > 1;
+  const byBank = {}, source = {};
+  for (const b of banks) {
+    if (entered) { byBank[b.key] = fsaIn[b.key] ?? 0; source[b.key] = typeof fsaIn[b.key] === 'number' ? 'eingetragen' : 'automatisch'; }
+    else if (pooled) { byBank[b.key] = spb; source[b.key] = 'gemeinsam'; }
+    else { byBank[b.key] = active.length === 1 && active[0].key === b.key ? spb : 0; source[b.key] = 'automatisch'; }
+  }
+  const fsaSum = pooled ? spb : round2(banks.reduce((s, b) => s + byBank[b.key], 0));
+  return { spb, pooled, byBank, source, fsaSum };
+}
+
+// Ereignisse je Bank: Mitglieder der Bank, Zinsen nur bei Schalter an
+function bankEvents(result, data, settings, m) {
+  const own = new Set([...m.depots, ...m.accounts.filter(a => zinsOn(data, settings, a))]);
+  return (result.income || []).filter(e => own.has(e.owner));
+}
+
+function ledger(result, data, settings, year) {
+  const warnings = [], rate = taxRate(settings, year);
+  const rows = bankMembers(data, settings).map(m => {
+    const evs = bankEvents(result, data, settings, m), label = bankLabel(data, m.key);
+    if (evs.some(e => e.year < POT_START && (e.kind === 'aktie' || e.kind === 'sonst'))) warnings.push(`${label}: ${W_PRE2018}`);
+    // Töpfe bis zum 1.1. des Jahres fortschreiben (Ereignisse vor 2018 nie)
+    let pots = { aktien: 0, allg: 0 };
+    const first = Math.max(POT_START, evs.reduce((y, e) => Math.min(y, e.year), year));
+    for (let y = first; y < year; y++) pots = netYear(pots, evs.filter(e => e.year === y)).potsAfter;
+    const vortragComputed = pots, o = (settings.vortrag || {})[`${year}|${m.key}`];
+    const potsStart = o ? { aktien: round2(+o.aktien || 0), allg: round2(+o.allg || 0) } : vortragComputed;
+    const eventsYear = evs.filter(e => e.year === year), net = netYear(potsStart, eventsYear);
+    const hasLots = lotsIn(result, m.depots);
+    return { key: m.key, label, depots: m.depots, accounts: m.accounts,
+      active: eventsYear.length > 0 || hasLots || potsPositive(potsStart),
+      closedWithPot: !hasLots && potsPositive(net.potsAfter),
+      vortragComputed, vortrag: potsStart, vortragOverridden: !!o, potsStart,
+      eventsYear, income: net.byKind, positiveBase: net.positive, pots: net.potsAfter };
+  });
+  const cfg = fsaConfig(rows, settings, year);
+  if (cfg.pooled) warnings.push(W_POOLED);
+  if (cfg.fsaSum > cfg.spb + EPS)
+    warnings.push(`Freistellungsaufträge übersteigen den Sparerpauschbetrag (${fmtEur(cfg.spb)})`);
+  const genutzt = settings.genutzt || {};
+  for (const b of rows) {
+    b.fsa = cfg.byBank[b.key]; b.fsaSource = cfg.source[b.key];
+    const ov = genutzt[`${year}|${b.key}`];
+    b.usedOverridden = typeof ov === 'number';
+    b.positiveEff = b.usedOverridden ? round2(Math.min(b.fsa, Math.max(0, ov))) : b.positiveBase;
+  }
+  const fsa = { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank };
+  const base = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveBase])), fsa, rate).usedByBank;
+  const eff = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveEff])), fsa, rate).usedByBank;
+  // Gemeinsamer Modus: fsa = gemeinsamer spb je Bank, fsaLeft = Rest des gemeinsamen Topfs (auf jeder Bank dieselbe Zahl)
+  const poolLeft = round2(Math.max(0, cfg.spb - Object.values(eff).reduce((s, u) => s + u, 0)));
+  for (const b of rows) {
+    b.usedComputed = base[b.key]; b.used = eff[b.key];
+    b.fsaLeft = cfg.pooled ? poolLeft : round2(Math.max(0, b.fsa - b.used));
+  }
+  return { banks: rows, pooled: cfg.pooled, fsaSum: cfg.fsaSum, spb: cfg.spb, rate, warnings };
+}
+
+// Vorschau Folgejahr: nur die prognostizierte VP (Ertrag am 02.01.), Töpfe zum Jahresende `year`
+function ledgerNextYear(result, data, settings, year) {
+  const next = year + 1, cur = ledger(result, data, settings, year), rate = taxRate(settings, next);
+  const vp = (result.vpForecast || []).filter(r => r.taxable > 0)
+    .map(r => ({ year: next, date: `${next}-01-02`, owner: r.depot, kind: 'vp', amount: round2(r.taxable) }));
+  const rows = cur.banks.map(b => {
+    const evs = vp.filter(e => b.depots.includes(e.owner));
+    return { key: b.key, label: b.label, active: evs.length > 0 || lotsIn(result, b.depots) || potsPositive(b.pots),
+      positive: netYear(b.pots, evs).positive };
+  });
+  const cfg = fsaConfig(rows, settings, next);
+  const t = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positive])), { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank }, rate);
+  const used = round2(Object.values(t.usedByBank).reduce((s, u) => s + u, 0));
+  const banks = rows.map(b => ({ key: b.key, label: b.label, fsa: cfg.byBank[b.key], used: t.usedByBank[b.key],
+    fsaLeft: cfg.pooled ? round2(Math.max(0, cfg.spb - used)) : round2(Math.max(0, cfg.byBank[b.key] - t.usedByBank[b.key])) }));
+  return { year: next, banks, total: cfg.fsaSum, used, remaining: round2(Math.max(0, cfg.fsaSum - used)), taxAfter: t.tax };
+}
