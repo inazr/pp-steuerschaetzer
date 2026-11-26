@@ -236,7 +236,11 @@ const hasPre2009 = () => ui.result.lots.some(l => l.alt && l.alt.pre2009)
   || (ui.result.veranlagung || []).some(v => v.kind === 'alt100k' && ui.depots.includes(v.depot));
 function renderAltFb() {
   if (!hasPre2009()) return '';
-  const a = altFreibetrag(ui.result, ui.data, S(), YEAR, ui.led), key = ui.depots.slice().sort().join(',');
+  const a = altFreibetrag(ui.result, ui.data, S(), YEAR, ui.led), key = altFbSel(ui.depots);
+  // Eingabe = Rest zum 31.12. Vorjahr (Schlüssel `YEAR|Depots`); ein älterer Eintrag wird mit den Verkäufen seither fortgeschrieben
+  const ovHint = !a.leftStartOverridden ? 'berechnet aus den Verkäufen ab 2018 in der Datei'
+    : a.leftStartFrom < YEAR ? `fortgeschrieben aus dem Eintrag zum 31.12.${a.leftStartFrom - 1} · berechnet: ${fmtEur(a.leftStartComputed)}`
+    : `berechnet: ${fmtEur(a.leftStartComputed)}`;
   const refund = round2(a.refund100k + a.refundBfh);
   return `<div class="card" id="altfb">
     <div class="card-h"><h2>Altbestand-Freibetrag (vor 2009)</h2>${a.leftStartOverridden ? '<span class="pill info">laut Steuerbescheid eingetragen</span>' : ''}</div>
@@ -246,8 +250,8 @@ function renderAltFb() {
       ${refund > 0.005 ? fact(`Erwartete Erstattung ${YEAR} (Steuererklärung)`, fmtEur(refund)) : ''}
     </div>
     <div class="fields">
-      ${amountField('altfb-left', `verbleibend laut letztem Steuerbescheid (31.12.${YEAR - 1})`, 'data-altfb', key, (ui.settings.altFb || {})[key], a.leftStartComputed,
-        a.leftStartOverridden ? `berechnet: ${fmtEur(a.leftStartComputed)}` : 'berechnet aus den Verkäufen ab 2018 in der Datei')}
+      ${amountField('altfb-left', `verbleibend laut letztem Steuerbescheid (Stand 31.12.${YEAR - 1})`, 'data-altfb', key, (ui.settings.altFb || {})[`${YEAR}|${key}`],
+        a.leftStartOverridden && a.leftStartFrom < YEAR ? a.leftStart : a.leftStartComputed, ovHint)}
     </div>
     ${a.joint ? '<p class="note">Der Freibetrag gilt je Person für die eigenen Anteile; hier vereinfacht als gemeinsamer Betrag für die ausgewählten Depots.</p>' : ''}
     <p class="note">Gewinne ab 2018 aus Fondsanteilen, die vor 2009 gekauft wurden, sind bis 100.000 € je Person steuerfrei (angerechnet wird hier der Gewinn vor Teilfreistellung); der Altgewinn bis 31.12.2017 bleibt ohnehin steuerfrei. Die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung (Anlage KAP-INV). Der Rest wird jährlich festgestellt: Trage ihn aus dem letzten Bescheid ein, wenn Verkäufe fehlen (andere Banken, vor der Datei). ${a.refundBfh > 0.005 ? `Die erwartete Erstattung enthält ${fmtEur(a.refundBfh)} aus Verlusten mit Altanteilen 2009–2017 (BFH). ` : ''}Freibetrag nutzen: Reiter 3.</p>
@@ -481,7 +485,7 @@ function bankSetting(el) {
   if (el.dataset.bankOf) ui.settings.bankOf = assignBank(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
   else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
   else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
-  else if (el.hasAttribute('data-altfb')) ui.settings.altFb = setKey(ui.settings.altFb, el.dataset.altfb, amountOf(el));
+  else if (el.hasAttribute('data-altfb')) ui.settings.altFb = setYearBankKeep(ui.settings.altFb, YEAR, el.dataset.altfb, amountOf(el));
   else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
   else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
     // Vortrag je Feld: gespeichert wird nur das Eingetippte, ein leeres Feld bleibt berechnet (keine Zahl aus der Datei).

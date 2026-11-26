@@ -47,12 +47,26 @@ export default ({ g, check, near, root }) => {
   check('100k: refund this year', near(a.refund100k, 0.26375 * 5000 * 0.7, 0.02), a);
   a = AF(res([post(2019, 30000)]), {}, { veranlagung: 'joint', depots: ['A'], altFb: {} }, 2026, led);
   check('100k: joint 200k', a.total === 200000 && a.leftStartComputed === 170000 && a.joint, a);
-  a = AF(res([post(2026, 5000)]), {}, { veranlagung: 'joint', depots: ['A'], altFb: { A: 999999 } }, 2026, led);
+  a = AF(res([post(2026, 5000)]), {}, { veranlagung: 'joint', depots: ['A'], altFb: { '2026|A': 999999 } }, 2026, led);
   check('100k: override capped to total', a.leftStart === 200000 && a.leftStartOverridden && a.left === 195000, a);
-  a = AF(res([post(2026, 5000)]), {}, { veranlagung: 'single', depots: ['A'], altFb: { A: 2000 } }, 2026, led);
+  a = AF(res([post(2026, 5000)]), {}, { veranlagung: 'single', depots: ['A'], altFb: { '2026|A': 2000 } }, 2026, led);
   check('100k: override = left per last notice', a.leftStart === 2000 && a.left === 0 && near(a.refund100k, 0.26375 * 2000 * 0.7, 0.02), a);
   a = AF(res([post(2026, 90, 'bfh')]), {}, { veranlagung: 'single', depots: ['A'], altFb: {} }, 2026, { rate: 0.26375, banks: [{ positiveEff: 50, used: 50 }] });
   check('bfh: refund capped by taxed base (0)', a.refundBfh === 0, a);
+  // Final review I1: Override mit Jahr (`Jahr|Depots` = Rest zum 31.12. Jahr−1); spätere Verkäufe werden abgezogen
+  const S1 = altFb => ({ veranlagung: 'single', depots: ['A'], altFb });
+  a = AF(res([post(2026, 30000)]), {}, S1({ '2026|A': 50000 }), 2027, led);
+  check('100k I1: year boundary (2026 override 50000, 2026 sale 30000 -> 2027 leftStart 20000)', a.leftStart === 20000 && a.leftStartOverridden && a.leftStartFrom === 2026 && a.left === 20000, a);
+  a = AF(res([post(2025, 10000), post(2026, 30000)]), {}, S1({ '2025|A': 80000, '2026|A': 50000, '2028|A': 1 }), 2027, led);
+  check('100k I1: latest override <= year wins', a.leftStart === 20000 && a.leftStartFrom === 2026, a);
+  a = AF(res([post(2025, 10000), post(2026, 30000)]), {}, S1({ '2025|A': 80000 }), 2027, led);
+  check('100k I1: older override rolled forward by later sales', a.leftStart === 40000 && a.leftStartFrom === 2025, a);
+  a = AF(res([post(2026, 30000)]), {}, S1({ '2026|A': 10000 }), 2027, led);
+  check('100k I1: rolled-forward override clamped at 0', a.leftStart === 0 && a.leftStartOverridden, a);
+  a = AF(res([post(2026, 5000)]), {}, S1({ '2026|A,B': 2000, A: 3000 }), 2026, led);
+  check('100k I1: other selection and undated keys ignored', !a.leftStartOverridden && a.leftStart === 100000 && a.leftStartFrom === null, a);
+  a = AF(res([post(2026, 90, 'bfh')]), {}, S1({}), 2026, { rate: 0.26375, banks: [{ positiveEff: 1000, used: 0 }] });
+  check('bfh I1: positive refund when taxed base > 0', near(a.refundBfh, 0.26375 * 90, 0.006) && a.refund100k === 0, a);
   // Synthetische PP-Datei (Browser-Smoke): Kauf 2005 und 2015, Kurs 31.12.2017 50 €, Teilverkauf 2026 von 20 Stück zu 100 € aus dem 2005er Lot
   const fd = g('extractPortfolio')(readFileSync(join(root, 'test/fixtures/altbestand.xml'), 'utf8'));
   const fr = replay(fd, { ...SET, depots: ['pf-alt'] }, '2026-11-26');

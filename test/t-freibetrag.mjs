@@ -83,7 +83,7 @@ export default ({ g, check, near }) => {
   check('fb alt: pre-2009 lot skipped while 100k free, 2020 lot harvested', r.rows.length === 1 && r.rows[0].lot.security === 'Y'
     && near(r.rows[0].shares, Math.floor(1000 / 7 * 1e8) / 1e8, 1e-9) && near(r.harvested, 1000, 0.01), r.rows.map(x => [x.lot.security, x.shares]));
   // 100k verbraucht (Bescheid 0): X wie jeder andere Lot -> X zuerst (14 > 7)
-  r = opt(rXY, dXY, { ...SA, altFb: { A: 0 } }, 2025);
+  r = opt(rXY, dXY, { ...SA, altFb: { '2025|A': 0 } }, 2025);
   check('fb alt: 100k used up -> pre-2009 lot harvested normally', r.rows[0].lot.security === 'X' && near(r.rows[0].shares, Math.floor(1000 / 14 * 1e8) / 1e8, 1e-9), r.rows.map(x => [x.lot.security, x.shares]));
   // v0.5 §4: Abschnitt „Altbestand-Freibetrag nutzen“ – Fonds-Lot vor 2009, Kosten ab 2018 150, Kurs 170 -> raw 20/Stück
   const altOpt = g('optimizeAltFreibetrag'), rate = g('taxRate')(SET, 2025);
@@ -91,32 +91,32 @@ export default ({ g, check, near }) => {
   const rP = lots => ({ ...res(lots, 0), latest: new Map([['X', ['2025-11-20', 170]], ['Y', ['2025-11-20', 170]]]) });
   const run = (rr, s) => altOpt(rr, dXY, s, 2025, opt(rr, dXY, s, 2025));
   // left 1000 (Bescheid), FSA frei: 50 Stück, geerntet 1000; die Bank verrechnet 700 mit dem FSA -> kein Abzug, keine Erstattung
-  let ra = run(rP([lP()]), { ...SA, altFb: { A: 1000 } });
+  let ra = run(rP([lP()]), { ...SA, altFb: { '2025|A': 1000 } });
   check('alt fb: fills left with raw (50 shares)', ra.left === 1000 && ra.rows.length === 1 && near(ra.rows[0].shares, 50, 1e-9) && near(ra.harvested, 1000)
     && near(ra.rows[0].raw, 1000) && near(ra.rows[0].gross, 8500) && ra.rows[0].price === 170 && ra.rows[0].bank === 'A', ra);
   check('alt fb: FSA free -> no bank tax, no refund', ra.bankTax === 0 && ra.refund === 0, ra);
   check('alt fb: hint from spec', ra.hint.startsWith('Die Bank behält Steuer ein; sie kommt über die Steuererklärung (Anlage KAP-INV) zurück'), ra.hint);
   // FSA schon verbraucht: Bankabzug 1000 × 0,7 × rate, Erstattung ebenso
-  ra = run(rP([lP()]), { ...SA, altFb: { A: 1000 }, genutzt: { '2025|A': 1000 } });
+  ra = run(rP([lP()]), { ...SA, altFb: { '2025|A': 1000 }, genutzt: { '2025|A': 1000 } });
   check('alt fb: FSA used -> bankTax = 700 × rate', near(ra.bankTax, 1000 * 0.7 * rate, 0.01) && near(ra.rows[0].bankTax, ra.bankTax), ra);
   check('alt fb: refund ≈ bankTax', near(ra.refund, ra.bankTax, 0.01) && near(ra.rows[0].refund, ra.refund), ra);
   // Läuft nach dem FSA-Vorschlag: der Vorschlag füllt den FSA mit Lot Y (2020) -> Altbestand-Ernte voll besteuert
-  ra = run(rP([lP(), lY]), { ...SA, altFb: { A: 1000 } });
+  ra = run(rP([lP(), lY]), { ...SA, altFb: { '2025|A': 1000 } });
   check('alt fb: after FSA proposal -> bank tax on the harvest', ra.rows.length === 1 && ra.rows[0].lot.security === 'X' && near(ra.bankTax, 700 * rate, 0.01) && near(ra.refund, ra.bankTax, 0.01), ra);
   // Stücke aus alloc.rows sind verbraucht: 60 Stück, 30 davon im (vorgegebenen) Vorschlag -> höchstens 30 Stück = 600
   const l60 = lP(60), r60 = rP([l60]);
-  ra = altOpt(r60, dXY, { ...SA, altFb: { A: 1000 } }, 2025, { rows: [{ bank: 'A', lot: l60, shares: 30, price: 170, gross: 5100, gainTaxable: 420 }] });
+  ra = altOpt(r60, dXY, { ...SA, altFb: { '2025|A': 1000 } }, 2025, { rows: [{ bank: 'A', lot: l60, shares: 30, price: 170, gross: 5100, gainTaxable: 420 }] });
   check('alt fb: shares in alloc.rows excluded', ra.rows.length === 1 && near(ra.rows[0].shares, 30, 1e-9) && near(ra.harvested, 600), ra);
   // FIFO: dahinter liegender Lot ab 2009 wird nicht geerntet, auch wenn left noch frei ist
-  ra = run(rP([lP(10), { ...lY, security: 'X', buyDate: '2010-01-01', alt: { price: 150, gainPS: 50, pre2009: false } }]), { ...SA, altFb: { A: 1000 } });
+  ra = run(rP([lP(10), { ...lY, security: 'X', buyDate: '2010-01-01', alt: { price: 150, gainPS: 50, pre2009: false } }]), { ...SA, altFb: { '2025|A': 1000 } });
   check('alt fb: only pre-2009 lots at the FIFO head', ra.rows.length === 1 && near(ra.rows[0].shares, 10, 1e-9) && near(ra.harvested, 200), ra);
   // Leer: kein Altbestand vor 2009 bzw. Freibetrag ausgeschöpft
-  ra = run(rP([lY]), { ...SA, altFb: { A: 1000 } });
+  ra = run(rP([lY]), { ...SA, altFb: { '2025|A': 1000 } });
   check('alt fb: no pre-2009 lot -> empty + hint', ra.rows.length === 0 && ra.harvested === 0 && /kein.*vor 2009/i.test(ra.hint), ra);
-  ra = run(rP([lP()]), { ...SA, altFb: { A: 0 } });
+  ra = run(rP([lP()]), { ...SA, altFb: { '2025|A': 0 } });
   check('alt fb: left < 0.01 -> empty + hint', ra.rows.length === 0 && ra.left === 0 && /ausgeschöpft/.test(ra.hint), ra);
   // banks: Ledger-Labels für den CSV-Export, auch im leeren Ergebnis
   check('alt fb: banks with ledger labels', JSON.stringify(ra.banks) === JSON.stringify([{ key: 'A', label: 'A' }]), ra.banks);
-  ra = run(rP([lP()]), { ...SA, altFb: { A: 1000 } });
+  ra = run(rP([lP()]), { ...SA, altFb: { '2025|A': 1000 } });
   check('alt fb: banks on harvest result', ra.rows.length === 1 && ra.banks.length === 1 && ra.banks[0].key === 'A', ra.banks);
 };

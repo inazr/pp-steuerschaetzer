@@ -16,6 +16,8 @@ function loadSettings(storage) {
   if (!isObj(s.genutzt) || !(s.settingsVersion >= 4)) s.genutzt = {};
   s.settingsVersion = 4;
   for (const k of ['bankOf', 'fsa', 'vortrag', 'zinsen', 'altFb']) if (!isObj(s[k])) s[k] = {};
+  // altFb bis 0.5-Entwurf ohne Jahr (nur Depots): nicht datierbar, verwerfen
+  s.altFb = Object.fromEntries(Object.entries(s.altFb).filter(([k]) => /^\d{4}\|/.test(k)));
   if (!Array.isArray(s.depotsOff)) s.depotsOff = [];
   return s;
 }
@@ -32,7 +34,8 @@ function setYearBank(obj, year, bankKey, value) {
   if (value === null) delete out[`${year}|${bankKey}`]; else out[`${year}|${bankKey}`] = value;
   return out;
 }
-// Wie setYearBank, behält aber alle anderen Jahre (vortrag: Einträge früherer Jahre wirken auf die Fortschreibung).
+// Wie setYearBank, behält aber alle anderen Jahre (vortrag: Einträge früherer Jahre wirken auf die Fortschreibung;
+// altFb mit Schlüssel `Jahr|Depots`: ältere Bescheid-Stände werden fortgeschrieben).
 function setYearBankKeep(obj, year, bankKey, value) {
   return setKey(obj, `${year}|${bankKey}`, value);
 }

@@ -20,6 +20,8 @@ export default ({ g, check, near }) => {
   check('state: altFb default {}', JSON.stringify(def.altFb) === '{}', def);
   const af = mem(); af.setItem('pp-steuerschaetzer-v1', JSON.stringify({ altFb: 'kaputt' }));
   check('state: altFb non-object migrates to {}', JSON.stringify(load(af).altFb) === '{}', load(af));
+  const afOld = mem(); afOld.setItem('pp-steuerschaetzer-v1', JSON.stringify({ altFb: { 'A,B': 5000, '2026|A': 7000 } }));
+  check('state I1: undated altFb keys dropped, dated kept', JSON.stringify(load(afOld).altFb) === '{"2026|A":7000}', load(afOld));
   const v4 = mem(); save(v4, { ...def, genutzt: { '2026|A': 5 } });
   check('state: v4 genutzt kept', JSON.stringify(load(v4).genutzt) === '{"2026|A":5}', load(v4));
   const syb = g('setYearBank'), sk = g('setKey');
@@ -28,6 +30,7 @@ export default ({ g, check, near }) => {
   const sybk = g('setYearBankKeep');
   check('state: setYearBankKeep keeps other years', JSON.stringify(sybk({ '2019|A': { aktien: 1, allg: 2 }, '2026|B': 3 }, 2026, 'A', { aktien: 0, allg: 5 }))
     === '{"2019|A":{"aktien":1,"allg":2},"2026|B":3,"2026|A":{"aktien":0,"allg":5}}');
+  check('state I1: altFb setter keeps other years and selections', JSON.stringify(sybk({ '2025|A': 80000, '2026|A,B': 1 }, 2026, 'A', 50000)) === '{"2025|A":80000,"2026|A,B":1,"2026|A":50000}');
   check('state: setYearBankKeep null clears only that key', JSON.stringify(sybk({ '2019|A': 1, '2026|A': 2 }, 2026, 'A', null)) === '{"2019|A":1}');
   check('state: setKey set/clear', JSON.stringify(sk({ a: 1 }, 'b', 2)) === '{"a":1,"b":2}' && JSON.stringify(sk({ a: 1 }, 'a', null)) === '{}');
   // Final review I1: Vortrag je Feld; nur Eingetipptes wird gespeichert, leere Einträge fallen weg
