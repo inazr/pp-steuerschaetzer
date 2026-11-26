@@ -179,5 +179,7 @@ function ledgerNextYear(result, data, settings, year) {
   const used = round2(Object.values(t.usedByBank).reduce((s, u) => s + u, 0));
   const banks = rows.map(b => ({ key: b.key, label: b.label, fsa: cfg.byBank[b.key], used: t.usedByBank[b.key],
     fsaLeft: cfg.pooled ? round2(Math.max(0, cfg.spb - used)) : round2(Math.max(0, cfg.byBank[b.key] - t.usedByBank[b.key])) }));
-  return { year: next, banks, pooled: cfg.pooled, total: cfg.fsaSum, used, remaining: round2(Math.max(0, cfg.fsaSum - used)), taxAfter: t.tax };
+  // Mehr als der Sparerpauschbetrag ist nie frei, auch wenn die eingetragenen Aufträge zusammen darüber liegen
+  const total = Math.min(cfg.fsaSum, cfg.spb);
+  return { year: next, banks, pooled: cfg.pooled, total, used, remaining: round2(Math.max(0, total - used)), taxAfter: t.tax };
 }
