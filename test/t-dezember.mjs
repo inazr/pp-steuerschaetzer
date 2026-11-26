@@ -22,6 +22,7 @@ export default ({ g, check, near }) => {
   check('dez: november reduction 10/12', near(nov.vpBefore - nov.vpAfter, 2.24 * 10 / 12 * 100, 0.01), nov);
   check('dez: next-year allowance grows by taxable reduction', near(dec.next.remainingAfter - dec.next.remainingBefore, dec.taxableReduction, 0.02), dec.next);
   check('dez: no tax saved while VP fits the allowance', dec.taxSaved === 0, dec);
+  check('dez: next reports pooled flag', dec.next.pooled === false, dec.next);
 
   // Teilmenge: 50 von 100 Stück → halbe Minderung
   e = eff(r, mk([]), SET, 2026, [{ lot: r.lots[0], shares: 50 }], '2026-11-26');

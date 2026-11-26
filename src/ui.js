@@ -92,6 +92,7 @@ function recalc() {
   ui.led = ledger(ui.result, ui.data, S(), YEAR);
   ui.alloc = optimizeAllowance(ui.result, ui.data, S(), YEAR);
   ui.altAlloc = optimizeAltFreibetrag(ui.result, ui.data, S(), YEAR, ui.alloc);
+  ui.dez = decemberEffect(ui.result, ui.data, S(), YEAR, [...ui.alloc.rows, ...ui.altAlloc.rows], TODAY);
   if (ui.plan) ui.plan = planNetSale(ui.result, ui.data, S(), YEAR, ui.planTarget);
   keepFocus(() => { renderKpis(); renderAll(); });
 }
@@ -390,7 +391,27 @@ function renderAllowance() {
       <p class="note">Verkaufen und sofort zurückkaufen: Der steuerpflichtige Gewinn füllt den freien Betrag, der Einstandskurs steigt, spätere Gewinne fallen niedriger aus. Gerechnet wird je Bank wie die Bank: ein Gewinn wird erst mit ihren Verlusttöpfen verrechnet (Aktiengewinne zuerst mit dem Aktientopf), erst dann greift ihr Freistellungsauftrag. ${a.pooled ? 'Ohne eingetragene Freistellungsaufträge teilen sich die Banken einen gemeinsamen Freibetrag. ' : ''}Verkauft wird je Depot streng nach FIFO, steht ein Lot mit Verlust vorn, endet der Vorschlag für dieses Wertpapier. Ordergebühren und Kursbewegungen zwischen Verkauf und Rückkauf sind nicht berücksichtigt. Gerechnet mit dem letzten Kurs aus der Datei.${a.altSkipped ? ` Wertpapiere, bei denen ein Fonds-Lot von vor 2009 vorn steht, bleiben hier außen vor, solange der Altbestand-Freibetrag (${fmtEur(param('altFreibetrag', YEAR))} je Person) Platz hat: siehe „Altbestand-Freibetrag nutzen“ unten.` : ''}</p>
     </div>
     ${a.banks.map(b => allowanceBank(b, a.pooled)).join('') || '<div class="card"><p class="note">Keine Bank mit Bestand.</p></div>'}
-    ${altAllowance(ui.altAlloc)}`;
+    ${altAllowance(ui.altAlloc)}
+    ${decemberCard(ui.dez)}`;
+}
+
+// Dezember-Effekt: nur zeigen, wenn ein Rückkaufmonat die Vorabpauschale-Prognose wirklich senkt
+const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+function decemberCard(d) {
+  const months = (d && d.months || []).filter(m => m.vpBefore - m.vpAfter > 0.005);
+  if (!months.length) return '';
+  const banks = !months[0].next.pooled && months[0].next.banks.length > 1; // im gemeinsamen Modus ist der Rest je Bank derselbe
+  return `
+    <div class="card">
+      <div class="card-h"><h2>Dezember-Effekt (Rückkauf-Monat)</h2><span class="sub">Vorabpauschale ${YEAR}, fließt am 02.01.${YEAR + 1} zu</span></div>
+      <p class="note">Wer die vorgeschlagenen Anteile verkauft und im selben Monat zurückkauft, hat für sie im Kaufjahr je vollem Monat vor dem Rückkauf ein Zwölftel weniger Vorabpauschale (§ 18 Abs. 2 InvStG). Dadurch bleibt ${YEAR + 1} mehr Freistellungsauftrag frei.</p>
+      <div class="tablebox"><table>
+        <thead><tr><th>Rückkauf im</th><th>Vorabpauschale vorher</th><th>nachher</th><th>Steuer im Januar gespart</th><th>Restfreibetrag ${YEAR + 1} vorher</th><th>nachher</th></tr></thead>
+        <tbody>${months.map(m => `<tr><td class="txt">${MONATE[m.month - 1]} ${YEAR}</td>${eurTd(m.vpBefore)}${eurTd(m.vpAfter)}${eurTd(m.taxSaved)}${eurTd(m.next.remainingBefore)}${eurTd(m.next.remainingAfter)}</tr>`
+          + (banks ? m.next.banks.map(b => `<tr><td class="sub">${esc(b.label)}</td><td></td><td></td><td></td>${eurTd(b.before)}${eurTd(b.after)}</tr>`).join('') : '')).join('')}</tbody>
+      </table></div>
+      <p class="note">Die Vorabpauschale wird nur verschoben: Beim späteren Verkauf wird entsprechend weniger angerechnet, der Gewinn ist höher. Die Prognose rechnet mit dem letzten Kurs und ändert sich bis zum 31.12. Zwischen Verkauf und Rückkauf besteht Kursrisiko; Ordergebühren sind nicht berücksichtigt.</p>
+    </div>`;
 }
 // Abschnitt „Altbestand-Freibetrag nutzen“ (Spec §4): unter dem FSA-Vorschlag, Lots je Bank
 function altAllowance(x) {

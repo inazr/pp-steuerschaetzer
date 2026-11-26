@@ -178,7 +178,7 @@ function decemberEffect(result, data, settings, year, rows, today) {
     const after = ledgerNextYear({ ...result, vpForecast }, data, settings, year);
     months.push({ month: m, vpBefore, vpAfter: round2(vpBefore - gross), taxableReduction: round2(taxable),
       taxSaved: round2(Math.max(0, base.taxAfter - after.taxAfter)),
-      next: { remainingBefore: base.remaining, remainingAfter: after.remaining,
+      next: { pooled: base.pooled, remainingBefore: base.remaining, remainingAfter: after.remaining,
         banks: base.banks.map(b => ({ key: b.key, label: b.label, before: b.fsaLeft, after: (after.banks.find(x => x.key === b.key) || {}).fsaLeft })) } });
   }
   return { months };
