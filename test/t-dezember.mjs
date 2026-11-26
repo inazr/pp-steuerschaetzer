@@ -24,6 +24,14 @@ export default ({ g, check, near }) => {
   check('dez: no tax saved while VP fits the allowance', dec.taxSaved === 0, dec);
   check('dez: next reports pooled flag', dec.next.pooled === false, dec.next);
 
+  // Review I1: der Vorschlag verbraucht einen allgemeinen Verlusttopf (Vortrag 300) — im Folgejahr ist er leer,
+  // also muss der Restfreibetrag um die steuerpflichtige Minderung wachsen (vorher 1000 − 156,80 = 843,20)
+  const SETP = { ...SET, vortrag: { '2026|A': { aktien: null, allg: 300 } } };
+  const rp = replay(mk([tx('2020-03-02', 'BUY', 'A', 100, 9000)]), SETP, '2026-11-26');
+  const alloc = g('optimizeAllowance')(rp, mk([]), SETP, 2026);
+  const ep = eff(rp, mk([]), SETP, 2026, alloc.rows, '2026-11-26').months.find(m => m.month === 12);
+  check('dez I1: pot used by the proposal is gone next year', near(ep.next.remainingBefore, 843.2, 0.02) && near(ep.next.remainingAfter - ep.next.remainingBefore, ep.taxableReduction, 0.02) && ep.taxableReduction > 1, ep);
+
   // Teilmenge: 50 von 100 Stück → halbe Minderung
   e = eff(r, mk([]), SET, 2026, [{ lot: r.lots[0], shares: 50 }], '2026-11-26');
   check('dez: partial lot proportional', near(e.months.find(m => m.month === 12).vpBefore - e.months.find(m => m.month === 12).vpAfter, 2.24 * 11 / 12 * 50, 0.01));

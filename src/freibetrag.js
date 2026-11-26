@@ -163,7 +163,16 @@ function decemberEffect(result, data, settings, year, rows, today) {
   const vpBefore = round2(result.vpForecast.reduce((s, r) => s + r.vp, 0));
   const taxableByDepot = {};
   for (const r of result.vpForecast) taxableByDepot[r.depot] = (taxableByDepot[r.depot] || 0) + r.taxable;
-  const base = ledgerNextYear(result, data, settings, year);
+  // Die vorgeschlagenen Verkäufe gehören zum laufenden Jahr: ihre Gewinne verbrauchen Verlusttöpfe, die dann im Folgejahr fehlen
+  const sold = [];
+  for (const r of rows || []) {
+    const g = r.gainTaxable != null ? r.gainTaxable : (gp => gp === null ? null : gp * r.shares)(taxableGainPerShare(r.lot, r.price, settings, data));
+    if (g === null || !Number.isFinite(g)) continue;
+    const sec = data.securities.find(x => x.uuid === r.lot.security);
+    sold.push({ year, date: today, owner: r.lot.depot, kind: fundTypeOf(settings, sec) === 'einzelaktie' ? 'aktie' : 'sonst', amount: round2(g) });
+  }
+  const planned = { ...result, income: [...(result.income || []), ...sold] };
+  const base = ledgerNextYear(planned, data, settings, year);
   const start = +today.slice(0, 4) === year ? +today.slice(5, 7) : 1;
   const months = [];
   for (let m = start; m <= 12; m++) {
@@ -175,7 +184,7 @@ function decemberEffect(result, data, settings, year, rows, today) {
       redByDepot[f.depot] = (redByDepot[f.depot] || 0) + red * (1 - f.tfs);
     }
     const vpForecast = Object.entries(taxableByDepot).map(([depot, t]) => ({ depot, taxable: round2(Math.max(0, t - (redByDepot[depot] || 0))) }));
-    const after = ledgerNextYear({ ...result, vpForecast }, data, settings, year);
+    const after = ledgerNextYear({ ...planned, vpForecast }, data, settings, year);
     months.push({ month: m, vpBefore, vpAfter: round2(vpBefore - gross), taxableReduction: round2(taxable),
       taxSaved: round2(Math.max(0, base.taxAfter - after.taxAfter)),
       next: { pooled: base.pooled, remainingBefore: base.remaining, remainingAfter: after.remaining,

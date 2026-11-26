@@ -404,13 +404,13 @@ function decemberCard(d) {
   return `
     <div class="card">
       <div class="card-h"><h2>Dezember-Effekt (Rückkauf-Monat)</h2><span class="sub">Vorabpauschale ${YEAR}, fließt am 02.01.${YEAR + 1} zu</span></div>
-      <p class="note">Wer die vorgeschlagenen Anteile verkauft und im selben Monat zurückkauft, hat für sie im Kaufjahr je vollem Monat vor dem Rückkauf ein Zwölftel weniger Vorabpauschale (§ 18 Abs. 2 InvStG). Dadurch bleibt ${YEAR + 1} mehr Freistellungsauftrag frei.</p>
+      <p class="note">Wer die vorgeschlagenen Anteile verkauft und im selben Monat zurückkauft, trägt für sie im Rückkaufjahr nur noch (13 − Monat)/12 der Vorabpauschale (§ 18 Abs. 2 InvStG). Dadurch bleibt ${YEAR + 1} mehr Freistellungsauftrag frei. „Vorher“ heißt: mit den Verkäufen des Vorschlags, aber ohne diesen Effekt.</p>
       <div class="tablebox"><table>
         <thead><tr><th>Rückkauf im</th><th>Vorabpauschale vorher</th><th>nachher</th><th>Steuer im Januar gespart</th><th>Restfreibetrag ${YEAR + 1} vorher</th><th>nachher</th></tr></thead>
         <tbody>${months.map(m => `<tr><td class="txt">${MONATE[m.month - 1]} ${YEAR}</td>${eurTd(m.vpBefore)}${eurTd(m.vpAfter)}${eurTd(m.taxSaved)}${eurTd(m.next.remainingBefore)}${eurTd(m.next.remainingAfter)}</tr>`
           + (banks ? m.next.banks.map(b => `<tr><td class="sub">${esc(b.label)}</td><td></td><td></td><td></td>${eurTd(b.before)}${eurTd(b.after)}</tr>`).join('') : '')).join('')}</tbody>
       </table></div>
-      <p class="note">Die Vorabpauschale wird nur verschoben: Beim späteren Verkauf wird entsprechend weniger angerechnet, der Gewinn ist höher. Die Prognose rechnet mit dem letzten Kurs und ändert sich bis zum 31.12. Zwischen Verkauf und Rückkauf besteht Kursrisiko; Ordergebühren sind nicht berücksichtigt.</p>
+      <p class="note">Die Vorabpauschale wird nur verschoben: Beim späteren Verkauf wird entsprechend weniger angerechnet, der Gewinn ist höher. Die Prognose rechnet mit dem letzten Kurs und ändert sich bis zum 31.12. Ausschüttungen, die in diesem Jahr schon gezahlt wurden, rechnet das Tool den zurückgekauften Anteilen voll an (Ausschüttungen des Fonds im Kalenderjahr, § 18 Abs. 1 InvStG). Zwischen Verkauf und Rückkauf besteht Kursrisiko; Ordergebühren sind nicht berücksichtigt.</p>
     </div>`;
 }
 // Abschnitt „Altbestand-Freibetrag nutzen“ (Spec §4): unter dem FSA-Vorschlag, Lots je Bank
