@@ -113,12 +113,13 @@ function ledger(result, data, settings, year) {
   const warnings = [], rate = taxRate(settings, year);
   const rows = bankMembers(data, settings).map(m => {
     const evs = bankEvents(result, data, settings, m), label = bankLabel(data, m.key);
-    if (evs.some(e => e.year < POT_START && (e.kind === 'aktie' || e.kind === 'sonst'))) warnings.push(`${label}: ${W_PRE2018}`);
     // Töpfe bis zum 1.1. des Jahres fortschreiben (Ereignisse vor 2018 nie). Ein Vortrag-Override „y|key“ ersetzt
     // je eingetipptem Feld den Stand zum 1.1. jedes Jahres y (ab 2018); fortgeschrieben wird von dort aus.
     const vt = settings.vortrag || {}, ov = y => vortragTyped(vt[`${y}|${m.key}`]) ? vt[`${y}|${m.key}`] : null;
     const ovYears = Object.keys(vt).filter(k => k.slice(k.indexOf('|') + 1) === m.key).map(k => +k.slice(0, k.indexOf('|')))
-      .filter(y => y >= POT_START && y < year);
+      .filter(y => y >= POT_START && y <= year && ov(y));
+    // Hinweis auf Verluste vor 2018 nur, solange die Bank keinen Vortrag (bis zum laufenden Jahr) eingetragen hat
+    if (!ovYears.length && evs.some(e => e.year < POT_START && (e.kind === 'aktie' || e.kind === 'sonst'))) warnings.push(`${label}: ${W_PRE2018}`);
     const first = Math.max(POT_START, [...evs.map(e => e.year), ...ovYears].reduce((a, y) => Math.min(a, y), year));
     let pots = { aktien: 0, allg: 0 };
     for (let y = first; y < year; y++) {
