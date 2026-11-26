@@ -67,7 +67,7 @@ function replay(data, settings, today) {
       if (lot.shares <= left + EPS) { pieces.push(queue.shift()); left = round8(left - lot.shares); }
       else {
         const f = left / lot.shares;
-        const piece = { ...lot, id: ++lotId, shares: left, vpCum: lot.vpCum * f, divPS: { ...lot.divPS } };
+        const piece = { ...lot, id: ++lotId, shares: left, vpCum: lot.vpCum * f, divPS: { ...lot.divPS }, alt: lot.alt && { ...lot.alt } };
         lot.vpCum -= piece.vpCum; lot.shares = round8(lot.shares - left);
         pieces.push(piece); left = 0;
       }
@@ -195,9 +195,26 @@ function replay(data, settings, today) {
     vpRows.push(...vpYear(Y, list => { const p = priceOnOrBefore(list, `${Y}-12-31`); return p === null ? null : [p, `${Y}-12-31`]; }, true, `Vorabpauschale ${Y}`));
   };
 
+  // § 56 Abs. 2 InvStG: fiktive Veräußerung zum 31.12.2017 für Fondsanteile, die vorher gekauft wurden (genau einmal, vor allem aus 2018)
+  let switched = false;
+  const switchOver = () => {
+    if (switched) return;
+    switched = true;
+    for (const [key, lots] of queues) {
+      const sec = secById.get(key.split('|')[1]);
+      if (!lots.length || !FUND_TYPES[fundTypeOf(settings, sec)].vp) continue;
+      const old = lots.filter(l => l.buyDate < '2018-01-01');
+      if (!old.length) continue;
+      const price = priceOnOrBefore(data.prices.get(sec.uuid) || [], '2017-12-31');
+      if (price === null) { warnings.push(`Kein Kurs zum 31.12.2017 für ${sec.name} – fiktive Veräußerung nicht berechnet, Gewinn vom ursprünglichen Einstand`); continue; }
+      for (const l of old) { l.origCost = l.cost; l.alt = { price, gainPS: price - l.cost, pre2009: l.buyDate < '2009-01-01' }; l.cost = price; }
+    }
+  };
+
   let doneYear = (events.length ? +events[0].date.slice(0, 4) : currentYear) - 1;
   const flush = upto => { while (doneYear < upto) yearEnd(++doneYear); };
-  for (const ev of events) { flush(+ev.date.slice(0, 4) - 1); handle(ev); }
+  for (const ev of events) { if (ev.date >= '2018-01-01') switchOver(); flush(+ev.date.slice(0, 4) - 1); handle(ev); }
+  if (today >= '2018-01-01') switchOver();
   flush(currentYear - 1);
   // Prognose für das laufende Jahr (fließt im Januar des Folgejahres zu): letzter Kurs statt Kurs zum 31.12.
   const vpForecast = hasParam('basiszins', currentYear)
