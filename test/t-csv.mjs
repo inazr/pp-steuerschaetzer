@@ -30,6 +30,13 @@ export default ({ g, check }) => {
   const pls = pl.split('\r\n');
   check('csv plan: header', pls[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gebühr;Gewinn;Steuerbasis Δ;Freibetrag Δ;Steuer (negativ = Erstattung);Netto-Erlös', pls[0]);
   check('csv plan: row', pls[1] === 'Hausbank;Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;5,50;-9,00;-6,30;-2,00;-1,66;196,16', pls[1]);
+  // T7: Spalte „Erstattung später (Richtwert)“ nur, wenn eine Zeile eine erwartete Erstattung hat (sonst wie 0.4, s. oben)
+  const plr = g('csvPlan')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, fee: 0, gain: 9, taxable: 6.3, allowance: 0, tax: 1.66, net: 198.34, exempt: false, refund: 1.66 },
+    { bank: 'A', lot, shares: 1, price: 100, gross: 100, fee: 0, gain: 4, taxable: 2.8, allowance: 0, tax: 0.74, net: 99.26, exempt: false, refund: 0 }] }, data).split('\r\n');
+  check('csv plan T7: refund column header', plr[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gebühr;Gewinn;Steuerbasis Δ;Freibetrag Δ;Steuer (negativ = Erstattung);Netto-Erlös;Erstattung später (Richtwert)', plr[0]);
+  check('csv plan T7: refund per row', plr[1].endsWith(';1,66;198,34;1,66') && plr[2].endsWith(';0,74;99,26;0,00'), plr);
+  const pl0 = g('csvPlan')({ rows: [{ bank: 'A', lot, shares: 1, price: 100, gross: 100, fee: 0, gain: 4, taxable: 2.8, allowance: 0, tax: 0.74, net: 99.26, exempt: false, refund: 0 }] }, data).split('\r\n');
+  check('csv plan T7: no refund column when all refunds 0', !pl0[0].includes('Erstattung später') && pl0[1].endsWith(';0,74;99,26'), pl0);
   // Altbestand-Freibetrag: Gewinn vor TFS, Bankabzug, erwartete Erstattung
   const al = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, bankTax: 1.66, refund: 1.66 }] }, data).split('\r\n');
   check('csv alt: header', al[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn (vor TFS);Bankabzug;Erstattung erwartet', al[0]);

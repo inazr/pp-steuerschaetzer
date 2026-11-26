@@ -24,9 +24,12 @@ function csvAllowance(res, data) {
   return csvDoc([...CSV_LOT_HEAD, 'Gewinn steuerpflichtig'], res.rows.map(r => [csvBank(res, data, r.bank), ...csvLotCols(r, data), csvMoney(r.gainTaxable)]));
 }
 function csvPlan(plan, data) {
-  // Steuerbasis Δ / Freibetrag Δ: Änderung durch die Zeile im Jahressaldo der Bank (kann negativ sein)
-  return csvDoc([...CSV_LOT_HEAD, 'Gebühr', 'Gewinn', 'Steuerbasis Δ', 'Freibetrag Δ', 'Steuer (negativ = Erstattung)', 'Netto-Erlös'],
-    plan.rows.map(r => [csvBank(plan, data, r.bank), ...csvLotCols(r, data), csvMoney(r.fee || 0), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net)]));
+  // Steuerbasis Δ / Freibetrag Δ: Änderung durch die Zeile im Jahressaldo der Bank (kann negativ sein).
+  // Erwartete Erstattung (Altbestand) als Richtwert je Zeile – nur, wenn eine Zeile eine hat (sonst Spalten wie 0.4)
+  const refund = plan.rows.some(r => r.refund > 0.005);
+  return csvDoc([...CSV_LOT_HEAD, 'Gebühr', 'Gewinn', 'Steuerbasis Δ', 'Freibetrag Δ', 'Steuer (negativ = Erstattung)', 'Netto-Erlös', ...(refund ? ['Erstattung später (Richtwert)'] : [])],
+    plan.rows.map(r => [csvBank(plan, data, r.bank), ...csvLotCols(r, data), csvMoney(r.fee || 0), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net),
+      ...(refund ? [csvMoney(r.refund || 0)] : [])]));
 }
 function csvAltFreibetrag(res, data) {
   return csvDoc([...CSV_LOT_HEAD, 'Gewinn (vor TFS)', 'Bankabzug', 'Erstattung erwartet'],
