@@ -26,7 +26,7 @@ function optimizeAllowance(result, data, settings, year) {
   // Spec §4a: Fonds-Lots vor 2009 sind über den 100.000-€-Freibetrag ohnehin frei, solange er reicht – sie gehören in den
   // Abschnitt „Altbestand-Freibetrag nutzen“; als FIFO-Spitze blockieren sie ihre Queue wie ein Bestandsschutz-Lot
   const altFree = altFreibetrag(result, data, settings, year, led).left >= 0.01;
-  let poolLeft = led.banks.length ? led.banks[0].fsaLeft : 0;
+  let poolLeft = led.banks.length ? led.banks[0].fsaLeft : 0, altSkipped = false;
   const banks = [], rows = [];
   for (const b of active) {
     const st = { aktien: b.pots.aktien, allg: b.pots.allg };
@@ -36,6 +36,8 @@ function optimizeAllowance(result, data, settings, year) {
     const lots = (result.lots || []).filter(l => b.depots.includes(l.depot));
     const heads = fifoQueues(lots).map(q => ({ lots: q, i: 0, left: q[0].shares, price: (result.latest.get(q[0].security) || [])[1] }))
       .filter(h => h.price > 0);
+    // Hinweis in Reiter 3: Queues mit einem Vor-2009-Lot vorn bleiben hier außen vor (s. „Altbestand-Freibetrag nutzen“)
+    if (altFree && heads.some(h => h.lots[0].alt && h.lots[0].alt.pre2009)) altSkipped = true;
     while (left >= 0.01) {
       let best = null, bestGain = 0;
       for (const h of heads) {
@@ -70,7 +72,7 @@ function optimizeAllowance(result, data, settings, year) {
   const used = round2(active.reduce((s, b) => s + b.used, 0));
   const remaining = led.pooled ? round2(Math.max(0, led.spb - used)) : round2(active.reduce((s, b) => s + b.fsaLeft, 0));
   // gemeinsamer Modus: taxOf rundet den Topf je Schritt, die genutzten Beträge liegen zusammen nie über spb
-  return { banks, pooled: led.pooled, total, used, remaining, rows, harvested: round2(rows.reduce((s, r) => s + r.gainTaxable, 0)) };
+  return { banks, pooled: led.pooled, total, used, remaining, rows, harvested: round2(rows.reduce((s, r) => s + r.gainTaxable, 0)), altSkipped };
 }
 
 // Abschnitt „Altbestand-Freibetrag nutzen“ (Spec §4): Fonds-Lots vor 2009 an den FIFO-Spitzen verkaufen (und zurückkaufen),

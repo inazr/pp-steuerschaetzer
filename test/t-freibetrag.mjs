@@ -82,9 +82,12 @@ export default ({ g, check, near }) => {
   r = opt(rXY, dXY, SA, 2025);
   check('fb alt: pre-2009 lot skipped while 100k free, 2020 lot harvested', r.rows.length === 1 && r.rows[0].lot.security === 'Y'
     && near(r.rows[0].shares, Math.floor(1000 / 7 * 1e8) / 1e8, 1e-9) && near(r.harvested, 1000, 0.01), r.rows.map(x => [x.lot.security, x.shares]));
+  check('fb M2: skipped pre-2009 queue flagged', r.altSkipped === true, r.altSkipped);
   // 100k verbraucht (Bescheid 0): X wie jeder andere Lot -> X zuerst (14 > 7)
   r = opt(rXY, dXY, { ...SA, altFb: { '2025|A': 0 } }, 2025);
   check('fb alt: 100k used up -> pre-2009 lot harvested normally', r.rows[0].lot.security === 'X' && near(r.rows[0].shares, Math.floor(1000 / 14 * 1e8) / 1e8, 1e-9), r.rows.map(x => [x.lot.security, x.shares]));
+  check('fb M2: no skip flag when 100k used up', r.altSkipped === false, r.altSkipped);
+  check('fb M2: no skip flag without pre-2009 lots', opt({ ...rXY, lots: [lY] }, dXY, SA, 2025).altSkipped === false);
   // v0.5 §4: Abschnitt „Altbestand-Freibetrag nutzen“ – Fonds-Lot vor 2009, Kosten ab 2018 150, Kurs 170 -> raw 20/Stück
   const altOpt = g('optimizeAltFreibetrag'), rate = g('taxRate')(SET, 2025);
   const lP = (shares = 100) => ({ id: 1, depot: 'A', security: 'X', buyDate: '2005-01-03', shares, cost: 150, origCost: 100, vpCum: 0, divPS: {}, alt: { price: 150, gainPS: 50, pre2009: true } });
