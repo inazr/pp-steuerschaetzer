@@ -97,7 +97,7 @@ Stand 26.11.2026. Status: **G** geltendes Recht, **B** beschlossen, **E** Entwur
 | Quellensteuer | Keine Anrechnung ausländischer Quellensteuer | A | Annahme des Tools |
 | Ehegatten | Keine ehegattenübergreifende Verlustverrechnung zum Jahresende | A | Annahme des Tools |
 
-Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden: Wert in `LAW.basiszins.values[year]`, Fundstelle in `LAW.basiszins.source[year]` und Link in `LAW.basiszins.url[year]` (ein Test verlangt für jede Zeile mit Status G einen `https://`-Link). Die Tabelle oben ist ein Abzug von `lawRows()` für 2026, Einzelveranlagung ohne Kirchensteuer; ein Test prüft, dass sie übereinstimmt. Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
+Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden: Wert in `LAW.basiszins.values[year]`, Fundstelle in `LAW.basiszins.source[year]` und Link in `LAW.basiszins.url[year]` (ein Test verlangt für jede Zeile mit Status G einen `https://`-Link). Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis. Die Tabelle oben ist ein Abzug von `lawRows()` für 2026, Einzelveranlagung ohne Kirchensteuer; ein Test prüft, dass sie übereinstimmt. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
 
 ## Grenzen
 
