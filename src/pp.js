@@ -152,3 +152,9 @@ function extractFromProtobuf(bytes) {
 
   return mapPortfolio({ securities, portfolios, accounts }, warnings);
 }
+
+// Datei (ArrayBuffer) → Datenstruktur, egal ob XML, binär oder verschlüsselt. password nur für verschlüsselte Dateien.
+async function loadPortfolioData(buf, password) {
+  const file = await readPortfolioFile(buf, password);
+  return file.kind === 'protobuf' ? extractFromProtobuf(file.bytes) : extractPortfolio(file.text);
+}

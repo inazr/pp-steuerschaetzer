@@ -1,12 +1,13 @@
-// Minimaler ZIP-Schreiber nur für Tests. javaStyle: Größen im Local Header 0 + Data Descriptor (wie Java ZipOutputStream).
+// Minimaler ZIP-Schreiber nur für Tests. Inhalt: Text oder Uint8Array (binär).
+// javaStyle: gestreamt wie Java ZipOutputStream – Größen/CRC im Local Header 0, Data Descriptor danach, Größen nur im zentralen Verzeichnis.
 const crcTable = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
 const crc32 = b => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
 const deflate = async b => new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
 
 export async function makeZip(entries, { javaStyle = false } = {}) {
   const parts = [], central = []; let off = 0;
-  for (const [name, text] of entries) {
-    const raw = new TextEncoder().encode(text), comp = await deflate(raw), nm = new TextEncoder().encode(name), crc = crc32(raw);
+  for (const [name, content] of entries) {
+    const raw = typeof content === 'string' ? new TextEncoder().encode(content) : content, comp = await deflate(raw), nm = new TextEncoder().encode(name), crc = crc32(raw);
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, javaStyle ? 8 : 0, true); lh.setUint16(8, 8, true);
     if (!javaStyle) { lh.setUint32(14, crc, true); lh.setUint32(18, comp.length, true); lh.setUint32(22, raw.length, true); }

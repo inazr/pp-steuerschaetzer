@@ -28,8 +28,7 @@ async function loadFile(file) {
   const err = $('#load-error');
   err.hidden = true;
   try {
-    const text = await readPortfolioFile(await file.arrayBuffer());
-    const data = extractPortfolio(text);
+    const data = await loadPortfolioData(await file.arrayBuffer());
     if (!data.portfolios.length) throw new Error('NO_PORTFOLIOS');
     ui.data = data;
     ui.depots = selectedDepots(ui.settings, data.portfolios.map(p => p.uuid));

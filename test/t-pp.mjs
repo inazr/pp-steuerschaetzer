@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { encodeClient } from './pbwriter.mjs';
 
 // Wandelt eine XPath-referenzierte PP-Datei in den XStream-id-Modus um (für den Gleichheitstest).
-function toIdMode(g, xml) {
+export function toIdMode(g, xml) {
   const root = g('parseXml')(xml), deref = g('deref');
   const ids = new Map(); let n = 0;
   const assign = node => { if (node.attrs.reference === undefined) { ids.set(node, String(++n)); node.children.forEach(assign); } };

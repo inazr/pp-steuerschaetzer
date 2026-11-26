@@ -33,11 +33,11 @@ export default async ({ g, check }) => {
   // Dateiformate
   const xmlText = '<client><version>70</version></client>';
   const enc = s => new TextEncoder().encode(s).buffer;
-  check('file: plain xml', await readPortfolioFile(enc(xmlText)) === xmlText);
-  check('file: xml with BOM', (await readPortfolioFile(enc('﻿' + xmlText))).startsWith('<client>'));
-  check('file: zip', await readPortfolioFile(await makeZip([['data.xml', xmlText]])) === xmlText);
-  check('file: zip java-style data descriptor', await readPortfolioFile(await makeZip([['meta.txt', 'x'], ['data.xml', xmlText]], { javaStyle: true })) === xmlText);
-  for (const [name, buf] of [['binary', new Uint8Array([0x50, 0x50, 0x50, 0x42, 0x56, 1, 2, 3]).buffer], ['zip without xml', await makeZip([['data.portfolio', 'PPPBV1']])]]) {
+  check('file: plain xml', (await readPortfolioFile(enc(xmlText))).text === xmlText);
+  check('file: xml with BOM', (await readPortfolioFile(enc('﻿' + xmlText))).text.startsWith('<client>'));
+  check('file: zip', (await readPortfolioFile(await makeZip([['data.xml', xmlText]]))).text === xmlText);
+  check('file: zip java-style data descriptor', (await readPortfolioFile(await makeZip([['meta.txt', 'x'], ['data.xml', xmlText]], { javaStyle: true }))).text === xmlText);
+  for (const [name, buf] of [['binary', new Uint8Array([0x50, 0x50, 0x50, 0x42, 0x56, 1, 2, 3]).buffer], ['zip without xml or portfolio', await makeZip([['meta.txt', 'PPPBV1']])]]) {
     let err = null; try { await readPortfolioFile(buf); } catch (e) { err = e; }
     check('file: ' + name + ' -> UNSUPPORTED_FORMAT', err && err.message === 'UNSUPPORTED_FORMAT', err && err.message);
   }
