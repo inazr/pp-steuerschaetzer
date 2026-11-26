@@ -1,8 +1,8 @@
 // Einstellungen im Browser speichern. Nie Buchungen, Kurse oder Lots – nur Steuer-Einstellungen, Fondstypen je ISIN,
 // abgewählte Depots (nur UUIDs) und Bankzuordnung, Freistellungsaufträge und Überschreibungen je Bank.
 const STORE_KEY = 'pp-steuerschaetzer-v1';
-const SETTINGS_KEYS = ['veranlagung', 'kirchensteuer', 'bundesland', 'genutzt', 'fundTypes', 'gebuehrFix', 'gebuehrProz', 'depotsOff', 'bankOf', 'fsa', 'vortrag', 'zinsen', 'settingsVersion'];
-const defaultSettings = () => ({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: {}, fundTypes: {}, gebuehrFix: 0, gebuehrProz: 0, depotsOff: [], bankOf: {}, fsa: {}, vortrag: {}, zinsen: {} });
+const SETTINGS_KEYS = ['veranlagung', 'kirchensteuer', 'bundesland', 'genutzt', 'fundTypes', 'gebuehrFix', 'gebuehrProz', 'depotsOff', 'bankOf', 'fsa', 'vortrag', 'zinsen', 'altFb', 'settingsVersion'];
+const defaultSettings = () => ({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: {}, fundTypes: {}, gebuehrFix: 0, gebuehrProz: 0, depotsOff: [], bankOf: {}, fsa: {}, vortrag: {}, zinsen: {}, altFb: {} });
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 
 function loadSettings(storage) {
@@ -15,7 +15,7 @@ function loadSettings(storage) {
   // bis 0.2 eine Zahl ohne Jahr, bis 0.3 Schlüssel `Jahr|Depots`: keiner Bank zuordenbar, verwerfen
   if (!isObj(s.genutzt) || !(s.settingsVersion >= 4)) s.genutzt = {};
   s.settingsVersion = 4;
-  for (const k of ['bankOf', 'fsa', 'vortrag', 'zinsen']) if (!isObj(s[k])) s[k] = {};
+  for (const k of ['bankOf', 'fsa', 'vortrag', 'zinsen', 'altFb']) if (!isObj(s[k])) s[k] = {};
   if (!Array.isArray(s.depotsOff)) s.depotsOff = [];
   return s;
 }

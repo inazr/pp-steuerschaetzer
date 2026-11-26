@@ -194,3 +194,28 @@ function ledgerNextYear(result, data, settings, year) {
   const total = Math.min(cfg.fsaSum, cfg.spb);
   return { year: next, banks, pooled: cfg.pooled, total, used, remaining: round2(Math.max(0, total - used)), taxAfter: t.tax };
 }
+
+// 100.000-€-Freibetrag für Fondsanteile vor 2009 (§ 56 Abs. 1 InvStG i. V. m. § 23 EStG a. F.) und erwartete Erstattung.
+// Override: verbleibender Freibetrag laut letztem Bescheid (Stand 31.12. Vorjahr), Schlüssel = sortierte Depot-UUIDs.
+function altFreibetrag(result, data, settings, year, led) {
+  const joint = settings.veranlagung === 'joint', total = joint ? 200000 : 100000;
+  const sel = settings.depots;
+  const items = (result.veranlagung || []).filter(v => !sel || sel.includes(v.depot));
+  const sum = xs => xs.reduce((s, v) => s + v.amount, 0);
+  const alt = items.filter(v => v.kind === 'alt100k');
+  const leftStartComputed = Math.max(0, total - sum(alt.filter(v => v.year >= 2018 && v.year < year)));
+  const key = (sel || []).slice().sort().join(',');
+  const ov = (settings.altFb || {})[key];
+  const leftStartOverridden = typeof ov === 'number' && Number.isFinite(ov);
+  const leftStart = leftStartOverridden ? Math.min(total, Math.max(0, ov)) : leftStartComputed;
+  const thisYear = alt.filter(v => v.year === year).sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
+  const usedThisYear = sum(thisYear);
+  const left = Math.max(0, leftStart - usedThisYear);
+  const cap = led.banks.reduce((s, b) => s + Math.max(0, b.positiveEff - b.used), 0);
+  let rest = leftStart, frei100k = 0;
+  for (const v of thisYear) { const u = Math.min(rest, v.amount); frei100k += u * (1 - v.tfs); rest -= u; }
+  const bfh = sum(items.filter(v => v.kind === 'bfh' && v.year === year));
+  return { total, joint, leftStartComputed, leftStart, leftStartOverridden, usedThisYear, left,
+    refund100k: round2(led.rate * Math.min(cap, frei100k)),
+    refundBfh: round2(led.rate * Math.min(Math.max(0, cap - frei100k), bfh)) };
+}

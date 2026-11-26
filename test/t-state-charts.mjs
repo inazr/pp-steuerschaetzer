@@ -17,6 +17,9 @@ export default ({ g, check, near }) => {
   const v3 = mem(); v3.setItem('pp-steuerschaetzer-v1', JSON.stringify({ genutzt: { '2026|A,B': 300 } }));
   check('state: 0.3 genutzt keys discarded', JSON.stringify(load(v3).genutzt) === '{}' && load(v3).settingsVersion === 4, load(v3));
   check('state: new fields default', ['bankOf', 'fsa', 'vortrag', 'zinsen'].every(k => JSON.stringify(def[k]) === '{}'));
+  check('state: altFb default {}', JSON.stringify(def.altFb) === '{}', def);
+  const af = mem(); af.setItem('pp-steuerschaetzer-v1', JSON.stringify({ altFb: 'kaputt' }));
+  check('state: altFb non-object migrates to {}', JSON.stringify(load(af).altFb) === '{}', load(af));
   const v4 = mem(); save(v4, { ...def, genutzt: { '2026|A': 5 } });
   check('state: v4 genutzt kept', JSON.stringify(load(v4).genutzt) === '{"2026|A":5}', load(v4));
   const syb = g('setYearBank'), sk = g('setKey');
