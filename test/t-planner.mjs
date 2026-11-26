@@ -100,7 +100,20 @@ export default ({ g, check, near }) => {
   // Verlust-Lot senkt die Steuer eines späteren Gewinns im selben Plan
   p = plan(res([lot(1, 'X', '2020-01-01', 1, 400), lot(2, 'Y', '2020-01-01', 100, 50)], { X: 100, Y: 100 }), data, { ...SET, fundTypes: { IEX: 'sonstige', IEY: 'sonstige' } }, 2025, 1000);
   check('plan: loss lot first, offsets later gain', p.rows[0].lot.security === 'X' && p.rows[0].tax === 0 && near(p.tax, (p.rows[1].shares * 50 - 300) * rate, 0.011), p.rows);
+  dust({ g, check });
   timing({ g, check });
+};
+// Minor 1: die Suche akzeptiert n nur, wenn auch das gerundete Netto der Zeile (Gebühr und Steuer auf Cent) reicht –
+// sonst fehlt 1 ct und eine Staubzeile (~0,0001 Stück für 0,01 €) folgt
+const dust = ({ g, check }) => {
+  const S = { ...SET, genutzt: { '2025|A': 1000 }, gebuehrFix: 4.9, gebuehrProz: 0.25 };
+  const L = [lot(1, 'X', '2019-01-01', 3, 61.37), lot(2, 'X', '2020-01-01', 7, 88.11), lot(3, 'X', '2021-01-01', 12.5, 97.4), lot(4, 'Y', '2019-03-01', 20, 33.3), lot(5, 'Y', '2022-01-01', 15, 140.2)];
+  const bad = [];
+  for (const prices of [{ X: 123.45, Y: 77.77 }, { X: 101.13, Y: 151.9 }, { X: 99.99, Y: 45.67 }]) for (let t = 2990; t <= 3010; t++) {
+    const p = g('planNetSale')(res(L, prices), data, S, 2025, t);
+    if (!p.reached || p.net < t || p.rows.some(r => r.gross < 0.5)) bad.push([t, prices.X, p.net, p.rows.filter(r => r.gross < 0.5).map(r => r.shares)]);
+  }
+  check('plan minor 1: no dust rows, net >= target (2990..3010)', bad.length === 0, bad);
 };
 // Final review M3: Laufzeit linear in der Planlänge (Plan-Events je Bank laufend zusammengefasst)
 // Grenze 3 s für langsamere CI-Runner: linear ~0,6 s, die alte quadratische Version brauchte lokal 3,6–4,9 s

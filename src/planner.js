@@ -68,9 +68,14 @@ function runNetSale(result, data, settings, year, target, feeAware) {
       const e = ev(n), p = { ...pos, [b.key]: posEff(b, e) };
       return { pos: p, t: taxOf(p, fsa, rate, EXACT), ev: e };
     };
-    const netOf = n => n * a - F - (after(n).t.tax - cur.tax);
+    // Netto ungerundet und so, wie die Zeile es bucht (Gebühr und Steuer auf Cent): beide müssen den Restbedarf decken,
+    // sonst fehlt der Zeile 1 ct und eine Staubzeile (~0,0001 Stück für 0,01 €) folgt
+    const ok = k => {
+      const n = k / 1e8, dt = after(n).t.tax - cur.tax;
+      return n * a - F - dt >= needed - 1e-9 && round2(n * price - round2(F + n * price * feePct) - round2(dt)) >= needed - 1e-9;
+    };
     // Kleinste Stückzahl auf dem 1e-8-Raster mit Netto ≥ Restbedarf (Netto steigt monoton in n); sonst alles
-    const K = Math.round(h.left * 1e8), ok = k => netOf(k / 1e8) >= needed - 1e-9;
+    const K = Math.round(h.left * 1e8);
     let hi = K;
     if (ok(K)) { let lo = 0; while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (ok(m)) hi = m; else lo = m; } }
     const n = hi === K ? h.left : hi / 1e8, st = after(n);
