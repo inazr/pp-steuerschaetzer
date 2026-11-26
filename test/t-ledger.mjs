@@ -102,4 +102,9 @@ export default ({ g, check, near }) => {
   check('ledger I1: earlier-year override merges per field', l.banks[0].vortragComputed.aktien === 200 && l.banks[0].vortragComputed.allg === 500 && l.banks[0].used === 0, l.banks[0]);
   l = L(R([ev('A', 'aktie', -200, 2025), ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2026|A': { aktien: null, allg: null } } }, 2026);
   check('ledger I1: entry without typed field is no override', !l.banks[0].vortragOverridden && l.banks[0].potsStart.aktien === 200 && l.banks[0].used === 300, l.banks[0]);
+  // Minor 5: negativ eingetippter Vortrag zählt als 0
+  l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2026|A': { aktien: -50, allg: -250 } } }, 2026);
+  check('ledger minor 5: negative vortrag override clamped to 0', l.banks[0].potsStart.aktien === 0 && l.banks[0].potsStart.allg === 0 && l.banks[0].used === 300, l.banks[0]);
+  l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: null, allg: -500 } } }, 2026);
+  check('ledger minor 5: negative earlier-year override clamped to 0', l.banks[0].vortragComputed.allg === 0 && l.banks[0].used === 300, l.banks[0]);
 };

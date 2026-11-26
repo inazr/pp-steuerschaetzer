@@ -81,10 +81,12 @@ const W_PRE2018 = 'Verluste aus 2009–2017 sind nicht berechnet – bitte als V
 const W_POOLED = 'Freistellungsaufträge je Bank eintragen, sonst stimmt der Abzug der einzelnen Bank nicht.';
 const W_USED_POOLED = 'Eingetragene genutzte Beträge übersteigen den gemeinsamen Sparerpauschbetrag';
 const bankLabel = (data, key) => ((data.portfolios || []).find(p => p.uuid === key) || (data.accounts || []).find(a => a.uuid === key) || {}).name || key;
-// Vortrag-Override je Feld: nur eingetippte Zahlen ersetzen den berechneten Stand (null/fehlend = berechnet)
+// Vortrag-Override je Feld: nur eingetippte Zahlen ersetzen den berechneten Stand (null/fehlend = berechnet).
+// Töpfe sind Verlustbestände: ein negativ eingetippter Wert zählt als 0.
 const typedPot = v => typeof v === 'number' && isFinite(v);
 const vortragTyped = o => !!o && (typedPot(o.aktien) || typedPot(o.allg));
-const mergePots = (o, computed) => ({ aktien: typedPot(o.aktien) ? round2(o.aktien) : computed.aktien, allg: typedPot(o.allg) ? round2(o.allg) : computed.allg });
+const potField = (o, computed, f) => typedPot(o[f]) ? round2(Math.max(0, o[f])) : computed[f];
+const mergePots = (o, computed) => ({ aktien: potField(o, computed, 'aktien'), allg: potField(o, computed, 'allg') });
 const potsPositive = p => p.aktien > EPS || p.allg > EPS;
 const lotsIn = (result, depots) => (result.lots || []).some(l => depots.includes(l.depot));
 
