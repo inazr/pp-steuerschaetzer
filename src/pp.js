@@ -139,7 +139,8 @@ function extractFromProtobuf(bytes) {
       const from = portfolioOf.get(tx.portfolio), to = portfolioOf.get(tx.otherPortfolio);
       if (!from || !to) { unknown = true; continue; }
       from.txs.push({ uuid: tx.uuid, type: 'TRANSFER_OUT', ...data(), transferKey: tx.uuid });
-      to.txs.push({ uuid: tx.otherUuid, type: 'TRANSFER_IN', ...data(), transferKey: tx.uuid });
+      // Units gehören nur zur Quellbuchung (so lädt PP den Übertrag)
+      to.txs.push({ uuid: tx.otherUuid, type: 'TRANSFER_IN', ...data(), fees: 0, taxes: 0, transferKey: tx.uuid });
     } else if (tx.type === PB_DIVIDEND || tx.type === PB_INTEREST) {
       const a = accountOf.get(tx.account);
       if (!a) { unknown = true; continue; }

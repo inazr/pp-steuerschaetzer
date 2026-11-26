@@ -37,7 +37,7 @@ const SAME = {
     { type: 'BUY', uuid: 'buy-1', pf: 'pf-A', acc: 'acc-1', date: '2023-01-10', sec: 'sec-eur', shares: 1000000000, amount: 100500, units: [['FEE', 500]] },
     { type: 'BUY', uuid: 'buy-usd', pf: 'pf-A', acc: 'acc-1', date: '2023-01-11', sec: 'sec-usd', shares: 200000000, amount: 20000 },
     { type: 'SELL', uuid: 'sell-1', pf: 'pf-A', acc: 'acc-1', date: '2023-06-01', sec: 'sec-eur', shares: 300000000, amount: 35000, units: [['TAX', 1234], ['FEE', 150]] },
-    { type: 'TRANSFER', uuid: 'tr-out', otherUuid: 'tr-in', pf: 'pf-A', otherPf: 'pf-B', date: '2023-07-01', sec: 'sec-eur', shares: 400000000, amount: 44000 },
+    { type: 'TRANSFER', uuid: 'tr-out', otherUuid: 'tr-in', pf: 'pf-A', otherPf: 'pf-B', date: '2023-07-01', sec: 'sec-eur', shares: 400000000, amount: 44000, units: [['FEE', 300]] },
     { type: 'DIVIDEND', uuid: 'div-1', acc: 'acc-1', date: '2023-07-10', sec: 'sec-eur', amount: 1000, units: [['TAX', 264], ['FEE', 25]] },
     { type: 'DIVIDEND', uuid: 'div-nosec', acc: 'acc-1', date: '2023-08-01', amount: 500, units: [['TAX', 132]] },
     { type: 'INTEREST', uuid: 'int-1', acc: 'acc-1', date: '2023-09-30', amount: 7500, units: [['TAX', 2638]] },
@@ -52,7 +52,7 @@ function sameAsXml(D) {
     + `<amount>${t.amount}</amount><security><uuid>${t.sec}</uuid></security>${cross}<shares>${t.shares}</shares><type>${type}</type>${unitsXml(t.units)}</portfolio-transaction>`;
   const pfTxs = pf => D.txs.flatMap(t => {
     const cross = `<crossEntry class="portfolio-transfer"><transactionFrom><uuid>${t.uuid}</uuid></transactionFrom></crossEntry>`;
-    if (t.type === 'TRANSFER') return [t.pf === pf ? ptx(t, 'TRANSFER_OUT', t.uuid, cross) : '', t.otherPf === pf ? ptx(t, 'TRANSFER_IN', t.otherUuid, cross) : ''];
+    if (t.type === 'TRANSFER') return [t.pf === pf ? ptx(t, 'TRANSFER_OUT', t.uuid, cross) : '', t.otherPf === pf ? ptx({ ...t, units: null }, 'TRANSFER_IN', t.otherUuid, cross) : '']; // PP: Units nur an der Quellbuchung
     return t.pf === pf ? [ptx(t, t.type, t.uuid)] : [];
   }).join('');
   const accTxs = acc => D.txs.filter(t => !t.pf && t.acc === acc).map(t => {
@@ -150,10 +150,13 @@ export default ({ g, check, near, root }) => {
   check('pb: canonical order on ties (date, depot index, source order)', fromPb.txs.map(t => t.uuid).join() === fromXml.txs.map(t => t.uuid).join(), fromPb.txs.map(t => t.uuid));
   check('pb: dividend without security becomes interest', fromPb.interest.some(i => i.uuid === 'div-nosec'));
   check('pb: transfer pair keyed by source uuid', fromPb.txs.some(t => t.uuid === 'tr-in' && t.type === 'TRANSFER_IN' && t.depot === 'pf-B' && t.transferKey === 'tr-out'));
-  const pbUnknown = encodeClient({ portfolios: [{ uuid: 'pf-A', name: 'A', referenceAccount: 'acc-1' }], accounts: [{ uuid: 'acc-1', name: 'K', currencyCode: 'EUR' }],
-    securities: [{ uuid: 'sec-eur', name: 'ETF', currencyCode: 'EUR' }],
-    transactions: [{ uuid: 'x1', portfolio: 'pf-X', account: 'acc-1', seconds: secs('2023-01-02'), amount: 100, shares: 100000000, security: 'sec-eur' },
-      { uuid: 'x2', type: 9, account: 'acc-X', seconds: secs('2023-01-02'), amount: 100 }] });
-  const du = g('extractFromProtobuf')(pbUnknown);
-  check('pb: unknown portfolio warned', du.warnings.some(w => w.includes('unbekanntem Depot')) && !du.txs.length && !du.interest.length, du);
+  const unknownCase = transactions => g('extractFromProtobuf')(encodeClient({ securities: [{ uuid: 'sec-eur', name: 'ETF', currencyCode: 'EUR' }],
+    portfolios: [{ uuid: 'pf-A', name: 'A', referenceAccount: 'acc-1' }], accounts: [{ uuid: 'acc-1', name: 'K', currencyCode: 'EUR' }], transactions }));
+  const unknownWarned = d => d.warnings.some(w => w.includes('unbekanntem Depot')) && !d.txs.length && !d.dividends.length && !d.interest.length;
+  const pbUnknown = unknownCase([{ uuid: 'x1', portfolio: 'pf-X', account: 'acc-1', seconds: secs('2023-01-02'), amount: 100, shares: 100000000, security: 'sec-eur' }]);
+  check('pb: unknown portfolio warned', unknownWarned(pbUnknown), pbUnknown);
+  const du = unknownCase([{ uuid: 'x2', type: 9, account: 'acc-X', seconds: secs('2023-01-02'), amount: 100 }]);
+  check('pb: unknown account warned', unknownWarned(du), du);
+  const dt = unknownCase([{ uuid: 'x3', type: 4, portfolio: 'pf-A', otherPortfolio: 'pf-X', otherUuid: 'x3-in', seconds: secs('2023-01-02'), amount: 100, shares: 100000000, security: 'sec-eur' }]);
+  check('pb: transfer to unknown portfolio warned, both halves dropped', unknownWarned(dt), dt);
 };
