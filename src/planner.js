@@ -22,7 +22,7 @@ function runNetSale(result, data, settings, year, target, feeAware) {
   const led = ledger(result, data, settings, year), rate = led.rate;
   // FSA-Regeln wie im Ledger, aus der heutigen Aktivität der Banken. Eine Bank, die erst durch den Plan aktiv würde,
   // ändert die Automatik (eine Bank / gemeinsam) hier bewusst nicht – der Plan rechnet mit dem angezeigten FSA.
-  const cfg = fsaConfig(led.banks, settings, year), fsa = { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank };
+  const fsa = led.fsa;
   const bankOf = new Map(led.banks.flatMap(b => b.depots.map(d => [d, b])));
   const baseEvs = new Map(led.banks.map(b => [b.key, compactEvents(b.eventsYear)]));
   const basePos = new Map(led.banks.map(b => [b.key, netYear(b.potsStart, baseEvs.get(b.key), EXACT).positive]));

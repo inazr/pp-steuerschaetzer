@@ -103,6 +103,9 @@ function fsaConfig(banks, settings, year) {
   return { spb, pooled, byBank, source, fsaSum };
 }
 
+// Eingabe für taxOf aus einer fsaConfig
+const fsaOf = cfg => ({ pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank });
+
 // Ereignisse je Bank: Mitglieder der Bank, Zinsen nur bei Schalter an
 function bankEvents(result, data, settings, m) {
   const own = new Set([...m.depots, ...m.accounts.filter(a => zinsOn(data, settings, a))]);
@@ -149,7 +152,7 @@ function ledger(result, data, settings, year) {
     // ist, bleibt Bemessungsgrundlage (der Plan kann so auch jenseits des FSA versteuerte Erträge erstatten)
     b.positiveEff = !b.usedOverridden ? b.positiveBase : ov >= b.fsa ? Math.max(b.fsa, b.positiveBase) : round2(Math.max(0, ov));
   }
-  const fsa = { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank };
+  const fsa = fsaOf(cfg);
   const base = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveBase])), fsa, rate).usedByBank;
   const eff = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveEff])), fsa, rate).usedByBank;
   // Gemeinsamer Modus: fsa = gemeinsamer spb je Bank, fsaLeft = Rest des gemeinsamen Topfs (auf jeder Bank dieselbe Zahl)
@@ -158,7 +161,7 @@ function ledger(result, data, settings, year) {
     b.usedComputed = base[b.key]; b.used = eff[b.key];
     b.fsaLeft = cfg.pooled ? poolLeft : round2(Math.max(0, b.fsa - b.used));
   }
-  return { banks: rows, pooled: cfg.pooled, fsaSum: cfg.fsaSum, spb: cfg.spb, rate, warnings };
+  return { banks: rows, pooled: cfg.pooled, fsaSum: cfg.fsaSum, spb: cfg.spb, fsa, rate, warnings };
 }
 
 // Vorschau Folgejahr: nur die prognostizierte VP (Ertrag am 02.01.), Töpfe zum Jahresende `year`
@@ -172,7 +175,7 @@ function ledgerNextYear(result, data, settings, year) {
       positive: netYear(b.pots, evs).positive };
   });
   const cfg = fsaConfig(rows, settings, next);
-  const t = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positive])), { pooled: cfg.pooled, spb: cfg.spb, byBank: cfg.byBank }, rate);
+  const t = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positive])), fsaOf(cfg), rate);
   const used = round2(Object.values(t.usedByBank).reduce((s, u) => s + u, 0));
   const banks = rows.map(b => ({ key: b.key, label: b.label, fsa: cfg.byBank[b.key], used: t.usedByBank[b.key],
     fsaLeft: cfg.pooled ? round2(Math.max(0, cfg.spb - used)) : round2(Math.max(0, cfg.byBank[b.key] - t.usedByBank[b.key])) }));

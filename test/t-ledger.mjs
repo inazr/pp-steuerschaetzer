@@ -65,6 +65,10 @@ export default ({ g, check, near }) => {
   check('ledger: 0.3 prefill regression', l.banks[0].used === 312.4, l.banks[0]);
   l = L({ income: [ev('A', 'aktie', -300, 2025)], lots: [], vpForecast: [] }, dat, base, 2026);
   check('ledger: closed bank with pot stays active and is marked', l.banks[0].active && l.banks[0].closedWithPot && l.banks[0].pots.aktien === 300, l.banks[0]);
+  // Minor 2: der Ledger liefert die FSA-Konfiguration, mit der er rechnet (eine Quelle für den Verkaufsplan)
+  l = L(R([ev('A', 'sonst', 700), ev('B', 'sonst', 600)]), dat, two, 2026);
+  check('ledger minor 2: result carries its fsa config', l.fsa && l.fsa.pooled === l.pooled && l.fsa.spb === l.spb
+    && JSON.stringify(l.fsa.byBank) === JSON.stringify(Object.fromEntries(l.banks.map(b => [b.key, b.fsa]))), l.fsa);
   const N = g('ledgerNextYear');
   let n = N({ income: [ev('A', 'sonst', -100)], lots: [{ depot: 'A' }], vpForecast: [{ depot: 'A', taxable: 1200 }] }, dat, base, 2026);
   check('ledgerNextYear: vp against pot then FSA', n.year === 2027 && n.used === 1000 && n.remaining === 0 && n.banks[0].fsaLeft === 0 && near(n.taxAfter, 100 * g('taxRate')(base, 2027)), n);
