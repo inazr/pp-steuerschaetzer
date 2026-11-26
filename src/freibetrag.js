@@ -65,5 +65,6 @@ function optimizeAllowance(result, data, settings, year) {
   const total = led.pooled ? led.spb : round2(active.reduce((s, b) => s + b.fsa, 0));
   const used = round2(active.reduce((s, b) => s + b.used, 0));
   const remaining = led.pooled ? round2(Math.max(0, led.spb - used)) : round2(active.reduce((s, b) => s + b.fsaLeft, 0));
-  return { banks, pooled: led.pooled, total, used: led.pooled ? Math.min(used, led.spb) : used, remaining, rows, harvested: round2(rows.reduce((s, r) => s + r.gainTaxable, 0)) };
+  // gemeinsamer Modus: taxOf rundet den Topf je Schritt, die genutzten Beträge liegen zusammen nie über spb
+  return { banks, pooled: led.pooled, total, used, remaining, rows, harvested: round2(rows.reduce((s, r) => s + r.gainTaxable, 0)) };
 }

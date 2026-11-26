@@ -57,6 +57,9 @@ export default ({ g, check, near }) => {
     && r.banks.length === 2 && near(r.banks[0].harvested + r.banks[1].harvested, 1000, 0.02), r);
   // Final review M1: A verbraucht den gemeinsamen Topf, B startet mit 0 (Hinweis „ausgeschöpft“ statt „keine Lots“)
   check('fb M1: pooled leftStart per bank', near(r.banks[0].leftStart, 1000) && r.banks[1].leftStart === 0 && r.banks[1].rows.length === 0, r.banks);
+  // Minor 10: gemeinsamer Modus, genutzt-Overrides zusammen über spb – used bleibt ohne eigene Kappung beim spb
+  r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, { ...S2, genutzt: { '2025|A': 700, '2025|B': 600 } }, 2025);
+  check('fb minor 10: pooled used never above spb', r.pooled === true && r.used === 1000 && r.remaining === 0, r);
   // 2) Eingetragene FSA 600/400 -> A 12 Stück (600), B 8 Stück (400)
   r = opt(res([lot(1, '2020-01-01', 100, 50), lb], 100), two, { ...S2, fsa: { A: 600, B: 400 } }, 2025);
   check('fb: entered FSA per bank', r.pooled === false && near(r.banks[0].harvested, 600, 0.02) && near(r.banks[1].harvested, 400, 0.02)
