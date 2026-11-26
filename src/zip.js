@@ -1,6 +1,6 @@
 // Liest eine PP-Datei. Erkennung an den ersten Bytes: PORTFOLIO → verschlüsselt, PK\3\4 → ZIP, sonst XML-Text.
 // Ergebnis: { kind: 'xml', text } | { kind: 'protobuf', bytes } (Protobuf ohne den Vorspann PPPBV1).
-// Fehler: UNSUPPORTED_FORMAT (auch: beschädigt), NEEDS_PASSWORD, WRONG_PASSWORD. Das Passwort wird nirgends gespeichert.
+// Fehler: UNSUPPORTED_FORMAT (auch: beschädigt), NEEDS_PASSWORD, WRONG_PASSWORD, NO_CRYPTO (kein WebCrypto). Das Passwort wird nirgends gespeichert.
 const PP_ENCRYPTED_SIG = 'PORTFOLIO', PP_PROTOBUF_SIG = 'PPPBV1';
 const PP_CONTENT_XML = 1, PP_CONTENT_PROTOBUF = 2;
 
@@ -47,8 +47,11 @@ async function decryptPortfolio(u8, password) {
   if (password === undefined || password === null) throw new Error('NEEDS_PASSWORD');
   if (password === '') throw new Error('WRONG_PASSWORD');
 
-  const subtle = crypto.subtle;
-  const base = await subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const subtle = globalThis.crypto?.subtle; // fehlt in unsicherem Kontext (http außer localhost)
+  if (!subtle) throw new Error('NO_CRYPTO');
+  const pwBytes = new TextEncoder().encode(password);
+  let base;
+  try { base = await subtle.importKey('raw', pwBytes, 'PBKDF2', false, ['deriveKey']); } finally { pwBytes.fill(0); }
   const key = await subtle.deriveKey({ name: 'PBKDF2', salt: PP_SALT, iterations: PP_ITERATIONS, hash: 'SHA-1' },
     base, { name: 'AES-CBC', length: keyLength }, false, ['encrypt', 'decrypt']);
   const iv = u8.slice(ivStart, dataStart), cipher = u8.slice(dataStart);

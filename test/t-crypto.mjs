@@ -88,6 +88,26 @@ export default async ({ g, check, root, ctx }) => {
     check('crypto: empty password → WRONG_PASSWORD without importKey', got === 'WRONG_PASSWORD' && !imported, { got, imported });
   } finally { ctx.crypto = realCrypto; }
 
+  // Unsicherer Kontext ohne crypto.subtle: eigene Meldung statt TypeError (Passwortprüfungen davor bleiben)
+  for (const [label, fake] of [['no crypto', undefined], ['crypto without subtle', {}]]) {
+    ctx.crypto = fake;
+    try {
+      const file = await encFile({ method: 1, contentType: 2, pw: 'p' });
+      const got = await code(load(file, 'p')), none = await code(load(file)), empty = await code(load(file, ''));
+      check(`crypto: ${label} → NO_CRYPTO`, got === 'NO_CRYPTO' && none === 'NEEDS_PASSWORD' && empty === 'WRONG_PASSWORD', { got, none, empty });
+    } finally { ctx.crypto = realCrypto; }
+  }
+
+  // Passwort-Bytes werden nach importKey überschrieben
+  let pwBytes = null;
+  const real = realCrypto.subtle;
+  ctx.crypto = { subtle: { importKey: (f, k, ...r) => { pwBytes = k; return real.importKey(f, k, ...r); },
+    deriveKey: (...a) => real.deriveKey(...a), encrypt: (...a) => real.encrypt(...a), decrypt: (...a) => real.decrypt(...a) } };
+  try {
+    const ok = (await load(await encFile({ method: 1, contentType: 2, pw: 'geheim' }), 'geheim')).securities.length === 1;
+    check('crypto: password bytes zeroed after import', ok && pwBytes && pwBytes.length === 6 && pwBytes.every(b => b === 0), { ok, pwBytes });
+  } finally { ctx.crypto = realCrypto; }
+
   // Unverschlüsseltes ZIP: Dispatch nach Eintragsname
   check('zip: data.portfolio binary', (await load(await zipFile('data.portfolio', pbWithSig))).securities.length === 1);
   check('zip: data.portfolio binary java-style', (await load(await zipFile('data.portfolio', pbWithSig, { javaStyle: true }))).securities.length === 1);

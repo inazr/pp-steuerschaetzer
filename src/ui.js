@@ -62,7 +62,8 @@ async function showLoaded(seq, name, buf, loading) {
     err.textContent = m === 'WRONG_PASSWORD' ? 'Passwort falsch'
       : m === 'UNSUPPORTED_FORMAT' ? 'Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.'
         : m === 'NO_PORTFOLIOS' ? 'Die Datei enthält keine Depots.'
-          : 'Die Datei konnte nicht gelesen werden: ' + m;
+          : m === 'NO_CRYPTO' ? 'Entschlüsseln ist hier nicht möglich (unsicherer Kontext). Bitte die Datei lokal öffnen oder über https.'
+            : 'Die Datei konnte nicht gelesen werden: ' + m;
     err.hidden = false;
   }
 }
