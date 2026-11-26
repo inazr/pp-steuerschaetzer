@@ -135,4 +135,15 @@ export default ({ g, check, near }) => {
   check('ledger minor 5: negative vortrag override clamped to 0', l.banks[0].potsStart.aktien === 0 && l.banks[0].potsStart.allg === 0 && l.banks[0].used === 300, l.banks[0]);
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: null, allg: -500 } } }, 2026);
   check('ledger minor 5: negative earlier-year override clamped to 0', l.banks[0].vortragComputed.allg === 0 && l.banks[0].used === 300, l.banks[0]);
+  // Minor 14: Zinsschalter eines losen Kontos – Zinsen zählen nur bei „an“, nur dann ist seine Bank aktiv
+  const datT = { ...dat, accounts: [...dat.accounts, { uuid: 'kT', name: 'Tagesgeld' }], interest: [{ account: 'kT', date: '2026-03-31', gross: 40 }] };
+  const zinsInc = [ev('A', 'div', 100), ev('kT', 'zins', 40)];
+  l = L(R(zinsInc), datT, base, 2026);
+  const off = l.banks.find(b => b.key === 'kT');
+  check('ledger minor 14: loose account off by default -> zins not counted, bank inactive', off && !off.active && off.income.zins === 0 && off.eventsYear.length === 0, off);
+  l = L(R(zinsInc), datT, { ...base, zinsen: { kT: true } }, 2026);
+  const on = l.banks.find(b => b.key === 'kT');
+  check('ledger minor 14: switch on -> zins counted, bank active', on && on.active && on.income.zins === 40 && on.positiveBase === 40, on);
+  l = L(R(zinsInc), datT, { ...base, zinsen: { kT: false } }, 2026);
+  check('ledger minor 14: switch explicitly off', !l.banks.find(b => b.key === 'kT').active && l.banks.find(b => b.key === 'kT').income.zins === 0, l.banks);
 };
