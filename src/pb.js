@@ -25,7 +25,7 @@ function pbRead(bytes) {
     if (w === 0) out.push({ f, w, v: varint() });
     else if (w === 2) {
       const len = varint();
-      if (i + len > n) throw new Error('Protobuf: abgeschnittenes Feld');
+      if (len < 0 || i + len > n) throw new Error('Protobuf: ungültige Feldlänge');
       out.push({ f, w, v: bytes.subarray(i, i + len) });
       i += len;
     } else if (w === 1) i += 8;

@@ -13,4 +13,15 @@ export default ({ g, check }) => {
     && c.portfolios[0].referenceAccount === 'a1' && c.transactions[0].type === 0 && c.transactions[0].units[0].type === 2, c);
   const t0 = performance.now(); dec(encodeClient({ securities: Array.from({ length: 50 }, (_, i) => ({ uuid: 's' + i, name: 'S', currencyCode: 'EUR', prices: Array.from({ length: 3000 }, (_, d) => [17000 + d, 1e10]) })) }));
   check('pb: 150k prices decode < 3 s', performance.now() - t0 < 3000);
+  const throws = f => { try { f(); return false; } catch { return true; } };
+  check('pb: negative length varint throws', throws(() => read(Uint8Array.from([0x12, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 1, 2, 3]))));
+  check('pb: truncated length-delimited throws', throws(() => read(Uint8Array.from([0x12, 5, 1, 2]))));
+  check('pb: truncated varint throws', throws(() => read(Uint8Array.from([0x08, 0x80]))));
+  const r = dec(encodeClient({ securities: [{ uuid: 's', wkn: 'WKN123', ticker: 'TCK', retired: true }, { uuid: 's2' }],
+    accounts: [{ uuid: 'a' }], portfolios: [{ uuid: 'p' }],
+    transactions: [{ type: 8, uuid: 't', otherAccount: 'oa', otherPortfolio: 'op', seconds: -86400 }] }));
+  check('pb: wkn/ticker/retired', r.securities[0].wkn === 'WKN123' && r.securities[0].ticker === 'TCK' && r.securities[0].retired === true, r.securities[0]);
+  check('pb: absent fields default', r.securities[1].retired === false && r.securities[1].isin === '' && r.securities[1].prices.length === 0
+    && r.transactions[0].shares === 0 && r.transactions[0].security === '' && r.accounts[0].currencyCode === '' && r.portfolios[0].referenceAccount === '' && r.version === 0 && r.baseCurrency === '', r);
+  check('pb: otherAccount/otherPortfolio/negative seconds', r.transactions[0].otherAccount === 'oa' && r.transactions[0].otherPortfolio === 'op' && r.transactions[0].seconds === -86400 && r.transactions[0].type === 8, r.transactions[0]);
 };
