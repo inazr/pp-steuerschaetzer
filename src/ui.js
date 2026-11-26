@@ -50,8 +50,13 @@ async function loadFile(file) {
 }
 
 // ---------- Berechnung ----------
+// Voll: FIFO-Neulauf (Fondstyp, Depotauswahl, Steuersatz …), dann Verrechnung
 function recompute() {
   ui.result = replay(ui.data, S(), TODAY);
+  recalc();
+}
+// Nur Verrechnung: Bank, FSA, Vortrag, Zinsen, genutzt wirken nicht auf replay (Spec: kein FIFO-Neulauf)
+function recalc() {
   ui.led = ledger(ui.result, ui.data, S(), YEAR);
   ui.alloc = optimizeAllowance(ui.result, ui.data, S(), YEAR);
   if (ui.plan) ui.plan = planNetSale(ui.result, ui.data, S(), YEAR, ui.planTarget);
@@ -381,6 +386,21 @@ addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) showTab(+b.dataset.tab); });
 
+// Bank-Einstellungen (Zuordnung, Zinsen, FSA, genutzt, Vortrag) übernehmen; false = kein solches Feld
+function bankSetting(el) {
+  if (el.dataset.bankOf) ui.settings.bankOf = assignBank(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
+  else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
+  else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
+  else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
+  else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
+    // Vortrag je Feld: gespeichert wird nur das Eingetippte, ein leeres Feld bleibt berechnet (keine Zahl aus der Datei).
+    // Einträge anderer Jahre bleiben (sie wirken auf die Fortschreibung).
+    const aktien = !!el.dataset.vortragAktien, key = aktien ? el.dataset.vortragAktien : el.dataset.vortragAllg;
+    ui.settings.vortrag = setVortragField(ui.settings.vortrag, YEAR, key, aktien ? 'aktien' : 'allg', amountOf(el));
+  } else return false;
+  return true;
+}
+
 document.addEventListener('change', e => {
   const el = e.target;
   if (!ui.data) return;
@@ -393,16 +413,7 @@ document.addEventListener('change', e => {
     const t = $('#plan-target'); if (t) ui.target = t.value; // eingetipptes Ziel nicht verlieren
   }
   else if (el.dataset.ft) ui.settings.fundTypes = { ...ui.settings.fundTypes, [el.dataset.ft]: el.value };
-  else if (el.dataset.bankOf) ui.settings.bankOf = assignBank(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
-  else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
-  else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
-  else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
-  else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
-    // Vortrag je Feld: gespeichert wird nur das Eingetippte, ein leeres Feld bleibt berechnet (keine Zahl aus der Datei).
-    // Einträge anderer Jahre bleiben (sie wirken auf die Fortschreibung).
-    const aktien = !!el.dataset.vortragAktien, key = aktien ? el.dataset.vortragAktien : el.dataset.vortragAllg;
-    ui.settings.vortrag = setVortragField(ui.settings.vortrag, YEAR, key, aktien ? 'aktien' : 'allg', amountOf(el));
-  }
+  else if (bankSetting(el)) { save(); recalc(); return; } // nur Verrechnung neu, kein FIFO-Neulauf
   else if (el.dataset.depot) {
     ui.depots = $$('[data-depot]').filter(x => x.checked).map(x => x.dataset.depot);
     if (!ui.depots.length) { el.checked = true; ui.depots = [el.dataset.depot]; }
