@@ -19,7 +19,7 @@ const multiDepot = () => (ui.depots || []).length > 1;
 const eurTd = (x, cls = '') => `<td class="${x < 0 ? 'neg ' : ''}${cls}">${fmtEur(x)}</td>`;
 const fact = (l, v) => `<div class="fact"><div class="l">${l}</div><div class="v">${v}</div></div>`;
 // Negative Steuer = Erstattung (Jahressaldo wie die Bank)
-const taxFact = x => x < -0.005 ? fact('Erstattung', fmtEur(-x)) : fact('Steuer', fmtEur(x));
+const taxFact = x => isRefund(x) ? fact('Erstattung', fmtEur(-x)) : fact('Steuer', fmtEur(x));
 const nBanks = n => `${n} ${n === 1 ? 'Bank' : 'Banken'}`;
 const save = () => saveSettings(localStorage, ui.settings);
 

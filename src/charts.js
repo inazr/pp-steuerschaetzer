@@ -155,14 +155,14 @@ function optWaterfall(plan, data, t) {
     e.gross += r.gross;
   }
   const fees = plan.fees || 0;
-  const cats = [...bySec.map(e => e.name), ...(fees > 0 ? ['Gebühren'] : []), plan.tax < 0 ? 'Erstattung' : 'Steuer', 'Netto'];
+  const cats = [...bySec.map(e => e.name), ...(fees > 0 ? ['Gebühren'] : []), isRefund(plan.tax) ? 'Erstattung' : 'Steuer', 'Netto'];
   const base = [], vis = [];
   let acc = 0;
   for (const e of bySec) { base.push(round2(acc)); vis.push({ value: round2(e.gross), itemStyle: { color: secColor(t, data, e.uuid) } }); acc += e.gross; }
   // Gebühren und Steuer hängen von oben herab: Gebühren ab Brutto, Steuer darunter bis Netto
   if (fees > 0) { base.push(round2(acc - fees)); vis.push({ value: round2(fees), itemStyle: { color: t.ink2 } }); }
   // Erstattung (negative Steuer): Balken steigt von Brutto − Gebühren bis Netto
-  const refund = plan.tax < 0;
+  const refund = isRefund(plan.tax);
   base.push(round2(refund ? plan.net + plan.tax : plan.net)); vis.push({ value: round2(Math.abs(plan.tax)), itemStyle: { color: refund ? t.series[1] : t.ink3 } });
   base.push(0); vis.push({ value: round2(plan.net), itemStyle: { color: t.series[2] } });
   return {

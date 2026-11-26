@@ -96,6 +96,9 @@ export default ({ g, check, near }) => {
   const owr = g('optWaterfall')({ ...plan, tax: -50, net: 1550 }, data, TOK);
   const visr = owr.series.find(s => s.name !== '_base'), baser = owr.series.find(s => s.name === '_base');
   check('chart waterfall: refund bar', owr.xAxis.data[2] === 'Erstattung' && near(baser.data[2], 1500) && near(visr.data[2].value, 50) && near(visr.data.at(-1).value, 1550), [owr.xAxis.data, baser.data, visr.data]);
+  // Final review M7: gleiche Schwelle wie die Kennzahl (isRefund): −0,001 € ist Steuer, keine Erstattung
+  const owt = g('optWaterfall')({ ...plan, tax: -0.001, net: 1500.001 }, data, TOK);
+  check('chart M7: rounding-level negative tax is not a refund', owt.xAxis.data[2] === 'Steuer' && g('isRefund')(-0.006) && !g('isRefund')(-0.004), owt.xAxis.data);
   const base = ow.series.find(s => s.name === '_base');
   check('chart waterfall: tax floats at net', near(base.data[2], 1379.5) && near(vis.data[2].value ?? vis.data[2], 120.5), [base.data[2], vis.data[2]]);
 
