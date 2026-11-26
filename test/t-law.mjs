@@ -21,4 +21,10 @@ export default ({ g, check, near }) => {
   check('law: 2018/2019/2021 verified', src[2018].includes('04.01.2018') && src[2018].includes('BStBl I 2018, S. 249') && src[2019].includes('09.01.2019')
     && src[2019].includes('BStBl I 2019, S. 58') && src[2021].includes('BStBl I 2021, S. 56'), [src[2018], src[2019], src[2021]]);
   check('law: no unverified sources left', Object.values(src).every(x => !x.includes('nicht online gegengeprüft')));
+  // Reiter „Gesetze & Annahmen“: Zeilen aus denselben Rechenwerten
+  const rows = g('lawRows')({ veranlagung: 'single', kirchensteuer: false, bundesland: 'default', fundTypes: {} }, 2026);
+  check('law rows: every Basiszins year present with its value', Object.entries(LAW.basiszins.values).every(([y, v]) => rows.some(r => r.wert.includes(y) && r.wert.includes(g('fmtPct')(v)))));
+  check('law rows: status valid, https urls', rows.every(r => ['G', 'B', 'E', 'A'].includes(r.status) && (r.status === 'A' || /^https:\/\//.test(r.url))), rows.filter(r => r.status !== 'A' && !/^https:\/\//.test(r.url)));
+  check('law rows: § 56 and BFH present', rows.some(r => r.norm.includes('§ 56')) && rows.some(r => r.norm.includes('VIII R 22/23')));
+  check('law: stand iso date', /^\d{4}-\d{2}-\d{2}$/.test(g('LAW_STAND')));
 };

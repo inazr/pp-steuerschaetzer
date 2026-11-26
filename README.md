@@ -35,6 +35,7 @@ Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github
 | **Vorabpauschale** | § 18 InvStG je Jahr, Depot und Wertpapier: Basisertrag, Deckelung durch Wertsteigerung plus Ausschüttungen, Zwölftelung im Kaufjahr, Teilfreistellung, Steuer. Prognose für das laufende Jahr zum letzten Kurs (fällig im Januar) mit Restfreibetrag des Folgejahres je Bank. Gestapelter Chart je Jahr, CSV-Export |
 | **Freibetrag nutzen** | Welche Lots du verkaufen und sofort zurückkaufen kannst, damit der steuerpflichtige Gewinn den freien Freistellungsauftrag jeder Bank genau füllt, nach Verrechnung ihrer Verlusttöpfe. Streng FIFO je Depot, je Bank ein Abschnitt, CSV-Export mit Spalte „Bank“ |
 | **Verkaufsplanung** | „Ich brauche X € netto“: verkauft je Depot nach FIFO und wählt zwischen Wertpapieren immer den Lot mit der geringsten Steuer je Euro netto. Steuer im Jahressaldo je Bank: Verluste geben Freibetrag frei oder werden erstattet. Ordergebühren fest je Order und in % vom Erlös. Kennzahlen je Bank, Wasserfall Brutto → Gebühren → Steuer → Netto, CSV-Export mit Spalte „Bank“ |
+| **Gesetze & Annahmen** | Alle Rechenwerte mit Status (geltendes Recht, beschlossen, Entwurf, Annahme des Tools) und Link auf Gesetz, BMF-Schreiben oder BFH-Urteil, Basiszins je Jahr, Stand der Prüfung |
 
 Steuerlogik im Überblick:
 
@@ -52,22 +53,50 @@ Steuerlogik im Überblick:
 
 ## Gesetzliche Werte
 
-| Wert | Jahr | Höhe | Quelle |
-|---|---|---|---|
-| Basiszins | 2018 | 0,87 % | BMF-Schreiben vom 04.01.2018, BStBl I 2018, S. 249 |
-| Basiszins | 2019 | 0,52 % | BMF-Schreiben vom 09.01.2019, BStBl I 2019, S. 58 |
-| Basiszins | 2020 | 0,07 % | BMF-Schreiben vom 29.01.2020, BStBl I 2020, S. 218 |
-| Basiszins | 2021 | −0,45 % | BMF-Schreiben vom 06.01.2021, BStBl I 2021, S. 56 |
-| Basiszins | 2022 | −0,05 % | BMF-Schreiben vom 07.01.2022 |
-| Basiszins | 2023 | 2,55 % | BMF-Schreiben vom 04.01.2023 |
-| Basiszins | 2024 | 2,29 % | BMF-Schreiben vom 05.01.2024 |
-| Basiszins | 2025 | 2,53 % | BMF-Schreiben vom 10.01.2025, BStBl I 2025, S. 273 |
-| Basiszins | 2026 | 3,20 % | BMF-Schreiben vom 13.01.2026, BStBl I 2026, S. 155 |
-| Sparerpauschbetrag | ab 2023 | 1.000 € / 2.000 € | § 20 Abs. 9 EStG (bis 2022: 801 € / 1.602 €) |
-| Abgeltungsteuer, Soli | – | 25 %, 5,5 % | § 32d EStG, SolZG |
-| Kirchensteuer | – | 8 % (BY, BW), sonst 9 % | Kirchensteuergesetze der Länder |
+Stand 26.11.2026. Status: **G** geltendes Recht, **B** beschlossen, **E** Entwurf, **A** Annahme/Vereinfachung des Tools. Dieselben Zeilen zeigt der Reiter „Gesetze & Annahmen“; Zahlen für 2026, Einzelveranlagung ohne Kirchensteuer.
 
-Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden. Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis.
+| Bereich | Wert | Status | Norm |
+|---|---|---|---|
+| Basiszins | 2026: 3,20 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 13.01.2026, BStBl I 2026, S. 155](https://www.bundesfinanzministerium.de/Content/DE/Downloads/BMF_Schreiben/Steuerarten/Investmentsteuer/2026-01-13-basiszins-berechnung-vorabpauschale.html) |
+| Basiszins | 2025: 2,53 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 10.01.2025, BStBl I 2025, 273](https://www.bundesfinanzministerium.de/Content/DE/Downloads/BMF_Schreiben/Steuerarten/Investmentsteuer/2025-01-10-basiszins-vorabpauschale-zum-2-1-2025.html) |
+| Basiszins | 2024: 2,29 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 05.01.2024, BStBl I 2024, S. 154](https://www.otto-schmidt.de/news/steuerrecht/basiszins-zur-berechnung-der-vorabpauschale-gemass-18-absatz-4-invstg-2024-01-11.html) |
+| Basiszins | 2023: 2,55 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 04.01.2023](https://www.haufe.de/id/rechtsquelle/basiszins-zur-berechnung-der-vorabpauschale-gemaess-18-absatz-4-invstg-basiszins-zum-2-januar-2023-HI15518934.html) |
+| Basiszins | 2022: -0,05 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 07.01.2022](https://www.otto-schmidt.de/news/steuerrecht/basiszins-zur-berechnung-der-vorabpauschale-gemass-18-absatz-4-invstg-2022-01-13.html) |
+| Basiszins | 2021: -0,45 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 06.01.2021, BStBl I 2021, S. 56](https://www.otto-schmidt.de/news/steuerrecht/alle-weiteren-zuletzt-veroffentlichten-bmf-schreiben-2021-01-08.html) |
+| Basiszins | 2020: 0,07 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 29.01.2020, BStBl I 2020, 218](https://www.haufe.de/id/rechtsquelle/basiszins-zur-berechnung-der-vorabpauschale-gemaess-18-abs-4-invstg-HI13687798.html) |
+| Basiszins | 2019: 0,52 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 09.01.2019, BStBl I 2019, S. 58](https://www.haufe.de/id/rechtsquelle/basiszins-zur-berechnung-der-vorabpauschale-gem-18-abs-4-invstg-HI12617630.html) |
+| Basiszins | 2018: 0,87 % | G | [§ 18 Abs. 4 InvStG; BMF-Schreiben vom 04.01.2018, BStBl I 2018, S. 249](https://www.haufe.de/id/beitrag/investmentfonds-223-vorabpauschale-HI11762300.html) |
+| Vorabpauschale | Basisertrag = Wert 01.01. × Basiszins × 70 %, höchstens Wertsteigerung + Ausschüttungen, abzüglich Ausschüttungen; im Kaufjahr je vollem Monat vor dem Kauf ein Zwölftel weniger; fließt am ersten Werktag des Folgejahres zu | G | [§ 18 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__18.html) |
+| Teilfreistellung | Aktienfonds 30 %, Mischfonds 15 %, Immobilienfonds (Inland) 60 %, Immobilienfonds (Ausland) 80 %; gilt auch für Vorabpauschale und Verluste | G | [§ 20 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__20.html) |
+| Anrechnung der Vorabpauschale | Bereits versteuerte Vorabpauschalen mindern den Veräußerungsgewinn | G | [§ 19 Abs. 1 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__19.html) |
+| FIFO | Bei Sammelverwahrung gelten die zuerst gekauften Anteile als zuerst verkauft (je Depot) | G | [§ 20 Abs. 4 S. 7 EStG](https://www.gesetze-im-internet.de/estg/__20.html) |
+| Bestandsschutz Einzelaktien | Kauf vor dem 01.01.2009: Kursgewinn steuerfrei | G | [§ 52 Abs. 28 S. 11 EStG](https://www.gesetze-im-internet.de/estg/__52.html) |
+| Sparerpauschbetrag | 2026: 1.000 € (Einzelveranlagung); 2009–2022: 801 € / 1.602 € (zusammen); ab 2023: 1.000 € / 2.000 € (zusammen) | G | [§ 20 Abs. 9 EStG](https://www.gesetze-im-internet.de/estg/__20.html) |
+| Werbungskosten | Kein Abzug tatsächlicher Werbungskosten; Soll- und Negativzinsen mindern die Kapitalerträge nicht | G | [§ 20 Abs. 9 S. 1 EStG](https://www.gesetze-im-internet.de/estg/__20.html) |
+| Abgeltungsteuer | 25 % | G | [§ 32d Abs. 1 EStG](https://www.gesetze-im-internet.de/estg/__32d.html) |
+| Solidaritätszuschlag | 5,5 % der Abgeltungsteuer | G | [§ 4 SolZG](https://www.gesetze-im-internet.de/solzg_1995/__4.html) |
+| Kirchensteuer | 8 % (Bayern, Baden-Württemberg), sonst 9 %; mindert die Abgeltungsteuer (§ 32d Abs. 1 S. 3 EStG) | G | [§ 51a EStG; Kirchensteuergesetze der Länder](https://www.gesetze-im-internet.de/estg/__51a.html) |
+| Steuersatz (deine Einstellung) | 2026: 26,375 % ohne Kirchensteuer | G | [§ 32d Abs. 1 EStG, § 4 SolZG, § 51a EStG](https://www.gesetze-im-internet.de/estg/__32d.html) |
+| Verlusttöpfe | Je Bank: Aktienverluste nur gegen Aktiengewinne, übrige Verluste gegen alle positiven Erträge; Rest wird vorgetragen oder auf Antrag bescheinigt | G | [§ 43a Abs. 3 EStG](https://www.gesetze-im-internet.de/estg/__43a.html) |
+| Freistellungsauftrag | Je Bank; zusammen höchstens der Sparerpauschbetrag | G | [§ 44a EStG](https://www.gesetze-im-internet.de/estg/__44a.html) |
+| Altanteile (vor 2018 gekauft) | Fiktiver Verkauf zum 31.12.2017 und Neukauf zum 01.01.2018 zum letzten Kurs 2017; der Altgewinn wird erst beim tatsächlichen Verkauf versteuert | G | [§ 56 Abs. 2, 3 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__56.html) |
+| Freibetrag Altanteile vor 2009 | Altgewinn bis 31.12.2017 steuerfrei; Gewinne ab 2018 steuerfrei bis 100.000 € je Person, Rest wird jährlich festgestellt; die Bank zieht zunächst Steuer ab, Erstattung über die Steuererklärung | G | [§ 56 Abs. 6 S. 1 Nr. 2 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__56.html) |
+| BFH: Teilfreistellung bei Verlusten aus Altanteilen | Beruht ein Verlust ab 2018 darauf, dass der Kurs 31.12.2017 über dem Einstand lag, wird er nicht um die Teilfreistellung gekürzt | G | [BFH, Urteile vom 25.11.2025, VIII R 22/23 und VIII R 15/22](https://www.bundesfinanzhof.de/de/entscheidung/entscheidungen-online/detail/STRE202610013/) |
+| Verlusttöpfe ab 2018 | Töpfe werden erst ab 2018 aus der Datei fortgeschrieben; ältere Verluste als Vortrag zum 1.1. eintragen | A | Annahme des Tools |
+| Jahressaldo | Steuer je Bank als Jahressaldo statt in der Buchungsreihenfolge der Bank | A | Annahme des Tools |
+| Gemeinsamer Freibetrag | Ohne eingetragene Freistellungsaufträge wird der Sparerpauschbetrag gemeinsam über alle Banken gerechnet | A | Annahme des Tools |
+| Fondstyp | Steht nicht in der PP-Datei und wird aus Name und ISIN geraten, bis du ihn bestätigst | A | Annahme des Tools |
+| Altgewinn | Kurs 31.12.2017 − Einstand, ohne ausschüttungsgleiche Erträge aus der Zeit vor 2018 | A | [Annahme des Tools; § 56 Abs. 3 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__56.html) |
+| Freibetrag Altanteile: Bemessung | 100.000 € werden auf den Gewinn vor Teilfreistellung angerechnet | A | [Annahme des Tools; § 56 Abs. 6 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__56.html) |
+| Freibetrag Altanteile: Paare | Bei Zusammenveranlagung gemeinsam 200.000 € statt 100.000 € je Person für die eigenen Anteile | A | [Annahme des Tools; § 56 Abs. 6 InvStG](https://www.gesetze-im-internet.de/invstg_2018/__56.html) |
+| Erwartete Erstattungen | Vereinfacht: nur für das laufende Jahr bzw. die Planung, höchstens bis zur im Jahr besteuerten Bemessungsgrundlage; die Veranlagung wird nicht im Detail nachgebildet | A | Annahme des Tools |
+| BFH-Urteile: Anwendung | Anwendung durch BMF und Banken offen; das Tool rechnet die Bank-Sicht und zeigt die Differenz als erwartete Erstattung über die Veranlagung | A | [Annahme des Tools; BFH VIII R 22/23](https://www.bundesfinanzhof.de/de/entscheidung/entscheidungen-online/detail/STRE202610013/) |
+| Spiegelfall | Altverlust bis 2017 mit Neugewinn ab 2018: keine Nachforderung modelliert | A | Annahme des Tools |
+| Gold-ETCs | Gold-ETCs mit Lieferanspruch (steuerfrei nach einem Jahr) nicht abgebildet; Gewinn voll steuerpflichtig | A | Annahme des Tools |
+| Quellensteuer | Keine Anrechnung ausländischer Quellensteuer | A | Annahme des Tools |
+| Ehegatten | Keine ehegattenübergreifende Verlustverrechnung zum Jahresende | A | Annahme des Tools |
+
+Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden. Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
 
 ## Grenzen
 

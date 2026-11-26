@@ -195,10 +195,10 @@ function ledgerNextYear(result, data, settings, year) {
   return { year: next, banks, pooled: cfg.pooled, total, used, remaining: round2(Math.max(0, total - used)), taxAfter: t.tax };
 }
 
-// 100.000-€-Freibetrag für Fondsanteile vor 2009 (§ 56 Abs. 1 InvStG i. V. m. § 23 EStG a. F.) und erwartete Erstattung.
+// 100.000-€-Freibetrag für Fondsanteile vor 2009 (§ 56 Abs. 6 InvStG) und erwartete Erstattung.
 // Override: verbleibender Freibetrag laut letztem Bescheid (Stand 31.12. Vorjahr), Schlüssel = sortierte Depot-UUIDs.
 function altFreibetrag(result, data, settings, year, led) {
-  const joint = settings.veranlagung === 'joint', total = joint ? 200000 : 100000;
+  const joint = settings.veranlagung === 'joint', total = (joint ? 2 : 1) * param('altFreibetrag', year);
   const sel = settings.depots;
   const items = (result.veranlagung || []).filter(v => !sel || sel.includes(v.depot));
   const sum = xs => xs.reduce((s, v) => s + v.amount, 0);

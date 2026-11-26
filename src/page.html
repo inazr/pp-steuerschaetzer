@@ -124,8 +124,14 @@ th { font-family: var(--font-ui); font-weight: 600; color: var(--ink-2); backgro
 th:first-child, td:first-child { text-align: left; }
 td.txt { font-family: var(--font-ui); text-align: left; white-space: normal; }
 details > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
-.legal td { white-space: normal; }
-.legal td:nth-child(2) { font-family: var(--font-num); }
+.legal td { white-space: normal; text-align: left; vertical-align: top; font-family: var(--font-ui); }
+.legal td:first-child { font-weight: 600; min-width: 140px; }
+.legal td.v { font-family: var(--font-num); white-space: nowrap; }
+.legal td:nth-child(3) { text-align: center; }
+.legal a { color: var(--accent); }
+.tablebox.legal { max-height: none; }
+.legal th { text-align: left; }
+.pill.muted { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line-2); }
 .muted { color: var(--ink-3); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .spacer { flex: 1; }
@@ -175,7 +181,7 @@ footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
     <div class="titlerow">
       <div>
         <h1>{{TITLE}}</h1>
-        <div class="sub">Vorabpauschale, Freibetrag und Verkaufsplanung · Daten bleiben im Browser · Keine Steuerberatung · Version {{VERSION}}</div>
+        <div class="sub">Vorabpauschale, Freibetrag und Verkaufsplanung · Daten bleiben im Browser · Keine Steuerberatung · Version {{VERSION}} · Rechtslage <span id="law-stand"></span></div>
       </div>
       <div class="tools">
         <span class="sub" id="file-name"></span>
@@ -189,6 +195,7 @@ footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
       <button class="tab" role="tab" data-tab="1" aria-selected="false"><span class="n">2</span>Vorabpauschale</button>
       <button class="tab" role="tab" data-tab="2" aria-selected="false"><span class="n">3</span>Freibetrag nutzen</button>
       <button class="tab" role="tab" data-tab="3" aria-selected="false"><span class="n">4</span>Verkaufsplanung</button>
+      <button class="tab" role="tab" data-tab="4" aria-selected="false"><span class="n">5</span>Gesetze &amp; Annahmen</button>
     </nav>
   </div>
 </header>
@@ -207,6 +214,7 @@ footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
   <section class="panel" data-panel="1" id="p1" hidden></section>
   <section class="panel" data-panel="2" id="p2" hidden></section>
   <section class="panel" data-panel="3" id="p3" hidden></section>
+  <section class="panel" data-panel="4" id="p4" hidden></section>
 </main>
 <footer class="wrap">Steuerschätzer {{VERSION}} · Keine Steuerberatung, alle Angaben ohne Gewähr · Läuft vollständig offline · ECharts (Apache-2.0), Public Sans und JetBrains Mono (OFL-1.1)</footer>
 

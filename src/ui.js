@@ -1,4 +1,4 @@
-// Oberfläche: Datei laden, Einstellungen, vier Reiter mit Tabellen, Charts und CSV-Export.
+// Oberfläche: Datei laden, Einstellungen, fünf Reiter mit Tabellen, Charts und CSV-Export.
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -7,7 +7,7 @@ const YEAR = +TODAY.slice(0, 4);
 const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 
 const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, altAlloc: null, plan: null, target: '', tab: 0, banksOffOpen: false };
-try { ui.tab = Math.min(3, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
+try { ui.tab = Math.min(4, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
 const S = () => ({ ...ui.settings, depots: ui.depots });
 const secName = u => (ui.data.securities.find(s => s.uuid === u) || {}).name || u;
@@ -110,7 +110,7 @@ function renderKpis() {
   $('#kpis').innerHTML = k.map(([l, v, d]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d.split(' · ').map(x => `<span class="nw">${x}</span>`).join(' · ')}</div></div>`).join('');
 }
 
-function renderAll() { renderOverview(); renderVp(); renderAllowance(); renderPlan(); renderCharts(); }
+function renderAll() { renderOverview(); renderVp(); renderAllowance(); renderPlan(); renderLaw(); renderCharts(); }
 
 // ---------- Reiter 1: Übersicht ----------
 function messages() {
@@ -237,7 +237,6 @@ function renderVp() {
     return ys.map(r => `<tr><td>${r.year}</td>${multiDepot() ? `<td class="txt">${esc(depName(r.depot))}</td>` : ''}<td class="txt">${esc(secName(r.security))}</td>${eurTd(r.wertAnfang)}${eurTd(r.wertEnde)}${eurTd(r.basisertrag)}${eurTd(r.ausschuettungen)}${eurTd(r.vp)}<td>${fmtPct(r.tfs)}</td>${eurTd(r.taxable)}${eurTd(r.tax)}</tr>`).join('')
       + `<tr class="sum"><td>Summe ${y}</td>${multiDepot() ? '<td></td>' : ''}<td class="txt">Basiszins ${fmtPct(ys[0].basiszins)}</td>${eurTd(sum('wertAnfang'))}${eurTd(sum('wertEnde'))}${eurTd(sum('basisertrag'))}${eurTd(sum('ausschuettungen'))}${eurTd(sum('vp'))}<td></td>${eurTd(sum('taxable'))}${eurTd(sum('tax'))}</tr>`;
   }).join('');
-  const bz = Object.entries(LAW.basiszins.values).map(([y, v]) => `<tr><td>${y}</td><td>${fmtPct(v)}</td><td class="txt">${esc(LAW.basiszins.source[y])}</td></tr>`).join('');
   const fc = ui.result.vpForecast, fsum = k => fc.reduce((s, r) => s + r[k], 0);
   const nx = ledgerNextYear(ui.result, ui.data, S(), YEAR);
   const forecast = fc.length ? `
@@ -270,7 +269,7 @@ function renderVp() {
         <thead><tr><th>Jahr</th>${multiDepot() ? '<th>Depot</th>' : ''}<th>Wertpapier</th><th>Wert 01.01.</th><th>Wert 31.12.</th><th>Basisertrag</th><th>Ausschüttungen</th><th>Vorabpauschale</th><th>TFS</th><th>Steuerpflichtig</th><th>Steuer</th></tr></thead>
         <tbody>${body || `<tr><td class="txt" colspan="11">Keine Einträge</td></tr>`}</tbody>
       </table></div>
-      <details><summary>Basiszins je Jahr</summary><div class="tablebox legal"><table><thead><tr><th>Jahr</th><th>Basiszins</th><th>Quelle</th></tr></thead><tbody>${bz}</tbody></table></div></details>
+      <p class="note">Basiszins je Jahr mit Fundstellen: Reiter „Gesetze &amp; Annahmen“.</p>
     </div>`;
 }
 
@@ -371,6 +370,24 @@ function renderPlan() {
     <div class="card"><h2>Verkaufsplan</h2>${groups.length > 1
       ? groups.map(b => `<h3>${bankCap} ${esc(b.label)}</h3>${lotTable(p.rows.filter(r => r.bank === b.key), cols)}`).join('')
       : lotTable(p.rows, cols)}</div>` : ''}`;
+}
+
+// ---------- Reiter 5: Gesetze & Annahmen ----------
+const STATUS_PILL = { G: 'good', B: 'info', E: 'warn', A: 'muted' };
+function renderLaw() {
+  const rows = lawRows(ui.settings, YEAR);
+  const pill = st => `<span class="pill ${STATUS_PILL[st]}" title="${esc(LAW_STATUS[st])}">${st}</span>`;
+  const norm = r => r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.norm)}</a>` : esc(r.norm);
+  $('#p4').innerHTML = `
+    <div class="card">
+      <div class="card-h"><h2>Gesetze &amp; Annahmen</h2><span class="sub">Stand ${esc(fmtDate(LAW_STAND))} · Werte für ${YEAR} mit deinen Steuer-Einstellungen</span></div>
+      <p class="note">Status: ${Object.keys(LAW_STATUS).map(k => `${pill(k)} ${esc(LAW_STATUS[k])}`).join(' · ')}. Die Zahlen in dieser Tabelle sind dieselben, mit denen das Tool rechnet.</p>
+      <div class="tablebox legal"><table>
+        <thead><tr><th>Bereich</th><th>Wert</th><th>Status</th><th>Norm</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${esc(r.bereich)}</td><td${r.wert.length <= 32 ? ' class="v"' : ''}>${esc(r.wert)}</td><td>${pill(r.status)}</td><td>${norm(r)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="note">Links öffnen Gesetze im Internet, BMF, BFH bzw. eine Wiedergabe des BMF-Schreibens (ältere Basiszins-Schreiben stehen nicht mehr beim BMF). Offline öffnen sie nichts.</p>
+    </div>`;
 }
 
 // ---------- Charts ----------
@@ -488,6 +505,9 @@ document.addEventListener('click', e => {
 
 // Aufgeklappte inaktive Banken bleiben beim Neuzeichnen offen
 document.addEventListener('toggle', e => { if (e.target.id === 'banks-off') ui.banksOffOpen = e.target.open; }, true);
+
+// Rechtsstand im Seitenkopf
+$('#law-stand').textContent = `Stand ${fmtDate(LAW_STAND)}`;
 
 // Hinweis einmal je Sitzung
 try { if (sessionStorage.getItem(DISC_KEY)) $('#disclaimer').hidden = true; } catch { /* egal */ }
