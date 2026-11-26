@@ -84,7 +84,9 @@ function optimizeAltFreibetrag(result, data, settings, year, alloc) {
   const af = altFreibetrag(result, data, settings, year, led), left = af.left;
   const bankOf = new Map(led.banks.flatMap(b => b.depots.map(d => [d, b])));
   const lots = (result.lots || []).filter(l => bankOf.has(l.depot));
-  const empty = hint => ({ left, rows: [], harvested: 0, bankTax: 0, refund: 0, hint });
+  // banks: Labels aus dem Ledger für den CSV-Export (csvBank wie beim FSA-Vorschlag und Verkaufsplan)
+  const banks = led.banks.map(b => ({ key: b.key, label: b.label }));
+  const empty = hint => ({ left, rows: [], harvested: 0, bankTax: 0, refund: 0, hint, banks });
   if (!lots.some(l => l.alt && l.alt.pre2009)) return empty('Kein Fonds-Altbestand von vor 2009 im Bestand.');
   if (left < 0.01) return empty('Der Altbestand-Freibetrag ist bereits ausgeschöpft.');
 
@@ -145,5 +147,5 @@ function optimizeAltFreibetrag(result, data, settings, year, alloc) {
   }
   const sum = k => round2(rows.reduce((s, r) => s + r[k], 0));
   return { left, rows, harvested: sum('raw'), bankTax: sum('bankTax'), refund: sum('refund'),
-    hint: rows.length ? ALT_HINT : 'Keine Fonds-Lots von vor 2009 mit Gewinn an der FIFO-Spitze.' };
+    hint: rows.length ? ALT_HINT : 'Keine Fonds-Lots von vor 2009 mit Gewinn an der FIFO-Spitze.', banks };
 }

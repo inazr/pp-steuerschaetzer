@@ -115,4 +115,8 @@ export default ({ g, check, near }) => {
   check('alt fb: no pre-2009 lot -> empty + hint', ra.rows.length === 0 && ra.harvested === 0 && /kein.*vor 2009/i.test(ra.hint), ra);
   ra = run(rP([lP()]), { ...SA, altFb: { A: 0 } });
   check('alt fb: left < 0.01 -> empty + hint', ra.rows.length === 0 && ra.left === 0 && /ausgeschöpft/.test(ra.hint), ra);
+  // banks: Ledger-Labels für den CSV-Export, auch im leeren Ergebnis
+  check('alt fb: banks with ledger labels', JSON.stringify(ra.banks) === JSON.stringify([{ key: 'A', label: 'A' }]), ra.banks);
+  ra = run(rP([lP()]), { ...SA, altFb: { A: 1000 } });
+  check('alt fb: banks on harvest result', ra.rows.length === 1 && ra.banks.length === 1 && ra.banks[0].key === 'A', ra.banks);
 };
