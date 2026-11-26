@@ -67,6 +67,16 @@ export default ({ g, check, near, root }) => {
   check('100k I1: other selection and undated keys ignored', !a.leftStartOverridden && a.leftStart === 100000 && a.leftStartFrom === null, a);
   a = AF(res([post(2026, 90, 'bfh')]), {}, S1({}), 2026, { rate: 0.26375, banks: [{ positiveEff: 1000, used: 0 }] });
   check('bfh I1: positive refund when taxed base > 0', near(a.refundBfh, 0.26375 * 90, 0.006) && a.refund100k === 0, a);
+  // Final review I2: Übersicht zeigt die BFH-Erstattung auch ohne Anteile vor 2009
+  const mode = g('altCardMode');
+  const pre = { lots: [{ depot: 'A', alt: { pre2009: true } }], veranlagung: [] }, none = { lots: [{ depot: 'A', alt: { pre2009: false } }], veranlagung: [] };
+  check('I2: card mode full with pre-2009 lot', mode(pre, ['A'], { refundBfh: 0 }) === 'full');
+  check('I2: card mode full with alt100k item of the selection', mode({ lots: [], veranlagung: [post(2020, 10)] }, ['A'], { refundBfh: 0 }) === 'full'
+    && mode({ lots: [], veranlagung: [post(2020, 10)] }, ['B'], { refundBfh: 0 }) === '');
+  check('I2: card mode bfh without pre-2009 units', mode(none, ['A'], { refundBfh: 23.74 }) === 'bfh' && mode(none, ['A'], { refundBfh: 0.004 }) === '');
+  // Final review M6: Eintrag für eine andere Depotauswahl
+  const other = g('altFbOtherSelection');
+  check('M6: entry for another selection detected', other({ '2026|A,B': 5000 }, 'A') === true && other({ '2025|A': 1, '2026|A': 2 }, 'A') === false && other({}, 'A') === false, null);
   // Synthetische PP-Datei (Browser-Smoke): Kauf 2005 und 2015, Kurs 31.12.2017 50 €, Teilverkauf 2026 von 20 Stück zu 100 € aus dem 2005er Lot
   const fd = g('extractPortfolio')(readFileSync(join(root, 'test/fixtures/altbestand.xml'), 'utf8'));
   const fr = replay(fd, { ...SET, depots: ['pf-alt'] }, '2026-11-26');

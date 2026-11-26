@@ -235,6 +235,14 @@ function altFreibetrag(result, data, settings, year, led) {
     refund100k: round2(r.refund100k), refundBfh: round2(r.refundBfh), yearAlt100k: thisYear, yearBfh: bfh };
 }
 
+// Übersicht: 'full' = Karte Altbestand-Freibetrag (Fondsanteile vor 2009 im Bestand oder ab 2018 schon Gewinne daraus
+// in der Auswahl), 'bfh' = nur die erwartete BFH-Erstattung (Altanteile 2009–2017 mit Fiktionsverlust), '' = nichts
+function altCardMode(result, depots, a) {
+  const pre = (result.lots || []).some(l => l.alt && l.alt.pre2009)
+    || (result.veranlagung || []).some(v => v.kind === 'alt100k' && (!depots || depots.includes(v.depot)));
+  return pre ? 'full' : a.refundBfh > 0.005 ? 'bfh' : '';
+}
+
 // Erwartete Erstattungen eines Jahres (Annahme A), ungerundet: alt100k-Posten { amount, tfs } in Datumsreihenfolge gegen
 // den Rest ab leftStart (frei100k = Σ min(Rest, amount) × (1 − tfs)), danach die BFH-Posten (Summe bfh); beides zusammen
 // höchstens bis zur im Jahr besteuerten Bemessungsgrundlage cap.

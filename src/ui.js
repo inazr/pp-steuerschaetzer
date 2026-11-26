@@ -231,12 +231,17 @@ function renderBanks() {
 }
 
 // ---------- Altbestand-Freibetrag (vor 2009), § 56 Abs. 6 InvStG ----------
-// Sichtbar, solange Fondsanteile von vor 2009 im Bestand sind oder ab 2018 schon Gewinne daraus angefallen sind
-const hasPre2009 = () => ui.result.lots.some(l => l.alt && l.alt.pre2009)
-  || (ui.result.veranlagung || []).some(v => v.kind === 'alt100k' && ui.depots.includes(v.depot));
+// Volle Karte, solange Fondsanteile von vor 2009 im Bestand sind oder ab 2018 schon Gewinne daraus angefallen sind;
+// sonst nur die erwartete BFH-Erstattung (Altanteile 2009–2017), wenn es eine gibt (altCardMode)
 function renderAltFb() {
-  if (!hasPre2009()) return '';
   const a = altFreibetrag(ui.result, ui.data, S(), YEAR, ui.led), key = altFbSel(ui.depots);
+  const mode = altCardMode(ui.result, ui.depots, a);
+  if (mode === 'bfh') return `<div class="card" id="altfb">
+    <div class="card-h"><h2>Altanteile 2009–2017</h2></div>
+    <div class="facts">${fact(`Erwartete Erstattung ${YEAR} über Steuererklärung (BFH-Urteil)`, fmtEur(a.refundBfh))}</div>
+    <p class="note">Verluste ab 2018 mit Fondsanteilen, die 2009–2017 gekauft wurden, mindern nach den BFH-Urteilen vom 25.11.2025 auch den steuerpflichtigen Altgewinn. Die Bank rechnet das (noch) nicht so ab; die Differenz kommt voraussichtlich über die Steuererklärung (Anlage KAP-INV) zurück.</p>
+  </div>`;
+  if (mode !== 'full') return '';
   // Eingabe = Rest zum 31.12. Vorjahr (Schlüssel `YEAR|Depots`); ein älterer Eintrag wird mit den Verkäufen seither fortgeschrieben
   const ovHint = !a.leftStartOverridden ? 'berechnet aus den Verkäufen ab 2018 in der Datei'
     : a.leftStartFrom < YEAR ? `fortgeschrieben aus dem Eintrag zum 31.12.${a.leftStartFrom - 1} · berechnet: ${fmtEur(a.leftStartComputed)}`
@@ -253,8 +258,9 @@ function renderAltFb() {
       ${amountField('altfb-left', `verbleibend laut letztem Steuerbescheid (Stand 31.12.${YEAR - 1})`, 'data-altfb', key, (ui.settings.altFb || {})[`${YEAR}|${key}`],
         a.leftStartOverridden && a.leftStartFrom < YEAR ? a.leftStart : a.leftStartComputed, ovHint)}
     </div>
+    ${!a.leftStartOverridden && altFbOtherSelection(ui.settings.altFb, key) ? '<p class="note">Für eine andere Depotauswahl ist ein Restbetrag eingetragen; er gilt nur für genau diese Auswahl.</p>' : ''}
     ${a.joint ? '<p class="note">Der Freibetrag gilt je Person für die eigenen Anteile; hier vereinfacht als gemeinsamer Betrag für die ausgewählten Depots.</p>' : ''}
-    <p class="note">Gewinne ab 2018 aus Fondsanteilen, die vor 2009 gekauft wurden, sind bis 100.000 € je Person steuerfrei (angerechnet wird hier der Gewinn vor Teilfreistellung); der Altgewinn bis 31.12.2017 bleibt ohnehin steuerfrei. Die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung (Anlage KAP-INV). Der Rest wird jährlich festgestellt: Trage ihn aus dem letzten Bescheid ein, wenn Verkäufe fehlen (andere Banken, vor der Datei). ${a.refundBfh > 0.005 ? `Die erwartete Erstattung enthält ${fmtEur(a.refundBfh)} aus Verlusten mit Altanteilen 2009–2017 (BFH). ` : ''}Freibetrag nutzen: Reiter 3.</p>
+    <p class="note">Gewinne ab 2018 aus Fondsanteilen, die vor 2009 gekauft wurden, sind bis ${fmtEur(param('altFreibetrag', YEAR))} je Person${a.joint ? ` (hier gemeinsam ${fmtEur(a.total)})` : ''} steuerfrei (angerechnet wird hier der Gewinn vor Teilfreistellung); der Altgewinn bis 31.12.2017 bleibt ohnehin steuerfrei. Die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung (Anlage KAP-INV). Der Rest wird jährlich festgestellt: Trage ihn aus dem letzten Bescheid ein, wenn Verkäufe fehlen (andere Banken, vor der Datei). ${a.refundBfh > 0.005 ? `Die erwartete Erstattung enthält ${fmtEur(a.refundBfh)} aus Verlusten mit Altanteilen 2009–2017 (BFH). ` : ''}Freibetrag nutzen: Reiter 3.</p>
   </div>`;
 }
 
