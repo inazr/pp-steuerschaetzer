@@ -42,6 +42,8 @@ async function decryptPortfolio(u8, password) {
   if (u8.length < dataStart) throw new Error('UNSUPPORTED_FORMAT');
   const keyLength = { 0: 128, 1: 256 }[u8[head]];
   if (!keyLength) throw new Error('UNSUPPORTED_FORMAT');
+  const cipherLength = u8.length - dataStart; // AES-CBC: ganze 16-Byte-Blöcke, sonst ist die Datei abgeschnitten
+  if (cipherLength === 0 || cipherLength % 16) throw new Error('UNSUPPORTED_FORMAT');
   if (password === undefined || password === null) throw new Error('NEEDS_PASSWORD');
   if (password === '') throw new Error('WRONG_PASSWORD');
 
@@ -85,8 +87,10 @@ async function unzipFirst(u8, nameFilter) {
     const data = u8.subarray(start, start + comp);
     if (method === 0) return { name, bytes: data };
     if (method !== 8) throw new Error('UNSUPPORTED_FORMAT');
-    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return { name, bytes: new Uint8Array(await new Response(stream).arrayBuffer()) };
+    try {
+      const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return { name, bytes: new Uint8Array(await new Response(stream).arrayBuffer()) };
+    } catch { throw new Error('UNSUPPORTED_FORMAT'); } // kaputte Deflate-Daten
   }
   throw new Error('UNSUPPORTED_FORMAT');
 }

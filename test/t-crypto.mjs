@@ -51,6 +51,18 @@ export default async ({ g, check, root, ctx }) => {
   const unknownMethod = new Uint8Array(await encFile({ method: 1, contentType: 2, pw: 'p' })); unknownMethod[9] = 2;
   check('crypto: unknown method → UNSUPPORTED_FORMAT', await code(load(unknownMethod.buffer, 'p')) === 'UNSUPPORTED_FORMAT');
 
+  check('crypto: aes128 + protobuf', (await load(await encFile({ method: 0, contentType: 2, pw: 'geheim' }), 'geheim')).securities.length === 1);
+
+  // Abgeschnittene Datei: Format kaputt, nicht Passwort falsch (vor den Passwortprüfungen)
+  const full = new Uint8Array(await encFile({ method: 1, contentType: 2, pw: 'p' }));
+  const noCipher = full.slice(0, 9 + 1 + 16), cut = full.slice(0, full.length - 5);
+  for (const [label, bytes] of [['no ciphertext', noCipher], ['ciphertext not multiple of 16', cut]]) {
+    for (const pw of [undefined, 'p', '']) {
+      const got = await code(load(bytes.buffer, pw));
+      check(`crypto: ${label}, password ${JSON.stringify(pw)} → UNSUPPORTED_FORMAT`, got === 'UNSUPPORTED_FORMAT', got);
+    }
+  }
+
   const dec = await decryptPortfolio(new Uint8Array(await encFile({ method: 0, contentType: 2, version: 59, pw: 'p' })), 'p');
   check('crypto: decryptPortfolio header + inner zip', dec.contentType === 2 && dec.version === 59 && dec.inner[0] === 0x50 && dec.inner[1] === 0x4b, dec);
 
@@ -78,5 +90,12 @@ export default async ({ g, check, root, ctx }) => {
   check('unzipFirst: first entry', first.name === 'a.txt' && new TextDecoder().decode(first.bytes) === 'A', first);
   const bin = await unzipFirst(zz, n => n.endsWith('.bin'));
   check('unzipFirst: name filter, binary content', bin.name === 'b.bin' && bin.bytes.join() === '0,255,7', bin);
+  // Kaputte Deflate-Daten (BTYPE 11 ist reserviert) → UNSUPPORTED_FORMAT
+  const bad = new Uint8Array(await makeZip([['data.portfolio', pbWithSig]]));
+  bad.fill(0xff, 30 + 'data.portfolio'.length, 30 + 'data.portfolio'.length + 4);
+  const badInflate = await code(unzipFirst(bad));
+  check('unzipFirst: corrupt deflate → UNSUPPORTED_FORMAT', badInflate === 'UNSUPPORTED_FORMAT', badInflate);
+  const badLoad = await code(load(bad.buffer));
+  check('zip: corrupt deflate via load → UNSUPPORTED_FORMAT', badLoad === 'UNSUPPORTED_FORMAT', badLoad);
   check('unzipFirst: no match → UNSUPPORTED_FORMAT', await code(unzipFirst(zz, n => n === 'x')) === 'UNSUPPORTED_FORMAT');
 };

@@ -24,28 +24,60 @@ const nBanks = n => `${n} ${n === 1 ? 'Bank' : 'Banken'}`;
 const save = () => saveSettings(localStorage, ui.settings);
 
 // ---------- Datei laden ----------
+// Verschlüsselte Datei, die auf ihr Passwort wartet: { name, buf }. Nie das Passwort selbst.
+let pending = null;
+// Jeder Ladevorgang bekommt eine Nummer; ein Ergebnis, das von einer neueren Datei oder Abbrechen überholt wurde, verfällt.
+let loadSeq = 0;
+
 async function loadFile(file) {
+  closePasswordForm(); // neue Datei (Auswahl oder Drag & Drop) setzt eine offene Passwortabfrage zurück
+  const seq = ++loadSeq, read = file.arrayBuffer(); // Lesefehler landen über `loading` in der Fehlermeldung
+  return showLoaded(seq, file.name, read, read.then(buf => loadPortfolioData(buf)));
+}
+
+// buf: ArrayBuffer der Datei (oder Promise darauf), wird für die Passwortabfrage aufgehoben
+async function showLoaded(seq, name, buf, loading) {
   const err = $('#load-error');
   err.hidden = true;
   try {
-    const data = await loadPortfolioData(await file.arrayBuffer());
+    const data = await loading;
+    if (seq !== loadSeq) return;
     if (!data.portfolios.length) throw new Error('NO_PORTFOLIOS');
+    closePasswordForm();
     ui.data = data;
     ui.depots = selectedDepots(ui.settings, data.portfolios.map(p => p.uuid));
     ui.plan = null;
-    $('#file-name').textContent = file.name;
+    $('#file-name').textContent = name;
     $('#empty').hidden = true; $('#tabs').hidden = false; $('#kpis').hidden = false;
     recompute();
     showTab(ui.tab);
   } catch (e) {
+    if (seq !== loadSeq) return;
     const m = String(e && e.message || e);
-    err.textContent = m === 'UNSUPPORTED_FORMAT'
-      ? 'Dieses Dateiformat wird nicht unterstützt (binär oder verschlüsselt). Bitte in Portfolio Performance über „Datei → Speichern unter → XML“ unverschlüsselt speichern.'
-      : m === 'NO_PORTFOLIOS' ? 'Die Datei enthält keine Depots.'
-        : 'Die Datei konnte nicht gelesen werden: ' + m;
-    err.hidden = false;
     $('#empty').hidden = false;
+    if (m === 'NEEDS_PASSWORD' || m === 'WRONG_PASSWORD') {
+      openPasswordForm(name, await buf);
+      if (m === 'NEEDS_PASSWORD') return;
+    } else closePasswordForm();
+    err.textContent = m === 'WRONG_PASSWORD' ? 'Passwort falsch'
+      : m === 'UNSUPPORTED_FORMAT' ? 'Dieses Dateiformat wird nicht unterstützt.'
+        : m === 'NO_PORTFOLIOS' ? 'Die Datei enthält keine Depots.'
+          : 'Die Datei konnte nicht gelesen werden: ' + m;
+    err.hidden = false;
   }
+}
+
+function openPasswordForm(name, buf) {
+  pending = { name, buf };
+  $('#pw-label').textContent = `Passwort für ${name}`;
+  $('#pw-ok').disabled = false;
+  $('#pw-form').hidden = false;
+  $('#pw').focus();
+}
+function closePasswordForm() {
+  pending = null;
+  $('#pw').value = '';
+  $('#pw-form').hidden = true;
 }
 
 // ---------- Berechnung ----------
@@ -483,6 +515,22 @@ addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.b
 addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
 addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+// Passwort nur hier aus dem Feld lesen, direkt übergeben, Feld sofort leeren; keine Variable behält es
+$('#pw-form').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!pending) return;
+  const { name, buf } = pending, seq = ++loadSeq;
+  const loading = loadPortfolioData(buf, $('#pw').value);
+  $('#pw').value = '';
+  $('#pw-ok').disabled = true; // Entschlüsseln läuft; wieder frei bei falschem Passwort
+  showLoaded(seq, name, buf, loading);
+});
+$('#pw-cancel').addEventListener('click', () => {
+  loadSeq++; // laufendes Entschlüsseln verwerfen
+  closePasswordForm();
+  $('#load-error').hidden = true;
+  if (ui.data) $('#empty').hidden = true;
+});
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) showTab(+b.dataset.tab); });
 
 // Bank-Einstellungen (Zuordnung, Zinsen, FSA, genutzt, Vortrag) und Altbestand-Freibetrag übernehmen; false = kein solches Feld

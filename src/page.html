@@ -143,6 +143,9 @@ textarea { width: 100%; min-height: 120px; font-family: var(--font-num); font-si
 .drop.over, body.dragging .drop { border-color: var(--accent); background: var(--accent-soft); }
 .drop h2 { font-size: 18px; }
 .drop p { margin: 0; color: var(--ink-2); max-width: 560px; }
+.pw { align-items: center; max-width: 100%; }
+.pw .row { justify-content: center; }
+.pw .in { width: 240px; max-width: 100%; }
 .file-in { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .msg { border-radius: 6px; padding: 8px 10px; font-size: 13px; }
 .msg.err { background: var(--warn-soft); color: var(--ink); border-left: 4px solid var(--s8); }
@@ -205,8 +208,15 @@ footer.wrap { color: var(--ink-3); font-size: 12px; padding-block: 0 40px; }
   <section class="panel" id="empty">
     <div class="drop" id="drop">
       <h2>Portfolio-Performance-Datei öffnen</h2>
-      <p>Datei hierher ziehen oder über „Datei öffnen“ wählen. Unterstützt werden XML-Dateien aus Portfolio Performance (auch als .portfolio-ZIP). Die Datei wird nur in diesem Browser gelesen und nirgendwohin übertragen.</p>
-      <p class="sub">Verschlüsselte oder binäre Dateien bitte vorher in Portfolio Performance über „Datei → Speichern unter → XML“ speichern.</p>
+      <p>Datei hierher ziehen oder über „Datei öffnen“ wählen. Unterstützt werden Dateien aus Portfolio Performance: XML, binär oder verschlüsselt. Die Datei wird nur in diesem Browser gelesen und nirgendwohin übertragen.</p>
+      <form class="pw f" id="pw-form" autocomplete="off" hidden>
+        <label for="pw" id="pw-label">Passwort</label>
+        <div class="row">
+          <div class="in"><input type="password" id="pw" autocomplete="off" spellcheck="false"></div>
+          <button class="btn primary" type="submit" id="pw-ok">Entschlüsseln</button>
+          <button class="btn" type="button" id="pw-cancel">Abbrechen</button>
+        </div>
+      </form>
       <div class="msg err" id="load-error" hidden></div>
     </div>
   </section>

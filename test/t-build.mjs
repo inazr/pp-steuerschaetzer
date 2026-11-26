@@ -17,5 +17,11 @@ export default ({ check, root }) => {
   // ui.js hat keine Unit-Tests: jedes Inline-Skript muss wenigstens syntaktisch gültig sein
   const bad = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => { try { new vm.Script(m[1]); return null; } catch (e) { return e.message; } }).filter(Boolean);
   check('build: inline scripts parse', bad.length === 0, bad);
+  // 0.6: binäre und verschlüsselte Dateien werden gelesen, verschlüsselte nach Passwortabfrage
+  check('build: no "save as XML" hint', !html.includes('Speichern unter → XML') && !html.includes('binär oder verschlüsselt). Bitte'));
+  const empty = (html.match(/<section class="panel" id="empty">[\s\S]*?<\/section>/) || [''])[0];
+  check('build: empty state names formats', empty.includes('XML, binär oder verschlüsselt'));
+  check('build: password field', /<input[^>]*type="password"[^>]*autocomplete="off"/.test(html) || /<input[^>]*autocomplete="off"[^>]*type="password"/.test(html));
+  check('build: error texts', html.includes('Passwort falsch') && html.includes('Dieses Dateiformat wird nicht unterstützt.'));
   check('build: version stamped', html.includes(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version));
 };
