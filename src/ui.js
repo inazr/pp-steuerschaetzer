@@ -60,9 +60,35 @@ function recalc() {
   ui.led = ledger(ui.result, ui.data, S(), YEAR);
   ui.alloc = optimizeAllowance(ui.result, ui.data, S(), YEAR);
   if (ui.plan) ui.plan = planNetSale(ui.result, ui.data, S(), YEAR, ui.planTarget);
-  renderKpis();
-  renderAll();
+  keepFocus(() => { renderKpis(); renderAll(); });
 }
+
+// ---------- Fokus über das Neuzeichnen retten ----------
+// Felder werden über ihr data-*-Attribut wiedergefunden (ids der Bankfelder hängen an der Position der Bank), sonst per id.
+const FOCUS_ATTRS = ['data-fsa', 'data-genutzt', 'data-vortrag-aktien', 'data-vortrag-allg', 'data-bank-of', 'data-zins', 'data-ft', 'data-depot', 'data-confirm'];
+const focusKey = el => {
+  if (!el || el === document.body || !el.isConnected) return null;
+  const a = FOCUS_ATTRS.find(n => el.hasAttribute(n));
+  return a ? { attr: a, value: el.getAttribute(a) } : el.id ? { id: el.id } : null;
+};
+const findFocus = k => k.id ? document.getElementById(k.id) : $$(`[${k.attr}]`).find(e => e.getAttribute(k.attr) === k.value);
+// Zuletzt fokussiertes Feld (focusin). Beim Tabben feuert `change` vor dem Fokuswechsel; neu gezeichnet wird erst danach
+// (s. later), dann steht hier schon das Ziel des Tabs. Fokus verlassen ohne neues Ziel (Klick daneben) löscht den Eintrag.
+let lastFocus = null;
+document.addEventListener('focusin', e => { lastFocus = focusKey(e.target); });
+document.addEventListener('focusout', e => { if (!e.relatedTarget) lastFocus = null; });
+function keepFocus(render) {
+  const act = document.activeElement, k = focusKey(act) || lastFocus;
+  let sel = null;
+  try { if (typeof act.selectionStart === 'number') sel = [act.selectionStart, act.selectionEnd]; } catch { /* number-Felder: keine Auswahl */ }
+  render();
+  const el = k && findFocus(k);
+  if (!el || el === document.activeElement) return;
+  el.focus({ preventScroll: true });
+  try { if (sel) el.setSelectionRange(sel[0], sel[1]); } catch { /* number-Felder */ }
+}
+// Neuzeichnen nach `change` erst im nächsten Task: der Browser schließt den Fokuswechsel (Tab) vorher ab
+const later = fn => setTimeout(fn, 0);
 
 function marketValue() {
   return ui.result.lots.reduce((s, l) => s + l.shares * ((ui.result.latest.get(l.security) || [])[1] || 0), 0);
@@ -416,14 +442,14 @@ document.addEventListener('change', e => {
     const t = $('#plan-target'); if (t) ui.target = t.value; // eingetipptes Ziel nicht verlieren
   }
   else if (el.dataset.ft) ui.settings.fundTypes = { ...ui.settings.fundTypes, [el.dataset.ft]: el.value };
-  else if (bankSetting(el)) { save(); recalc(); return; } // nur Verrechnung neu, kein FIFO-Neulauf
+  else if (bankSetting(el)) { save(); later(recalc); return; } // nur Verrechnung neu, kein FIFO-Neulauf
   else if (el.dataset.depot) {
     ui.depots = $$('[data-depot]').filter(x => x.checked).map(x => x.dataset.depot);
     if (!ui.depots.length) { el.checked = true; ui.depots = [el.dataset.depot]; }
     ui.settings.depotsOff = nextDepotsOff(ui.settings, ui.data.portfolios.map(p => p.uuid), ui.depots);
   } else return;
   save();
-  recompute();
+  later(recompute);
 });
 document.addEventListener('submit', e => {
   if (e.target.id !== 'plan-form') return;
