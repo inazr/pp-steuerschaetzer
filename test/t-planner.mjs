@@ -111,7 +111,53 @@ export default ({ g, check, near }) => {
   check('plan minor 15: minimal n for a loss lot with fee', p.rows.length === 1 && r15.tax === 0 && r15.net >= 200 && (exact15 < 200 - 1e-9 || rounded15 < 200 - 1e-9), [r15, exact15, rounded15]);
   dust({ g, check });
   timing({ g, check });
+  altbestand({ g, check, near });
 };
+// v0.5 §4a/§5: Altbestand. X = Fonds-Lot vor 2009 (Kosten ab 2018 = Kurs 31.12.2017 = 150, ursprünglich 100),
+// Kurs 170 -> raw 20/Stück (Aktienfonds: stpfl. 14/Stück, Altgewinn 50 steuerfrei, 100k-Posten = raw).
+// Y = normaler Lot 2020, Kosten 160, Kurs 170 -> raw 10/Stück (stpfl. 7). FSA verbraucht (genutzt 2025|A = 1000).
+const altbestand = ({ g, check, near }) => {
+  const plan = g('planNetSale'), rate = 0.26375;
+  const X = (cost = 150, alt = { price: 150, gainPS: 50, pre2009: true }, buyDate = '2005-01-03', shares = 100) =>
+    ({ id: 1, depot: 'A', security: 'X', buyDate, shares, cost, origCost: 100, vpCum: 0, divPS: {}, alt });
+  const Y = lot(2, 'Y', '2020-01-01', 100, 160);
+  // 1) Bank-Quote: X 14·r/(170−14·r) > Y 7·r/(170−7·r) – 0.4 nähme Y. Endgültig ist X frei (100k deckt raw 20·n) -> X zuerst.
+  //    Bank-Steuer: n·14·r mit n = 1000 / (170 − 14·r) ≈ 6,01296; Netto = Bank-Auszahlung (Erstattung nicht im Netto);
+  //    Erstattung 100k: r · min(Bemessungsgrundlage 14·n, frei 20·n·0,7 = 14·n) = Bank-Steuer dieser Zeile
+  let p = plan(res([X(), Y], { X: 170, Y: 170 }), data, SET, 2025, 1000);
+  const nX = Math.ceil(1000 / (170 - 14 * rate) * 1e8) / 1e8;
+  check('alt plan: pre-2009 lot picked before normal gain lot', p.rows.length === 1 && p.rows[0].lot.security === 'X' && near(p.rows[0].shares, nX, 2e-8), p.rows.map(r => [r.lot.security, r.shares]));
+  check('alt plan: bank tax and net = bank payout', near(p.tax, nX * 14 * rate, 0.011) && p.net >= 1000 && p.net < 1000.01 && near(p.net, p.gross - p.fees - p.tax, 0.011), p);
+  check('alt plan: refund100k = bank tax of the lot', near(p.refund100k, p.tax, 0.011) && p.refund100k > 21 && p.refundBfh === 0 && near(p.rows[0].refund, p.refund100k, 0.011), [p.refund100k, p.refundBfh, p.tax, p.rows[0].refund]);
+  // Gewinn der Zeile = Neugewinn + Altgewinn vor TFS: n·(20 + 50) (0.4-Formel: n·20)
+  check('alt plan: row gain includes old-law gain', near(p.rows[0].gain, nX * 70, 0.011), p.rows[0].gain);
+  // 2) Rest 100 (Bescheid): deckt nur 100 von raw ≈ 120,26 – Quote 14·(1 − 100/120,26) ≈ 2,36 < 7 -> weiterhin X;
+  //    Erstattung r · min(14·n ≈ 84,18, 100·0,7 = 70) = 70·r = 18,46
+  p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { A: 100 } }, 2025, 1000);
+  check('alt plan: partly covered step, refund capped by left', p.rows[0].lot.security === 'X' && near(p.refund100k, round2(70 * rate), 0.001) && near(p.rows[0].refund, p.refund100k, 0.001), [p.rows.map(r => r.lot.security), p.refund100k]);
+  // 3) Rest 50: 14·(1 − 50/120,26) ≈ 8,18 > 7 -> normal, Y zuerst (Y deckt das Ziel); keine Erstattung
+  p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { A: 50 } }, 2025, 1000);
+  check('alt plan: small left -> normal choice (Y first)', p.rows.length === 1 && p.rows[0].lot.security === 'Y' && p.refund100k === 0 && p.rows[0].refund === 0, [p.rows.map(r => r.lot.security), p.refund100k]);
+  // 4) Freibetrag verbraucht (Bescheid 0): X wie jeder andere Lot -> Y zuerst
+  p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { A: 0 } }, 2025, 1000);
+  check('alt plan: left 0 -> Y first, no refund', p.rows[0].lot.security === 'Y' && p.refund100k === 0, [p.rows.map(r => r.lot.security), p.refund100k]);
+  // 5) FSA frei: X n = 1000/170 ≈ 5,88, stpfl. 82,35 < FSA -> Bank-Steuer 0, Erstattung gekappt auf besteuerte Grundlage 0
+  p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, genutzt: {} }, 2025, 1000);
+  check('alt plan: refund capped by taxed base (FSA free)', p.rows[0].lot.security === 'X' && p.tax === 0 && p.refund100k === 0 && p.rows[0].refund === 0, [p.rows.map(r => r.lot.security), p.tax, p.refund100k]);
+  // 6) Review Focus 4: X vor 2009 mit Verlust nach 2018 (Kurs 140: raw −10/Stück) -> Quote 0 wie ein Verlust-Lot,
+  //    kein 100k-Posten, keine Erstattung; Verlust ohne Gewinne im Jahr -> Steuer 0
+  p = plan(res([X(), Y], { X: 140, Y: 170 }), data, SET, 2025, 1000);
+  check('alt plan F4: pre-2009 loss lot -> no refund, chosen like a loss lot', p.rows.length === 1 && p.rows[0].lot.security === 'X' && p.tax === 0
+    && p.refund100k === 0 && p.refundBfh === 0 && p.rows[0].refund === 0, [p.rows.map(r => r.lot.security), p.tax, p.refund100k, p.refundBfh]);
+  // 7) Lot 2015 (Altgewinn 50 steuerpflichtig), Kurs 120 -> raw −30/Stück, 10 Stück (Ziel unerreichbar):
+  //    Plan-Event 10·(−30·0,7 + 50) = 290 -> Steuer 290·r = 76,49; BFH: F = min(30·10, 50·10) = 300, Posten 300·0,3 = 90,
+  //    Erstattung r · min(besteuert 290, 90) = 23,74; Gewinn der Zeile 10·(−30 + 50) = 200
+  p = plan(res([X(150, { price: 150, gainPS: 50, pre2009: false }, '2015-03-02', 10)], { X: 120 }), data, SET, 2025, 1e6);
+  check('alt plan: 2009-2017 lot event incl. old-law gain', p.rows.length === 1 && near(p.rows[0].shares, 10, 1e-8) && near(p.tax, round2(290 * rate), 0.001), p.rows[0]);
+  check('alt plan: BFH refund from plan row', near(p.refundBfh, round2(90 * rate), 0.001) && p.refund100k === 0 && near(p.rows[0].refund, p.refundBfh, 0.001), [p.refundBfh, p.refund100k, p.rows[0].refund]);
+  check('alt plan: 2009-2017 row gain = new + old gain', near(p.rows[0].gain, 200, 0.001), p.rows[0].gain);
+};
+const round2 = x => Math.round(x * 100) / 100;
 // Minor 1: die Suche akzeptiert n nur, wenn auch das gerundete Netto der Zeile (Gebühr und Steuer auf Cent) reicht –
 // sonst fehlt 1 ct und eine Staubzeile (~0,0001 Stück für 0,01 €) folgt
 const dust = ({ g, check }) => {

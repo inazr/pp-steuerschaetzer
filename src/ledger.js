@@ -212,10 +212,18 @@ function altFreibetrag(result, data, settings, year, led) {
   const usedThisYear = sum(thisYear);
   const left = Math.max(0, leftStart - usedThisYear);
   const cap = led.banks.reduce((s, b) => s + Math.max(0, b.positiveEff - b.used), 0);
-  let rest = leftStart, frei100k = 0;
-  for (const v of thisYear) { const u = Math.min(rest, v.amount); frei100k += u * (1 - v.tfs); rest -= u; }
   const bfh = sum(items.filter(v => v.kind === 'bfh' && v.year === year));
+  const r = altRefunds(led.rate, cap, leftStart, thisYear, bfh);
+  // yearAlt100k/yearBfh: Posten des Jahres für den Verkaufsplan, der seine Planzeilen anhängt
   return { total, joint, leftStartComputed, leftStart, leftStartOverridden, usedThisYear, left,
-    refund100k: round2(led.rate * Math.min(cap, frei100k)),
-    refundBfh: round2(led.rate * Math.min(Math.max(0, cap - frei100k), bfh)) };
+    refund100k: round2(r.refund100k), refundBfh: round2(r.refundBfh), yearAlt100k: thisYear, yearBfh: bfh };
+}
+
+// Erwartete Erstattungen eines Jahres (Annahme A), ungerundet: alt100k-Posten { amount, tfs } in Datumsreihenfolge gegen
+// den Rest ab leftStart (frei100k = Σ min(Rest, amount) × (1 − tfs)), danach die BFH-Posten (Summe bfh); beides zusammen
+// höchstens bis zur im Jahr besteuerten Bemessungsgrundlage cap.
+function altRefunds(rate, cap, leftStart, alt100k, bfh) {
+  let rest = leftStart, frei100k = 0;
+  for (const v of alt100k) { const u = Math.min(rest, v.amount); frei100k += u * (1 - v.tfs); rest -= u; }
+  return { refund100k: rate * Math.min(cap, frei100k), refundBfh: rate * Math.min(Math.max(0, cap - frei100k), bfh) };
 }

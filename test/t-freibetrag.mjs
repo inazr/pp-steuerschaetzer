@@ -71,4 +71,18 @@ export default ({ g, check, near }) => {
   // 4) Einzelaktie (Kauf 2015), Aktientopf 300: Ernte 300 + 1000 = 1300 (26 Stück), nur Aktientopf genutzt
   r = opt(res([lot(1, '2015-01-01', 100, 50)], 100, { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'aktie', amount: -300 }] }), data(), { ...SET, fundTypes: { IS: 'einzelaktie' } }, 2025);
   check('fb: stock pot consumed by single-stock gains', near(r.harvested, 1300, 0.02) && near(r.banks[0].potsUsed.aktien, 300, 0.02) && r.banks[0].potsUsed.allg === 0, r.banks[0]);
+  // v0.5 §4a: Fonds-Lot vor 2009 (X: Kosten ab 2018 = 150, Kurs 170 -> stpfl. 14/Stück) wäre ohnehin über den
+  // 100.000-€-Freibetrag frei -> übersprungen, solange dieser frei ist; geerntet wird Lot 2020 (Y: Kosten 160 -> stpfl. 7/Stück):
+  // floor8(1000 / 7) = 142,85714285 Stück. 0.4 nähme X (höchster Gewinn je Stück): floor8(1000 / 14) = 71,42857142 Stück.
+  const dXY = { ...data(), securities: [{ uuid: 'X', name: 'X', isin: 'IEX', currency: 'EUR' }, { uuid: 'Y', name: 'Y', isin: 'IEY', currency: 'EUR' }] };
+  const lX = { id: 1, depot: 'A', security: 'X', buyDate: '2005-01-03', shares: 100, cost: 150, origCost: 100, vpCum: 0, divPS: {}, alt: { price: 150, gainPS: 50, pre2009: true } };
+  const lY = { id: 2, depot: 'A', security: 'Y', buyDate: '2020-01-01', shares: 200, cost: 160, vpCum: 0, divPS: {} };
+  const rXY = { ...res([lX, lY], 0), latest: new Map([['X', ['2025-11-20', 170]], ['Y', ['2025-11-20', 170]]]) };
+  const SA = { ...SET, fundTypes: { IEX: 'aktienfonds', IEY: 'aktienfonds' } };
+  r = opt(rXY, dXY, SA, 2025);
+  check('fb alt: pre-2009 lot skipped while 100k free, 2020 lot harvested', r.rows.length === 1 && r.rows[0].lot.security === 'Y'
+    && near(r.rows[0].shares, Math.floor(1000 / 7 * 1e8) / 1e8, 1e-9) && near(r.harvested, 1000, 0.01), r.rows.map(x => [x.lot.security, x.shares]));
+  // 100k verbraucht (Bescheid 0): X wie jeder andere Lot -> X zuerst (14 > 7)
+  r = opt(rXY, dXY, { ...SA, altFb: { A: 0 } }, 2025);
+  check('fb alt: 100k used up -> pre-2009 lot harvested normally', r.rows[0].lot.security === 'X' && near(r.rows[0].shares, Math.floor(1000 / 14 * 1e8) / 1e8, 1e-9), r.rows.map(x => [x.lot.security, x.shares]));
 };

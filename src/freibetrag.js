@@ -23,6 +23,9 @@ function fifoQueues(lots) {
 // leftStart je Bank: freier FSA zu Beginn ihres Durchlaufs (gemeinsam: was frühere Banken übrig ließen).
 function optimizeAllowance(result, data, settings, year) {
   const led = ledger(result, data, settings, year), active = led.banks.filter(b => b.active);
+  // Spec §4a: Fonds-Lots vor 2009 sind über den 100.000-€-Freibetrag ohnehin frei, solange er reicht – sie gehören in den
+  // Abschnitt „Altbestand-Freibetrag nutzen“; als FIFO-Spitze blockieren sie ihre Queue wie ein Bestandsschutz-Lot
+  const altFree = altFreibetrag(result, data, settings, year, led).left >= 0.01;
   let poolLeft = led.banks.length ? led.banks[0].fsaLeft : 0;
   const banks = [], rows = [];
   for (const b of active) {
@@ -37,6 +40,7 @@ function optimizeAllowance(result, data, settings, year) {
       let best = null, bestGain = 0;
       for (const h of heads) {
         if (h.i >= h.lots.length) continue;
+        if (altFree && h.lots[h.i].alt && h.lots[h.i].alt.pre2009) continue;
         const gain = taxableGainPerShare(h.lots[h.i], h.price, settings, data);
         if (gain !== null && gain > bestGain) { best = h; bestGain = gain; }
       }
