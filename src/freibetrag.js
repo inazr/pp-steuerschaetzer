@@ -7,7 +7,7 @@ function taxableGainPerShare(lot, price, settings, data) {
   const sec = data.securities.find(s => s.uuid === lot.security);
   const ft = FUND_TYPES[fundTypeOf(settings, sec)];
   if (ft.bestandsschutz && lot.buyDate < ft.bestandsschutz) return null;
-  return (price - lot.cost - lot.vpCum / lot.shares) * (1 - ft.tfs);
+  return gainParts(lot, price, ft).taxable;
 }
 
 // Offene Lots je Depot × Wertpapier in FIFO-Reihenfolge

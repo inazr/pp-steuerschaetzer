@@ -22,4 +22,17 @@ export default ({ g, check, near }) => {
   check('alt: missing 2017 price → hint, unchanged', !r.lots[0].alt && near(r.lots[0].cost, 100) && r.warnings.some(w => w.includes('Kein Kurs zum 31.12.2017')), r.warnings);
   r = replay(mk([tx('2015-03-02', 'BUY', 'A', 10, 1000)], [], P), { ...SET, fundTypes: { IS: 'einzelaktie' } }, '2026-11-26');
   check('alt: stock not switched', !r.lots[0].alt && near(r.lots[0].cost, 100));
+  const sell = (buy, at, extraP = []) => replay(mk([tx(buy, 'BUY', 'A', 10, 1000), tx('2020-06-02', 'SELL', 'A', 10, at * 10)], [], [...extraP, ...P]), SET, '2026-11-26');
+  const ev = r => r.income.filter(e => e.kind === 'sonst');
+  let r2 = sell('2015-03-02', 180);
+  check('sale 2015 lot: new gain with TFS + old gain without', near(ev(r2)[0].amount, 30 * 10 * 0.7 + 50 * 10) && r2.veranlagung.length === 0, [ev(r2), r2.veranlagung]);
+  r2 = sell('2005-03-02', 180, [['2004-12-30', 90]]);
+  check('sale pre-2009 lot: old gain tax-free, alt100k = raw', near(ev(r2)[0].amount, 210) && r2.veranlagung.length === 1 && r2.veranlagung[0].kind === 'alt100k' && near(r2.veranlagung[0].amount, 300), r2.veranlagung);
+  r2 = sell('2015-03-02', 120);
+  check('BFH: fiction loss counts fully (extra 90)', near(ev(r2)[0].amount, -30 * 10 * 0.7 + 500) && r2.veranlagung[0].kind === 'bfh' && near(r2.veranlagung[0].amount, 90), r2.veranlagung);
+  r2 = sell('2015-03-02', 80);
+  check('BFH: only up to old gain (F=500 → 150)', near(r2.veranlagung[0].amount, 150), r2.veranlagung);
+  const PV = [['2014-12-30', 90], ['2017-12-29', 150], ['2018-12-28', 160], ['2019-12-30', 160], ['2025-12-30', 160]];
+  r2 = replay(mk([tx('2015-03-02', 'BUY', 'A', 10, 1000), tx('2020-06-02', 'SELL', 'A', 10, 1500)], [], PV), SET, '2026-11-26');
+  check('BFH: VP-only negative raw is no fiction loss', !r2.veranlagung.some(v => v.kind === 'bfh'), r2.veranlagung);
 };

@@ -13,6 +13,14 @@ const explicitFundType = (settings, sec) => { const key = settings.fundTypes && 
 const fundTypeOf = (settings, sec) => explicitFundType(settings, sec) || guessFundType(sec);
 const fundTypeGuessed = (settings, sec) => !explicitFundType(settings, sec);
 
+// Gewinn je Stück bei Verkauf zu price: neues Recht (raw, mit TFS) und Altgewinn bis 31.12.2017 (§ 56 InvStG)
+function gainParts(lot, price, ft) {
+  const raw = price - lot.cost - lot.vpCum / lot.shares;
+  const alt = lot.alt ? lot.alt.gainPS : 0, pre2009 = !!(lot.alt && lot.alt.pre2009);
+  const altTaxable = lot.alt && !pre2009 ? alt : 0;
+  return { raw, priceRaw: lot.alt ? price - lot.alt.price : raw, alt, altTaxable, taxable: raw * (1 - ft.tfs) + altTaxable, pre2009 };
+}
+
 // Letzter Kurs am oder vor date, höchstens maxDays Tage alt
 function priceOnOrBefore(list, date, maxDays = 10) {
   let lo = 0, hi = list.length - 1, idx = -1;
@@ -40,7 +48,7 @@ function replay(data, settings, today) {
   const depName = u => (data.portfolios.find(p => p.uuid === u) || {}).name || u;
   const queues = new Map();
   const q = (d, s) => { const k = d + '|' + s; let a = queues.get(k); if (!a) queues.set(k, a = []); return a; };
-  const errors = [], warnings = [], vpRows = [], realized = {}, distributions = {}, income = [];
+  const errors = [], warnings = [], vpRows = [], realized = {}, distributions = {}, income = [], veranlagung = [];
   const addIncome = (date, owner, kind, amount) => income.push({ year: +date.slice(0, 4), date, owner, kind, amount: round2(amount) });
   let lotId = 0;
   const inView = d => !settings.depots || settings.depots.includes(d);
@@ -128,9 +136,14 @@ function replay(data, settings, today) {
         let total = 0, counted = false;
         for (const p of pieces) {
           if (ft.bestandsschutz && p.buyDate < ft.bestandsschutz) continue;
-          const gain = ((pps - p.cost) * p.shares - p.vpCum) * (1 - ft.tfs);
+          const gp = gainParts(p, pps, ft), gain = gp.taxable * p.shares;
           total += gain; counted = true;
           if (!settings.depots || settings.depots.includes(ev.depot)) realized[y] = (realized[y] || 0) + gain;
+          if (gp.alt && !gp.pre2009 && gp.raw < 0 && gp.alt > 0) {
+            const F = Math.min(Math.max(0, -gp.priceRaw * p.shares), gp.alt * p.shares);
+            if (F * ft.tfs > 0) veranlagung.push({ year: y, date: ev.date, depot: ev.depot, kind: 'bfh', amount: round2(F * ft.tfs), tfs: ft.tfs });
+          }
+          if (gp.pre2009 && gp.raw > 0) veranlagung.push({ year: y, date: ev.date, depot: ev.depot, kind: 'alt100k', amount: round2(gp.raw * p.shares), tfs: ft.tfs });
         }
         if (counted) addIncome(ev.date, ev.depot, fundTypeOf(settings, sec) === 'einzelaktie' ? 'aktie' : 'sonst', total);
         return;
@@ -225,6 +238,7 @@ function replay(data, settings, today) {
   for (const r of vpRows) if (r.taxable > 0 && `${r.year + 1}-01-02` <= today) addIncome(`${r.year + 1}-01-02`, r.depot, 'vp', r.taxable);
   for (const z of data.interest || []) if (z.date <= today) addIncome(z.date, z.account, 'zins', z.gross);
   income.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  veranlagung.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);
@@ -238,6 +252,6 @@ function replay(data, settings, today) {
     lots: [...queues.values()].flat().filter(l => inView(l.depot)),
     vpRows: vpRows.filter(r => inView(r.depot)),
     vpForecast: vpForecast.filter(r => inView(r.depot)), distributions,
-    errors, warnings: [...new Set(warnings)], latest, realized, income,
+    errors, warnings: [...new Set(warnings)], latest, realized, income, veranlagung,
   };
 }
