@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import vm from 'node:vm';
 
 export default ({ check, root }) => {
   execFileSync('node', [join(root, 'scripts/build.mjs')], { cwd: root, stdio: 'pipe' });
@@ -13,5 +14,8 @@ export default ({ check, root }) => {
   check('build: no external src/href', !/(src|href)="https?:/i.test(html));
   check('build: lang de', html.includes('<html lang="de">'));
   check('build: project name', html.includes('<title>Steuerschätzer für Portfolio Performance</title>') && !/pp-steuern|PP-Steuern/.test(html));
+  // ui.js hat keine Unit-Tests: jedes Inline-Skript muss wenigstens syntaktisch gültig sein
+  const bad = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => { try { new vm.Script(m[1]); return null; } catch (e) { return e.message; } }).filter(Boolean);
+  check('build: inline scripts parse', bad.length === 0, bad);
   check('build: version stamped', html.includes(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version));
 };
