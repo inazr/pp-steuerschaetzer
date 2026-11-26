@@ -100,6 +100,15 @@ export default ({ g, check, near }) => {
   // Verlust-Lot senkt die Steuer eines späteren Gewinns im selben Plan
   p = plan(res([lot(1, 'X', '2020-01-01', 1, 400), lot(2, 'Y', '2020-01-01', 100, 50)], { X: 100, Y: 100 }), data, { ...SET, fundTypes: { IEX: 'sonstige', IEY: 'sonstige' } }, 2025, 1000);
   check('plan: loss lot first, offsets later gain', p.rows[0].lot.security === 'X' && p.rows[0].tax === 0 && near(p.tax, (p.rows[1].shares * 50 - 300) * rate, 0.011), p.rows);
+  // Minor 15: Aktienverlust, wenn das Jahr schon Aktiengewinne hat (FSA verbraucht) -> Erstattung ≈ Verlust × Satz
+  const stockDone = { income: [{ year: 2025, date: '2025-02-01', owner: 'A', kind: 'aktie', amount: 2000 }] };
+  p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }, stockDone), data, { ...SET, genutzt: {}, fundTypes: { IEX: 'einzelaktie' } }, 2025, 300);
+  check('plan minor 15: stock loss refunds against stock gains', p.rows.length === 1 && p.rows[0].tax < 0 && near(p.rows[0].tax, -p.rows[0].shares * 50 * rate, 0.02) && p.net >= 300 && p.net < 300.01, p.rows[0]);
+  // Minor 15: kleinste Stückzahl für einen Verlust-Lot mit Gebühr – 1e-8 Stück weniger reicht nicht
+  p = plan(res([lot(1, 'X', '2020-01-01', 10, 150)], { X: 100 }), data, { ...SET, gebuehrFix: 5, gebuehrProz: 0.25 }, 2025, 200);
+  const r15 = p.rows[0], m15 = r15.shares - 1e-8;
+  const exact15 = m15 * 100 * (1 - 0.0025) - 5, rounded15 = Math.round((m15 * 100 - Math.round((5 + m15 * 100 * 0.0025) * 100) / 100) * 100) / 100;
+  check('plan minor 15: minimal n for a loss lot with fee', p.rows.length === 1 && r15.tax === 0 && r15.net >= 200 && (exact15 < 200 - 1e-9 || rounded15 < 200 - 1e-9), [r15, exact15, rounded15]);
   dust({ g, check });
   timing({ g, check });
 };
