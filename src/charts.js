@@ -71,6 +71,21 @@ function isoWeek(iso) {
   return { monday: mon.toISOString().slice(0, 10), week: Math.round((mon.getTime() - week1) / (7 * DAY)) + 1, year };
 }
 const lotChartHeight = opt => LOT_TOP + Math.max(1, opt.grid.length) * LOT_PANEL;
+// Altbestand (§ 56 InvStG): Markierung eines Lots mit fiktivem Verkauf zum 31.12.2017, sonst ''
+const altMark = lot => !lot.alt ? '' : lot.alt.pre2009 ? 'vor 2009 (Bestandsschutz Altgewinn)' : '2009–2017 (Altgewinn steuerpflichtig)';
+// Altbestand-Lots je Markierung: Stück und Ø-Einstand (ursprünglich bzw. ab 2018), vor 2009 zuerst
+function altGroups(lots) {
+  const m = new Map();
+  for (const l of lots) {
+    if (!l.alt) continue;
+    const a = m.get(altMark(l)) || { mark: altMark(l), pre2009: l.alt.pre2009, shares: 0, orig: 0, cost: 0 };
+    a.shares += l.shares; a.orig += l.origCost * l.shares; a.cost += l.cost * l.shares;
+    m.set(a.mark, a);
+  }
+  return [...m.values()].sort((a, b) => b.pre2009 - a.pre2009).map(a => ({ ...a, orig: a.orig / a.shares, cost: a.cost / a.shares }));
+}
+// Klartext (unescaped) für Tooltips: „Altbestand vor 2009 (…): Einstand ursprünglich X · Einstand ab 2018 Y“
+const altText = a => `Altbestand ${a.mark}: Einstand ursprünglich ${fmtEur(a.orig)} · Einstand ab 2018 ${fmtEur(a.cost)}`;
 
 function optLotGains(result, data, settings, t) {
   const showDepot = new Set(result.lots.map(l => l.depot)).size > 1;
@@ -81,16 +96,18 @@ function optLotGains(result, data, settings, t) {
     for (const l of result.lots) {
       if (l.security !== sec.uuid || !(price > 0)) continue;
       const g = taxableGainPerShare(l, price, settings, data), w = isoWeek(l.buyDate);
-      const e = byWeek.get(w.monday) || { date: w.monday, week: w.week, weekYear: w.year, brutto: 0, taxable: 0, depots: new Set(), buys: new Set() };
-      e.brutto += (price - l.cost) * l.shares;
+      const e = byWeek.get(w.monday) || { date: w.monday, week: w.week, weekYear: w.year, brutto: 0, taxable: 0, depots: new Set(), buys: new Set(), lots: [] };
+      // Brutto ab dem ursprünglichen Einstand; steuerpflichtig = gainParts().taxable (vor 2009: Altgewinn steuerfrei)
+      e.brutto += (price - (l.alt ? l.origCost : l.cost)) * l.shares;
       e.taxable += g === null ? 0 : g * l.shares;
       e.depots.add(l.depot);
       e.buys.add(l.buyDate);
+      e.lots.push(l);
       byWeek.set(w.monday, e);
     }
     const cols = [...byWeek.values()].sort((a, b) => a.date < b.date ? -1 : 1).map(e => {
       const brutto = round2(e.brutto), taxable = round2(e.taxable);
-      return { ...e, brutto, taxable, free: round2(brutto - taxable) };
+      return { ...e, brutto, taxable, free: round2(brutto - taxable), alt: altGroups(e.lots) };
     });
     return { sec, cols };
   }).filter(p => p.cols.length);
@@ -111,7 +128,7 @@ function optLotGains(result, data, settings, t) {
     return { type: 'rect', shape: { x: x - 4, y: Math.min(y0, y1), width: 8, height: Math.abs(y1 - y0), r }, style: { fill: color, stroke: t.surface, lineWidth: 1 } };
   };
   const top = i => LOT_TOP + i * LOT_PANEL + 28;
-  const TIP = { steuerpflichtig: 'steuerpflichtig', steuerfrei: 'steuerfrei (Teilfreistellung, versteuerte VP)' };
+  const TIP = { steuerpflichtig: 'steuerpflichtig', steuerfrei: 'steuerfrei (Teilfreistellung, versteuerte VP)', steuerfreiAlt: 'steuerfrei (Teilfreistellung, versteuerte VP, Altgewinn vor 2009)' };
 
   return {
     ...chartBase(t),
@@ -132,8 +149,9 @@ function optLotGains(result, data, settings, t) {
         const head = `${panels[Math.floor(p.seriesIndex / 2)].sec.name} · KW ${c.week}/${c.weekYear}`;
         const buys = `<div>${c.buys.size === 1 ? 'Kauf' : 'Käufe'} ${[...c.buys].sort().map(fmtDate).join(', ')}</div>`;
         const dep = showDepot ? `<div>${htmlEsc([...c.depots].map(depName).join(', '))}</div>` : '';
-        return tipHead(head) + buys + dep + tipRow('transparent', 'Gewinn brutto', fmtEur(c.brutto))
-          + tipRow(t.series[1], TIP.steuerpflichtig, fmtEur(c.taxable)) + tipRow(t.series[0], TIP.steuerfrei, fmtEur(c.free));
+        const alt = c.alt.map(a => `<div>${htmlEsc(altText(a))}</div>`).join('');
+        return tipHead(head) + buys + dep + alt + tipRow('transparent', 'Gewinn brutto', fmtEur(c.brutto))
+          + tipRow(t.series[1], TIP.steuerpflichtig, fmtEur(c.taxable)) + tipRow(t.series[0], c.alt.some(a => a.pre2009) ? TIP.steuerfreiAlt : TIP.steuerfrei, fmtEur(c.free));
       },
     },
     series: panels.flatMap((p, i) => {

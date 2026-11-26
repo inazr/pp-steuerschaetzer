@@ -1,0 +1,85 @@
+<!-- Synthetische Testdatei (keine echten Daten): Altbestand vor 2009 und 2009–2017 eines Aktien-ETF -->
+<client>
+  <version>66</version>
+  <baseCurrency>EUR</baseCurrency>
+  <securities>
+    <security>
+      <uuid>sec-alt</uuid>
+      <name>Altbestand Welt ETF</name>
+      <currencyCode>EUR</currencyCode>
+      <isin>IE00ALT00001</isin>
+      <prices>
+        <price t="2004-12-31" v="2800000000"/>
+        <price t="2005-03-01" v="3000000000"/>
+        <price t="2005-12-29" v="3200000000"/>
+        <price t="2006-12-29" v="3600000000"/>
+        <price t="2007-12-29" v="3800000000"/>
+        <price t="2008-12-29" v="2200000000"/>
+        <price t="2009-12-29" v="2800000000"/>
+        <price t="2010-12-31" v="3100000000"/>
+        <price t="2011-12-29" v="2700000000"/>
+        <price t="2012-12-29" v="3100000000"/>
+        <price t="2013-12-29" v="3700000000"/>
+        <price t="2014-12-31" v="4100000000"/>
+        <price t="2015-06-01" v="6000000000"/>
+        <price t="2015-12-29" v="4400000000"/>
+        <price t="2016-12-29" v="4700000000"/>
+        <price t="2017-12-29" v="5000000000"/>
+        <price t="2018-12-28" v="4600000000"/>
+        <price t="2019-12-30" v="5800000000"/>
+        <price t="2020-12-31" v="6200000000"/>
+        <price t="2021-12-31" v="7800000000"/>
+        <price t="2022-12-30" v="6800000000"/>
+        <price t="2023-12-29" v="8000000000"/>
+        <price t="2024-12-28" v="9600000000"/>
+        <price t="2025-12-30" v="10400000000"/>
+        <price t="2026-03-02" v="10000000000"/>
+        <price t="2026-11-25" v="11200000000"/>
+      </prices>
+    </security>
+  </securities>
+  <accounts>
+    <account>
+      <uuid>acc-alt</uuid>
+      <name>Verrechnung Alt</name>
+      <currencyCode>EUR</currencyCode>
+      <transactions/>
+    </account>
+  </accounts>
+  <portfolios>
+    <portfolio>
+      <uuid>pf-alt</uuid>
+      <name>Depot Alt</name>
+      <referenceAccount><uuid>acc-alt</uuid></referenceAccount>
+      <transactions>
+        <portfolio-transaction>
+          <uuid>pt-2005</uuid>
+          <date>2005-03-01T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>300000</amount>
+          <security><uuid>sec-alt</uuid></security>
+          <shares>10000000000</shares>
+          <type>BUY</type>
+        </portfolio-transaction>
+        <portfolio-transaction>
+          <uuid>pt-2015</uuid>
+          <date>2015-06-01T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>300000</amount>
+          <security><uuid>sec-alt</uuid></security>
+          <shares>5000000000</shares>
+          <type>BUY</type>
+        </portfolio-transaction>
+        <portfolio-transaction>
+          <uuid>pt-2026</uuid>
+          <date>2026-03-02T00:00</date>
+          <currencyCode>EUR</currencyCode>
+          <amount>200000</amount>
+          <security><uuid>sec-alt</uuid></security>
+          <shares>2000000000</shares>
+          <type>SELL</type>
+        </portfolio-transaction>
+      </transactions>
+    </portfolio>
+  </portfolios>
+</client>

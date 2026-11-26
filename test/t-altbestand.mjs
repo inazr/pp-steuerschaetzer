@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 // Umstellung zum 31.12.2017 (§ 56 InvStG): fiktive Veräußerung von Fondsanteilen
 let n = 0;
 const tx = (date, type, depot, shares, amount, extra = {}) => ({ uuid: 'a' + (++n), date, type, depot, security: 'S', shares, amount, fees: 0, taxes: 0, ...extra });
@@ -8,7 +11,7 @@ const mk = (txs, dividends, prices) => ({
 });
 const SET = { veranlagung: 'single', kirchensteuer: false, bundesland: 'default', genutzt: null, fundTypes: {}, depots: null };
 
-export default ({ g, check, near }) => {
+export default ({ g, check, near, root }) => {
   const replay = g('replay');
   const P = [['2014-12-30', 90], ['2017-12-29', 150], ['2018-12-28', 150], ['2019-12-30', 150], ['2020-12-30', 150], ['2025-12-30', 150]];
   let r = replay(mk([tx('2015-03-02', 'BUY', 'A', 10, 1000)], [], P), SET, '2026-11-26');
@@ -50,4 +53,13 @@ export default ({ g, check, near }) => {
   check('100k: override = left per last notice', a.leftStart === 2000 && a.left === 0 && near(a.refund100k, 0.26375 * 2000 * 0.7, 0.02), a);
   a = AF(res([post(2026, 90, 'bfh')]), {}, { veranlagung: 'single', depots: ['A'], altFb: {} }, 2026, { rate: 0.26375, banks: [{ positiveEff: 50, used: 50 }] });
   check('bfh: refund capped by taxed base (0)', a.refundBfh === 0, a);
+  // Synthetische PP-Datei (Browser-Smoke): Kauf 2005 und 2015, Kurs 31.12.2017 50 €, Teilverkauf 2026 von 20 Stück zu 100 € aus dem 2005er Lot
+  const fd = g('extractPortfolio')(readFileSync(join(root, 'test/fixtures/altbestand.xml'), 'utf8'));
+  const fr = replay(fd, { ...SET, depots: ['pf-alt'] }, '2026-11-26');
+  const [l05, l15] = fr.lots;
+  check('fixture: both lots switched (pre-2009 / 2009–2017)', fr.lots.length === 2 && near(l05.shares, 80) && near(l05.origCost, 30) && near(l05.cost, 50) && l05.alt.pre2009
+    && near(l15.origCost, 60) && near(l15.alt.gainPS, -10) && !l15.alt.pre2009 && !fr.warnings.length, [fr.lots, fr.warnings]);
+  // raw = 20 × (100 − 50) − anteilige VP (der Rest-Lot trägt 80/100 der VP bis 2025, der verkaufte Teil 20/80 davon)
+  const ver = fr.veranlagung;
+  check('fixture: one alt100k item = new gain before TFS', ver.length === 1 && ver[0].kind === 'alt100k' && near(ver[0].amount, 20 * (50 - l05.vpCum / 80), 0.01), ver);
 };

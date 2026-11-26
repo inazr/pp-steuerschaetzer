@@ -23,7 +23,7 @@
 Der Steuerschätzer liest eine Datei aus [Portfolio Performance](https://www.portfolio-performance.info/) und rechnet die deutschen Kapitalertragsteuer-Themen eines ETF- und Fondsdepots durch: Vorabpauschale je Jahr, Verlusttöpfe und Freistellungsaufträge je Bank, wie du den Sparerpauschbetrag mit Verkauf und Rückkauf ausnutzt, und wie viel du verkaufen musst, um einen Netto-Betrag zu erhalten.
 
 > [!TIP]
-> Die ganze Anwendung ist **eine einzige HTML-Datei** mit eingebetteten Charts (Apache ECharts) und Schriften. Sie funktioniert ohne Internet, auch per Doppelklick. Deine Datei wird nur im Browser gelesen. Eine Content-Security-Policy verhindert jede Netzwerkanfrage. Gespeichert werden im Browser nur deine Einstellungen, Fondstypen, abgewählte Depots (als interne IDs) und deine Eingaben je Bank: Bank-Zuordnung, Freistellungsaufträge, Vorträge, Zinsschalter und ein überschriebener genutzter Freibetrag, nie Buchungen, Kurse, Beträge aus der Datei oder Depot- und Kontonamen.
+> Die ganze Anwendung ist **eine einzige HTML-Datei** mit eingebetteten Charts (Apache ECharts) und Schriften. Sie funktioniert ohne Internet, auch per Doppelklick. Deine Datei wird nur im Browser gelesen. Eine Content-Security-Policy verhindert jede Netzwerkanfrage. Gespeichert werden im Browser nur deine Einstellungen, Fondstypen, abgewählte Depots (als interne IDs) und deine Eingaben je Bank: Bank-Zuordnung, Freistellungsaufträge, Vorträge, Zinsschalter, ein überschriebener genutzter Freibetrag und der verbleibende Altbestand-Freibetrag laut Steuerbescheid, nie Buchungen, Kurse, Beträge aus der Datei oder Depot- und Kontonamen.
 
 Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github.com/inazr/PortfolioPerformanceTaxes) (Python/PyQt), mit korrigierter Steuerlogik.
 
@@ -31,10 +31,10 @@ Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github
 
 | Reiter | Inhalt |
 |---|---|
-| **Übersicht** | Steuer-Einstellungen (Veranlagung, Kirchensteuer, Bundesland), Depotauswahl, **Banken & Freistellungsaufträge** (Zuordnung von Depots und Konten, Freistellungsauftrag, genutzter Freibetrag, Verlustvortrag zum 1.1. und Verlusttöpfe je Bank, Zinsschalter je Konto), Wertpapiere mit Fondstyp, unrealisierte Gewinne je Wertpapier über die Kaufdaten, geteilt in steuerpflichtig und steuerfrei |
+| **Übersicht** | Steuer-Einstellungen (Veranlagung, Kirchensteuer, Bundesland), Depotauswahl, **Banken & Freistellungsaufträge** (Zuordnung von Depots und Konten, Freistellungsauftrag, genutzter Freibetrag, Verlustvortrag zum 1.1. und Verlusttöpfe je Bank, Zinsschalter je Konto), **Altbestand-Freibetrag (vor 2009)** mit Verbrauch, Rest laut Steuerbescheid und erwarteter Erstattung (nur bei Fondsanteilen von vor 2009), Wertpapiere mit Fondstyp und Altbestand-Markierung, unrealisierte Gewinne je Wertpapier über die Kaufdaten, geteilt in steuerpflichtig und steuerfrei |
 | **Vorabpauschale** | § 18 InvStG je Jahr, Depot und Wertpapier: Basisertrag, Deckelung durch Wertsteigerung plus Ausschüttungen, Zwölftelung im Kaufjahr, Teilfreistellung, Steuer. Prognose für das laufende Jahr zum letzten Kurs (fällig im Januar) mit Restfreibetrag des Folgejahres je Bank. Gestapelter Chart je Jahr, CSV-Export |
-| **Freibetrag nutzen** | Welche Lots du verkaufen und sofort zurückkaufen kannst, damit der steuerpflichtige Gewinn den freien Freistellungsauftrag jeder Bank genau füllt, nach Verrechnung ihrer Verlusttöpfe. Streng FIFO je Depot, je Bank ein Abschnitt, CSV-Export mit Spalte „Bank“ |
-| **Verkaufsplanung** | „Ich brauche X € netto“: verkauft je Depot nach FIFO und wählt zwischen Wertpapieren immer den Lot mit der geringsten Steuer je Euro netto. Steuer im Jahressaldo je Bank: Verluste geben Freibetrag frei oder werden erstattet. Ordergebühren fest je Order und in % vom Erlös. Kennzahlen je Bank, Wasserfall Brutto → Gebühren → Steuer → Netto, CSV-Export mit Spalte „Bank“ |
+| **Freibetrag nutzen** | Welche Lots du verkaufen und sofort zurückkaufen kannst, damit der steuerpflichtige Gewinn den freien Freistellungsauftrag jeder Bank genau füllt, nach Verrechnung ihrer Verlusttöpfe. Streng FIFO je Depot, je Bank ein Abschnitt, CSV-Export mit Spalte „Bank“. Danach **Altbestand-Freibetrag nutzen**: Fondsanteile von vor 2009 verkaufen und zurückkaufen, bis der 100.000-€-Freibetrag gefüllt ist, mit Bankabzug und erwarteter Erstattung |
+| **Verkaufsplanung** | „Ich brauche X € netto“: verkauft je Depot nach FIFO und wählt zwischen Wertpapieren immer den Lot mit der geringsten Steuer je Euro netto. Steuer im Jahressaldo je Bank: Verluste geben Freibetrag frei oder werden erstattet. Ordergebühren fest je Order und in % vom Erlös. Kennzahlen je Bank, Wasserfall Brutto → Gebühren → Steuer → Netto, CSV-Export mit Spalte „Bank“. Netto ist die Auszahlung der Bank; eine erwartete Erstattung über die Steuererklärung (Altbestand) steht getrennt daneben |
 | **Gesetze & Annahmen** | Alle Rechenwerte mit Status (geltendes Recht, beschlossen, Entwurf, Annahme des Tools) und Link auf Gesetz, BMF-Schreiben oder BFH-Urteil, Basiszins je Jahr, Stand der Prüfung |
 
 Steuerlogik im Überblick:
@@ -49,6 +49,7 @@ Steuerlogik im Überblick:
 - **Freistellungsauftrag je Bank.** Er wirkt erst auf das, was nach der Verlustverrechnung positiv bleibt. Gibt es genau eine aktive Bank und keinen Eintrag, gilt der volle Sparerpauschbetrag. Bei mehreren Banken ohne Eintrag rechnet das Tool mit einem **gemeinsamen** Freibetrag und warnt deutlich, denn dann stimmt der Abzug der einzelnen Bank nicht. Sind Aufträge eingetragen, haben Banken ohne Eintrag 0 €; übersteigt die Summe den Sparerpauschbetrag, gibt es eine Warnung.
 - **Bereits genutzter Freibetrag** je Bank und Jahr: steuerpflichtige Vorabpauschale des Vorjahres (fließt im Januar zu), Ausschüttungen nach Teilfreistellung, Verkäufe und Zinsen des laufenden Jahres, nach den Verlusttöpfen. Überschreibbar. Eine Ausschüttung nach dem Komplettverkauf zählt beim Depot mit dem letzten Bestand, wenn der Verkauf höchstens 60 Tage zurückliegt. Enthält eine Datei Depots mehrerer Personen (z. B. ein Kinderdepot), wählst du nur die Depots einer Person aus; abgewählte Depots gehören zu keiner Bank.
 - **Zinsen** (Buchungsart „Zinsen“ auf EUR-Konten) zählen brutto als Kapitalertrag und verbrauchen den Freistellungsauftrag der Bank. Je Konto abschaltbar; an für Verrechnungskonten ausgewählter Depots, aus für Konten ohne Depot. Soll- und Negativzinsen sind nicht abziehbar (§ 20 Abs. 9 EStG) und werden ignoriert.
+- **Altbestand (vor 2018 gekaufte Fondsanteile, § 56 InvStG).** Zum 31.12.2017 gelten sie als verkauft und zum letzten Kurs 2017 neu gekauft; der Einstand ab 2018 ist dieser Kurs. Fehlt ein Kurs zum 31.12.2017 (höchstens 10 Tage davor), bleibt der Lot beim ursprünglichen Einstand und es gibt einen Hinweis. Beim Verkauf versteuert die Bank den Neugewinn ab 2018 (nach Teilfreistellung) und, bei Kauf 2009–2017, zusätzlich den Altgewinn (Kurs 31.12.2017 − Einstand, ohne Teilfreistellung). Bei Kauf **vor 2009** ist der Altgewinn steuerfrei, und Gewinne ab 2018 sind bis **100.000 € je Person** steuerfrei; die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung. Das Tool zieht den Freibetrag aus den Verkäufen ab 2018 in der Datei ab (angerechnet auf den Gewinn vor Teilfreistellung); den Rest laut letztem Steuerbescheid kannst du eintragen. Verluste ab 2018 aus Anteilen von 2009–2017, die auf dem höheren Kurs 31.12.2017 beruhen, zählen nach BFH (25.11.2025) ohne Kürzung um die Teilfreistellung; die Differenz erscheint als erwartete Erstattung. Erwartete Erstattungen zeigt das Tool nur für das laufende Jahr und den Verkaufsplan, nie im Netto.
 - **Verkaufsplan im Jahressaldo wie die Bank:** Die geplanten Verkäufe kommen zu den Erträgen des Jahres ihrer Bank hinzu. Ein Verlust gibt bereits genutzten Freibetrag wieder frei oder erstattet schon gezahlte Steuer (negative Steuer, angezeigt als „Erstattung“). Die unterjährige Reihenfolge der Bank (erst einbehalten, später erstattet) ist nicht nachgebildet; am Jahresende ist das Ergebnis dasselbe.
 
 ## Gesetzliche Werte
@@ -96,7 +97,7 @@ Stand 26.11.2026. Status: **G** geltendes Recht, **B** beschlossen, **E** Entwur
 | Quellensteuer | Keine Anrechnung ausländischer Quellensteuer | A | Annahme des Tools |
 | Ehegatten | Keine ehegattenübergreifende Verlustverrechnung zum Jahresende | A | Annahme des Tools |
 
-Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden. Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
+Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden: Wert in `LAW.basiszins.values[year]`, Fundstelle in `LAW.basiszins.source[year]` und Link in `LAW.basiszins.url[year]` (ein Test verlangt für jede Zeile mit Status G einen `https://`-Link). Die Tabelle oben ist ein Abzug von `lawRows()` für 2026, Einzelveranlagung ohne Kirchensteuer; ein Test prüft, dass sie übereinstimmt. Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
 
 ## Grenzen
 
@@ -105,7 +106,7 @@ Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/l
 - **Gold-ETCs mit Lieferanspruch** (z. B. Xetra-Gold, steuerfrei nach einem Jahr Haltedauer) sind nicht abgebildet; als „Sonstiges Wertpapier“ wird der Gewinn voll besteuert.
 - Verluste werden je Bank in Aktien- und allgemeinem Topf verrechnet, aber erst **ab 2018** aus der Datei; ältere Verluste bitte als Vortrag zum 1.1. eintragen.
 - **Kein Quellensteuertopf** (keine Anrechnung ausländischer Quellensteuer), keine **ehegattenübergreifende Verlustverrechnung** zum Jahresende, keine Günstigerprüfung und keine NV-Bescheinigung.
-- Nicht abgebildet ist die **fiktive Veräußerung zum 31.12.2017** für Fondsanteile, die vor 2018 gekauft wurden (Altbestand, 100.000-€-Freibetrag).
+- **Altbestand:** Der Altgewinn ist Kurs 31.12.2017 − Einstand; **ausschüttungsgleiche Erträge vor 2018** (thesaurierende Fonds) sind nicht abgebildet, der Altgewinn kann deshalb zu hoch sein. Bei Zusammenveranlagung rechnet das Tool **gemeinsam 200.000 €** statt 100.000 € je Person für die eigenen Anteile. Ob und wie Banken die **BFH-Urteile** vom 25.11.2025 anwenden, ist offen; das Tool rechnet die Bank-Sicht und zeigt die Differenz als erwartete Erstattung. Der **Spiegelfall** (Altverlust bis 2017, Neugewinn ab 2018) ist nicht modelliert. Erwartete Erstattungen sind vereinfacht und gelten nur für das laufende Jahr.
 - Gerechnet wird mit dem **letzten Kurs in der Datei**. Ordergebühren gibt es nur im Verkaufsplan, nicht beim Freibetrag-Nutzen (Verkauf und Rückkauf).
 
 ## Entwicklung
@@ -121,10 +122,10 @@ Node 22 oder neuer. Es gibt **keine npm-Abhängigkeiten**: `scripts/build.mjs` b
 |---|---|
 | `src/xml.js`, `src/zip.js` | XML-Leser mit XStream-Referenzen (XPath- und id-Modus), `.portfolio`-ZIP |
 | `src/pp.js` | Wertpapiere, Depots, Konten, Buchungen, Ausschüttungen, Zinsen und Kurse aus der PP-Datei |
-| `src/law.js` | Gesetzliche Werte mit Quellen, Steuersatz, Fondstypen |
-| `src/engine.js` | Chronologischer Durchlauf: FIFO je Depot, Überträge, Vorabpauschale je Lot, Ertragsereignisse |
-| `src/ledger.js` | Banken, Verlusttöpfe ab 2018, Freistellungsaufträge, Jahressaldo je Bank |
-| `src/freibetrag.js`, `src/planner.js` | Freibetrag-Optimierer, Netto-Verkaufsplan |
+| `src/law.js` | Gesetzliche Werte mit Quellen und Status (`lawRows`, `LAW_STAND`), Steuersatz, Fondstypen |
+| `src/engine.js` | Chronologischer Durchlauf: FIFO je Depot, Überträge, Vorabpauschale je Lot, fiktive Veräußerung zum 31.12.2017, Ertragsereignisse und Veranlagungs-Posten |
+| `src/ledger.js` | Banken, Verlusttöpfe ab 2018, Freistellungsaufträge, Jahressaldo je Bank, Altbestand-Freibetrag (100.000 €) und erwartete Erstattungen |
+| `src/freibetrag.js`, `src/planner.js` | Freibetrag-Optimierer (Sparerpauschbetrag und Altbestand), Netto-Verkaufsplan |
 | `src/format.js`, `src/csv.js` | Deutsche Formate, CSV-Export |
 | `src/charts.js` | ECharts-Optionen als reine Funktionen |
 | `src/state.js`, `src/ui.js`, `src/page.html` | Einstellungen, Oberfläche, Seitenvorlage |

@@ -66,7 +66,7 @@ function recalc() {
 
 // ---------- Fokus über das Neuzeichnen retten ----------
 // Felder werden über ihr data-*-Attribut wiedergefunden (ids der Bankfelder hängen an der Position der Bank), sonst per id.
-const FOCUS_ATTRS = ['data-fsa', 'data-genutzt', 'data-vortrag-aktien', 'data-vortrag-allg', 'data-bank-of', 'data-zins', 'data-ft', 'data-depot', 'data-confirm'];
+const FOCUS_ATTRS = ['data-fsa', 'data-genutzt', 'data-vortrag-aktien', 'data-vortrag-allg', 'data-bank-of', 'data-zins', 'data-ft', 'data-depot', 'data-confirm', 'data-altfb'];
 const focusKey = el => {
   if (!el || el === document.body || !el.isConnected) return null;
   const a = FOCUS_ATTRS.find(n => el.hasAttribute(n));
@@ -131,6 +131,8 @@ function renderOverview() {
   const held = sec => r.lots.filter(l => l.security === sec).reduce((a, l) => a + l.shares, 0);
   const secs = tradedSecs();
   const ftSelect = x => `<select data-ft="${esc(x.isin || x.uuid)}" aria-label="Fondstyp ${esc(x.name)}">${Object.entries(FUND_TYPES).map(([k, v]) => `<option value="${k}"${fundTypeOf(s, x) === k ? ' selected' : ''}>${v.label}${v.vp ? ` (TFS ${v.tfs * 100} %)` : ''}</option>`).join('')}</select>`;
+  // Altbestand je Wertpapier: Markierung mit Ø-Einstand ursprünglich und ab 2018 als Tooltip
+  const altPills = x => altGroups(r.lots.filter(l => l.security === x.uuid)).map(a => ` <span class="pill ${a.pre2009 ? 'good' : 'muted'}" title="${esc(altText(a) + ` (${fmtShares(a.shares)} Stück)`)}">${esc(a.mark)}</span>`).join('');
   // Geratener Typ: markiert, mit ✓ als explizite Wahl übernehmen
   const ftCell = x => fundTypeGuessed(s, x)
     ? `<div class="ft guess">${ftSelect(x)}<span class="pill warn">geraten</span><button class="btn ok" type="button" data-confirm="${esc(x.uuid)}" aria-label="Fondstyp ${esc(x.name)} bestätigen" title="Bestätigen">✓</button></div>`
@@ -158,15 +160,16 @@ function renderOverview() {
       </div>
     </div>
     ${renderBanks()}
+    ${renderAltFb()}
     <div class="card">
       <div class="card-h"><h2>Wertpapiere</h2><span class="sub">Fondstyp bestimmt Teilfreistellung und Vorabpauschale. Wird je ISIN gespeichert.</span></div>
       <div class="tablebox"><table>
         <thead><tr><th>Wertpapier</th><th>ISIN</th><th>Bestand</th><th>Kurs</th><th>Kursdatum</th><th>Wert</th><th>Fondstyp</th></tr></thead>
-        <tbody>${secs.map(x => { const p = r.latest.get(x.uuid); const h = held(x.uuid); return `<tr><td class="txt">${esc(x.name)}</td><td>${esc(x.isin)}</td><td>${fmtShares(h)}</td><td>${p ? fmtEur(p[1]) : '–'}</td><td class="sub">${p ? fmtDate(p[0]) : '–'}</td><td>${p ? fmtEur(h * p[1]) : '–'}</td><td>${ftCell(x)}</td></tr>`; }).join('')}</tbody>
+        <tbody>${secs.map(x => { const p = r.latest.get(x.uuid); const h = held(x.uuid); return `<tr><td class="txt">${esc(x.name)}${altPills(x)}</td><td>${esc(x.isin)}</td><td>${fmtShares(h)}</td><td>${p ? fmtEur(p[1]) : '–'}</td><td class="sub">${p ? fmtDate(p[0]) : '–'}</td><td>${p ? fmtEur(h * p[1]) : '–'}</td><td>${ftCell(x)}</td></tr>`; }).join('')}</tbody>
       </table></div>
     </div>
     <div class="card">
-      <div class="card-h"><h2>Unrealisierte Gewinne je Kauf</h2><span class="sub">Zum letzten Kurs · steuerpflichtig nach Teilfreistellung und Anrechnung bereits versteuerter Vorabpauschalen</span></div>
+      <div class="card-h"><h2>Unrealisierte Gewinne je Kauf</h2><span class="sub">Zum letzten Kurs · steuerpflichtig nach Teilfreistellung und Anrechnung bereits versteuerter Vorabpauschalen${r.lots.some(l => l.alt) ? ' · Altbestand: Gewinn ab ursprünglichem Einstand, Altgewinn vor 2009 steuerfrei' : ''}</span></div>
       <div class="chart" id="c-lots"></div>
     </div>`;
 }
@@ -224,6 +227,30 @@ function renderBanks() {
     ${on.map((b, i) => bankBox(b, i)).join('') || '<p class="note">Keine Bank mit Erträgen, Bestand oder Verlusttopf.</p>'}
     ${off.length ? `<details id="banks-off"${ui.banksOffOpen ? ' open' : ''}><summary>Inaktive Banken (${off.length}) – ohne Erträge ${YEAR}, Bestand und Verlusttopf</summary><div class="banks-off">${off.map((b, i) => bankBox(b, on.length + i)).join('')}</div></details>` : ''}
     <p class="note">Leere Felder = berechneter Wert (grau). Verlusttöpfe werden ab 2018 aus der Datei fortgeschrieben; ein eingetragener Vortrag zum 1.1. ersetzt den berechneten Stand. Der Freistellungsauftrag wirkt erst auf das, was nach der Verlustverrechnung positiv bleibt. Zinsen zählen brutto; Soll- und Negativzinsen sind nicht abziehbar.</p>
+  </div>`;
+}
+
+// ---------- Altbestand-Freibetrag (vor 2009), § 56 Abs. 6 InvStG ----------
+// Sichtbar, solange Fondsanteile von vor 2009 im Bestand sind oder ab 2018 schon Gewinne daraus angefallen sind
+const hasPre2009 = () => ui.result.lots.some(l => l.alt && l.alt.pre2009)
+  || (ui.result.veranlagung || []).some(v => v.kind === 'alt100k' && ui.depots.includes(v.depot));
+function renderAltFb() {
+  if (!hasPre2009()) return '';
+  const a = altFreibetrag(ui.result, ui.data, S(), YEAR, ui.led), key = ui.depots.slice().sort().join(',');
+  const refund = round2(a.refund100k + a.refundBfh);
+  return `<div class="card" id="altfb">
+    <div class="card-h"><h2>Altbestand-Freibetrag (vor 2009)</h2>${a.leftStartOverridden ? '<span class="pill info">laut Steuerbescheid eingetragen</span>' : ''}</div>
+    <div class="facts">
+      ${fact(a.joint ? 'Freibetrag (gemeinsam)' : 'Freibetrag', fmtEur(a.total))}${fact(`verbraucht bis ${YEAR - 1}`, fmtEur(a.total - a.leftStart))}
+      ${fact(`verbraucht ${YEAR}`, fmtEur(a.usedThisYear))}${fact('frei', fmtEur(a.left))}
+      ${refund > 0.005 ? fact(`Erwartete Erstattung ${YEAR} (Steuererklärung)`, fmtEur(refund)) : ''}
+    </div>
+    <div class="fields">
+      ${amountField('altfb-left', `verbleibend laut letztem Steuerbescheid (31.12.${YEAR - 1})`, 'data-altfb', key, (ui.settings.altFb || {})[key], a.leftStartComputed,
+        a.leftStartOverridden ? `berechnet: ${fmtEur(a.leftStartComputed)}` : 'berechnet aus den Verkäufen ab 2018 in der Datei')}
+    </div>
+    ${a.joint ? '<p class="note">Der Freibetrag gilt je Person für die eigenen Anteile; hier vereinfacht als gemeinsamer Betrag für die ausgewählten Depots.</p>' : ''}
+    <p class="note">Gewinne ab 2018 aus Fondsanteilen, die vor 2009 gekauft wurden, sind bis 100.000 € je Person steuerfrei (angerechnet wird hier der Gewinn vor Teilfreistellung); der Altgewinn bis 31.12.2017 bleibt ohnehin steuerfrei. Die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung (Anlage KAP-INV). Der Rest wird jährlich festgestellt: Trage ihn aus dem letzten Bescheid ein, wenn Verkäufe fehlen (andere Banken, vor der Datei). ${a.refundBfh > 0.005 ? `Die erwartete Erstattung enthält ${fmtEur(a.refundBfh)} aus Verlusten mit Altanteilen 2009–2017 (BFH). ` : ''}Freibetrag nutzen: Reiter 3.</p>
   </div>`;
 }
 
@@ -287,7 +314,7 @@ function lotTable(rows, cols) {
     const title = `${esc(secName(gr.security))} <span class="sub">${esc(secIsin(gr.security))}${multiDepot() ? ' · ' + esc(depName(gr.depot)) : ''}</span>`;
     const sum = c => gr.rows.reduce((s, r) => s + c[1](r), 0);
     return `<tr class="grp"><td colspan="${5 + cols.length}">${title}</td></tr>`
-      + gr.rows.map(r => `<tr><td class="sub">Lot ${fmtDate(r.lot.buyDate)}${r.exempt ? ' (Bestandsschutz)' : ''}</td><td>${fmtShares(r.shares)}</td><td>${fmtDate(r.lot.buyDate)}</td><td>${fmtEur(r.lot.cost)}</td><td>${fmtEur(r.price)}</td>${cols.map(c => eurTd(c[1](r))).join('')}</tr>`).join('')
+      + gr.rows.map(r => `<tr><td class="sub">Lot ${fmtDate(r.lot.buyDate)}${r.exempt ? ' (Bestandsschutz)' : ''}${r.lot.alt ? ' · ' + esc(altMark(r.lot)) : ''}</td><td>${fmtShares(r.shares)}</td><td>${fmtDate(r.lot.buyDate)}</td><td${r.lot.alt ? ` title="${esc(altText(altGroups([r.lot])[0]))}"` : ''}>${fmtEur(r.lot.cost)}</td><td>${fmtEur(r.price)}</td>${cols.map(c => eurTd(c[1](r))).join('')}</tr>`).join('')
       + (gr.rows.length > 1 ? `<tr class="sum"><td>Summe</td><td>${fmtShares(gr.rows.reduce((s, r) => s + r.shares, 0))}</td><td></td><td></td><td></td>${cols.map(c => eurTd(sum(c))).join('')}</tr>` : '');
   }).join('');
   return `<div class="tablebox"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
@@ -347,7 +374,10 @@ function planBanks(p) {
 }
 function renderPlan() {
   const p = ui.plan;
-  const cols = [['Erlös', r => r.gross], ['Gebühr', r => r.fee], ['Gewinn', r => r.gain], ['Steuerbasis Δ', r => r.taxable], ['Freibetrag Δ', r => r.allowance], ['Steuer (− = Erstattung)', r => r.tax], ['Netto', r => r.net]];
+  // Erwartete Erstattung über die Steuererklärung (Altbestand): Kennzahl aus den Summen, Spalte je Zeile nur als Richtwert; nie im Netto
+  const refund = p ? round2(p.refund100k + p.refundBfh) : 0, refundRows = !!p && p.rows.some(r => r.refund > 0.005);
+  const cols = [['Erlös', r => r.gross], ['Gebühr', r => r.fee], ['Gewinn', r => r.gain], ['Steuerbasis Δ', r => r.taxable], ['Freibetrag Δ', r => r.allowance], ['Steuer (− = Erstattung)', r => r.tax], ['Netto', r => r.net],
+    ...(refundRows ? [['Erstattung später', r => r.refund]] : [])];
   const groups = p ? p.banks.filter(b => p.rows.some(r => r.bank === b.key)) : [];
   $('#p3').innerHTML = `
     <div class="card">
@@ -363,7 +393,8 @@ function renderPlan() {
       ${p ? `<div class="facts">
         ${fact('Brutto-Erlös', fmtEur(p.gross))}${fact('Gebühren', fmtEur(p.fees))}${taxFact(p.tax)}${fact('Netto', fmtEur(p.net))}
         ${p.allowanceUsed < -0.005 ? fact('Freibetrag frei geworden', fmtEur(-p.allowanceUsed)) : fact('Freibetrag genutzt', fmtEur(p.allowanceUsed))}
-      </div>${p.reached ? '' : `<div class="msg warn">Das Ziel ist mit dem Bestand nicht erreichbar. Gezeigt wird der Verkauf aller Lots mit Kurs.</div>`}` : ''}
+        ${refund > 0.005 ? fact('Erwartete Erstattung (Steuererklärung)', fmtEur(refund)) : ''}
+      </div>${refund > 0.005 || refundRows ? `<p class="note">Netto ist die Auszahlung der Bank. Gewinne aus Fondsanteilen von vor 2009 (Altbestand-Freibetrag)${p.refundBfh > 0.005 ? ' und Verluste aus Altanteilen 2009–2017 (BFH)' : ''} rechnet die Bank voll ab; die erwartete Erstattung kommt erst mit dem Steuerbescheid und ist im Netto nicht enthalten. Die Spalte „Erstattung später“ ist ein Richtwert je Zeile, maßgeblich ist die Kennzahl.</p>` : ''}${p.reached ? '' : `<div class="msg warn">Das Ziel ist mit dem Bestand nicht erreichbar. Gezeigt wird der Verkauf aller Lots mit Kurs.</div>`}` : ''}
     </div>
     ${p && p.rows.length ? `<div class="card"><h2>Von Brutto zu Netto</h2><div class="chart" id="c-plan"></div></div>
     <div class="card"><h2>Je Bank</h2>${planBanks(p)}</div>
@@ -445,11 +476,12 @@ addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) showTab(+b.dataset.tab); });
 
-// Bank-Einstellungen (Zuordnung, Zinsen, FSA, genutzt, Vortrag) übernehmen; false = kein solches Feld
+// Bank-Einstellungen (Zuordnung, Zinsen, FSA, genutzt, Vortrag) und Altbestand-Freibetrag übernehmen; false = kein solches Feld
 function bankSetting(el) {
   if (el.dataset.bankOf) ui.settings.bankOf = assignBank(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
   else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
   else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
+  else if (el.hasAttribute('data-altfb')) ui.settings.altFb = setKey(ui.settings.altFb, el.dataset.altfb, amountOf(el));
   else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
   else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
     // Vortrag je Feld: gespeichert wird nur das Eingetippte, ein leeres Feld bleibt berechnet (keine Zahl aus der Datei).

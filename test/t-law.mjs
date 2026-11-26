@@ -1,4 +1,7 @@
-export default ({ g, check, near }) => {
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+export default ({ g, check, near, root }) => {
   const param = g('param'), taxRate = g('taxRate'), FUND_TYPES = g('FUND_TYPES'), LAW = g('LAW');
   const s = (k, b = 'default') => ({ kirchensteuer: k, bundesland: b, veranlagung: 'single' });
   check('law: rate without KiSt', near(taxRate(s(false), 2025), 0.26375, 1e-9), taxRate(s(false), 2025));
@@ -27,4 +30,15 @@ export default ({ g, check, near }) => {
   check('law rows: status valid, https urls', rows.every(r => ['G', 'B', 'E', 'A'].includes(r.status) && (r.status === 'A' || /^https:\/\//.test(r.url))), rows.filter(r => r.status !== 'A' && !/^https:\/\//.test(r.url)));
   check('law rows: § 56 and BFH present', rows.some(r => r.norm.includes('§ 56')) && rows.some(r => r.norm.includes('VIII R 22/23')));
   check('law: stand iso date', /^\d{4}-\d{2}-\d{2}$/.test(g('LAW_STAND')));
+  // README „Gesetzliche Werte“ ist ein Abzug von lawRows (2026, einzeln, ohne Kirchensteuer): darf nicht still auseinanderlaufen
+  const md = readFileSync(join(root, 'README.md'), 'utf8');
+  const sect = md.slice(md.indexOf('## Gesetzliche Werte'), md.indexOf('## Grenzen'));
+  const mdRows = sect.split('\n').filter(l => l.startsWith('| ') && !l.startsWith('| Bereich') && !l.startsWith('|---')).map(l => {
+    const [bereich, wert, status, normCell] = l.slice(2, -2).split(' | ');
+    const m = /^\[(.*)\]\((https:[^)]*)\)$/.exec(normCell);
+    return { bereich, wert, status, norm: m ? m[1] : normCell, url: m ? m[2] : '' };
+  });
+  const diff = rows.map((r, i) => [r, mdRows[i]]).filter(([r, x]) => !x || ['bereich', 'wert', 'status', 'norm', 'url'].some(k => r[k] !== x[k]));
+  check('law rows: README table matches lawRows (2026, single, no church tax)', mdRows.length === rows.length && !diff.length, { n: [mdRows.length, rows.length], diff: diff.slice(0, 2) });
+  check('law: README stand matches LAW_STAND', sect.includes(`Stand ${g('fmtDate')(g('LAW_STAND'))}.`));
 };

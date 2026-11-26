@@ -142,4 +142,29 @@ export default ({ g, check, near }) => {
   const h = g('lotChartHeight');
   check('chart lots: height grows with panels', one.grid.length === 1 && h(ol) > h(one) && h(one) >= 200, [h(one), h(ol)]);
   check('chart lots: panels do not overlap', ol.grid[1].top >= ol.grid[0].top + ol.grid[0].height + 30, ol.grid);
+
+  // Altbestand (Spec §7): Einstand ab 2018 = Kurs 31.12.2017 (50), ursprünglich 30; Kurs heute 100, Aktienfonds (TFS 30 %)
+  const altLot = (buyDate, pre2009) => ({ depot: 'A', security: 'S', buyDate, cost: 50, origCost: 30, alt: { price: 50, gainPS: 20, pre2009 }, vpCum: 0, shares: 10 });
+  const gp = g('gainParts'), AF = g('FUND_TYPES').aktienfonds;
+  const altRes = lots => ({ lots, latest: new Map([['S', ['2025-01-01', 100]]]) });
+  const pre = g('optLotGains')(altRes([altLot('2005-03-01', true)]), data, { fundTypes: {} }, TOK);
+  const pv = pre.series.map(x => v(x.data[0]));
+  // vor 2009: steuerpflichtig = Neugewinn 50 × 10 × 0,7 = 350; brutto ab ursprünglichem Einstand 70 × 10 = 700; steuerfrei 350 (TFS 150 + Altgewinn 200)
+  check('chart lots alt: pre-2009 taxable = gainParts().taxable × shares', near(pv[0][1], gp(altLot('2005-03-01', true), 100, AF).taxable * 10) && near(pv[0][1], 350), pv);
+  check('chart lots alt: pre-2009 old gain counts as tax-free', near(pv[1][1], 350) && near(pv[0][1] + pv[1][1], 700), pv);
+  const mid = g('optLotGains')(altRes([altLot('2015-06-01', false)]), data, { fundTypes: {} }, TOK);
+  const mdv = mid.series.map(x => v(x.data[0]));
+  // 2009–2017: steuerpflichtig = 350 + Altgewinn 200 = 550, steuerfrei nur die TFS 150
+  check('chart lots alt: 2009–2017 old gain taxable', near(mdv[0][1], 550) && near(mdv[1][1], 150), mdv);
+  const ptip = pre.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 });
+  check('chart lots alt: tooltip shows original cost and cost from 2018', ptip.includes('Einstand ab 2018') && ptip.includes('50,00') && ptip.includes('ursprünglich') && ptip.includes('30,00') && ptip.includes('700,00'), ptip);
+  check('chart lots alt: tooltip marks pre-2009', ptip.includes('vor 2009 (Bestandsschutz Altgewinn)'), ptip);
+  check('chart lots alt: tooltip marks 2009–2017', mid.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 }).includes('2009–2017 (Altgewinn steuerpflichtig)'));
+  check('chart lots alt: plain lot has no old-holdings line', !two.tooltip.formatter({ seriesIndex: 0, dataIndex: 0 }).includes('Einstand ab 2018'));
+  // Ø-Einstand je Markierung, gewichtet nach Stück: (30·10 + 40·30) / 40 = 37,50; ab 2018 (50·10 + 60·30) / 40 = 57,50
+  const ag = g('altGroups')([altLot('2015-06-01', false), lot('S'), altLot('2005-03-01', true), { ...altLot('2006-01-02', true), shares: 30, origCost: 40, cost: 60 }]);
+  check('altGroups: pre-2009 first, share-weighted averages, plain lots ignored', ag.length === 2 && ag[0].pre2009 && ag[0].shares === 40 && near(ag[0].orig, 37.5) && near(ag[0].cost, 57.5)
+    && !ag[1].pre2009 && near(ag[1].orig, 30), ag);
+  const am = g('altMark');
+  check('altMark: labels', am(altLot('2005-03-01', true)) === 'vor 2009 (Bestandsschutz Altgewinn)' && am(altLot('2015-06-01', false)) === '2009–2017 (Altgewinn steuerpflichtig)' && am(lot('S')) === '');
 };
