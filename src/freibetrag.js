@@ -151,3 +151,35 @@ function optimizeAltFreibetrag(result, data, settings, year, alloc) {
   return { left, rows, harvested: sum('raw'), bankTax: sum('bankTax'), refund: sum('refund'),
     hint: rows.length ? ALT_HINT : 'Keine Fonds-Lots von vor 2009 mit Gewinn an der FIFO-Spitze.', banks };
 }
+
+// Dezember-Effekt (§ 18 Abs. 2 InvStG): Verkauf + Rückkauf im Monat m → die zurückgekauften Anteile tragen nur (13 − m)/12 der
+// Vorabpauschale des laufenden Jahres. Sie fließt am 02.01. des Folgejahres zu, also bleibt dort mehr Freistellungsauftrag frei.
+// rows: [{ lot, shares }] (Zeilen der Vorschläge). Rechnet mit der Prognose je Lot aus replay, keine eigene Formel.
+function decemberEffect(result, data, settings, year, rows, today) {
+  const lots = new Map((result.vpForecastLots || []).map(f => [f.lotId, f]));
+  if (!(result.vpForecast || []).length || !lots.size) return { months: [] };
+  const shares = new Map();
+  for (const r of rows || []) if (r.lot && lots.has(r.lot.id)) shares.set(r.lot.id, (shares.get(r.lot.id) || 0) + r.shares);
+  const vpBefore = round2(result.vpForecast.reduce((s, r) => s + r.vp, 0));
+  const taxableByDepot = {};
+  for (const r of result.vpForecast) taxableByDepot[r.depot] = (taxableByDepot[r.depot] || 0) + r.taxable;
+  const base = ledgerNextYear(result, data, settings, year);
+  const start = +today.slice(0, 4) === year ? +today.slice(5, 7) : 1;
+  const months = [];
+  for (let m = start; m <= 12; m++) {
+    let gross = 0, taxable = 0;
+    const redByDepot = {};
+    for (const [id, n] of shares) {
+      const f = lots.get(id), red = Math.max(0, f.vpPS - f.vpFullPS * (13 - m) / 12) * n;
+      gross += red; taxable += red * (1 - f.tfs);
+      redByDepot[f.depot] = (redByDepot[f.depot] || 0) + red * (1 - f.tfs);
+    }
+    const vpForecast = Object.entries(taxableByDepot).map(([depot, t]) => ({ depot, taxable: round2(Math.max(0, t - (redByDepot[depot] || 0))) }));
+    const after = ledgerNextYear({ ...result, vpForecast }, data, settings, year);
+    months.push({ month: m, vpBefore, vpAfter: round2(vpBefore - gross), taxableReduction: round2(taxable),
+      taxSaved: round2(Math.max(0, base.taxAfter - after.taxAfter)),
+      next: { remainingBefore: base.remaining, remainingAfter: after.remaining,
+        banks: base.banks.map(b => ({ key: b.key, label: b.label, before: b.fsaLeft, after: (after.banks.find(x => x.key === b.key) || {}).fsaLeft })) } });
+  }
+  return { months };
+}

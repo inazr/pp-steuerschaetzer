@@ -169,6 +169,7 @@ function replay(data, settings, today) {
 
   // Vorabpauschale eines Jahres für alle offenen Lots. endPrice(list) liefert [Kurs, Datum] zum Jahresende
   // (oder den letzten Kurs für die Prognose). commit = Lots fortschreiben; sonst nur rechnen (Prognose).
+  const forecastLots = [];
   const vpYear = (Y, endPrice, commit, label) => {
     const out = [];
     const bz = param('basiszins', Y);
@@ -189,6 +190,9 @@ function replay(data, settings, today) {
         const aus = (lot.divPS[Y] || 0) * lot.shares;
         const r = vpForLot({ wertAnfang: lot.shares * ps, wertEnde: lot.shares * pe, basiszins: bz, ausschuettungen: aus, kaufdatum: lot.buyDate, jahr: Y });
         if (commit) lot.vpCum += r.vp;
+        // Prognose je Lot für den Dezember-Effekt: wie oben und ohne Zwölftelung (Kaufdatum vor dem Jahr)
+        else forecastLots.push({ lotId: lot.id, depot, security, tfs: ft.tfs, vpPS: r.vp / lot.shares,
+          vpFullPS: vpForLot({ wertAnfang: lot.shares * ps, wertEnde: lot.shares * pe, basiszins: bz, ausschuettungen: aus, kaufdatum: `${Y - 1}-12-31`, jahr: Y }).vp / lot.shares });
         row.wertAnfang += lot.shares * ps; row.wertEnde += lot.shares * pe; row.basisertrag += r.basisertrag;
         row.wertsteigerung += r.wertsteigerung; row.ausschuettungen += aus; row.vp += r.vp;
       }
@@ -251,7 +255,7 @@ function replay(data, settings, today) {
     vpTaxableByYear,
     lots: [...queues.values()].flat().filter(l => inView(l.depot)),
     vpRows: vpRows.filter(r => inView(r.depot)),
-    vpForecast: vpForecast.filter(r => inView(r.depot)), distributions,
+    vpForecast: vpForecast.filter(r => inView(r.depot)), vpForecastLots: forecastLots.filter(r => inView(r.depot)), distributions,
     errors, warnings: [...new Set(warnings)], latest, realized, income, veranlagung,
   };
 }
