@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { encodeClient } from './pbwriter.mjs';
 
 // Wandelt eine XPath-referenzierte PP-Datei in den XStream-id-Modus um (für den Gleichheitstest).
 function toIdMode(g, xml) {
@@ -19,6 +20,61 @@ function toIdMode(g, xml) {
   return out(root);
 }
 const plain = d => JSON.parse(JSON.stringify({ ...d, prices: [...d.prices.entries()] }));
+
+// Gleichheitstest XML ↔ Protobuf: eine Datenbeschreibung erzeugt beide Varianten.
+const PB_TYPE = { BUY: 0, SELL: 1, DELIVERY_INBOUND: 2, TRANSFER: 4, DIVIDEND: 8, INTEREST: 9, INTEREST_CHARGE: 10 };
+const PB_UNIT = { TAX: 1, FEE: 2 };
+const SAME = {
+  accounts: [{ uuid: 'acc-1', name: 'Verrechnung', cur: 'EUR' }, { uuid: 'acc-usd', name: 'USD-Konto', cur: 'USD' }],
+  portfolios: [{ uuid: 'pf-A', name: 'Depot A', acc: 'acc-1' }, { uuid: 'pf-B', name: 'Depot B', acc: 'acc-1' }],
+  securities: [
+    { uuid: 'sec-eur', name: 'Euro ETF', cur: 'EUR', isin: 'IE00EQ000001', wkn: 'A1EQ01', prices: [['2023-01-02', 10012345678], ['2022-12-30', 9950000000]] },
+    { uuid: 'sec-usd', name: 'US Corp', cur: 'USD', isin: 'US0000000001', prices: [['2023-01-02', 5000000000]] },
+  ],
+  // Quellreihenfolge im Protobuf: Einlieferung (Depot B) vor dem Kauf (Depot A) am selben Tag → kanonisch Depot A zuerst
+  txs: [
+    { type: 'DELIVERY_INBOUND', uuid: 'del-1', pf: 'pf-B', date: '2023-01-10', sec: 'sec-eur', shares: 500000000, amount: 55000 },
+    { type: 'BUY', uuid: 'buy-1', pf: 'pf-A', acc: 'acc-1', date: '2023-01-10', sec: 'sec-eur', shares: 1000000000, amount: 100500, units: [['FEE', 500]] },
+    { type: 'BUY', uuid: 'buy-usd', pf: 'pf-A', acc: 'acc-1', date: '2023-01-11', sec: 'sec-usd', shares: 200000000, amount: 20000 },
+    { type: 'SELL', uuid: 'sell-1', pf: 'pf-A', acc: 'acc-1', date: '2023-06-01', sec: 'sec-eur', shares: 300000000, amount: 35000, units: [['TAX', 1234], ['FEE', 150]] },
+    { type: 'TRANSFER', uuid: 'tr-out', otherUuid: 'tr-in', pf: 'pf-A', otherPf: 'pf-B', date: '2023-07-01', sec: 'sec-eur', shares: 400000000, amount: 44000 },
+    { type: 'DIVIDEND', uuid: 'div-1', acc: 'acc-1', date: '2023-07-10', sec: 'sec-eur', amount: 1000, units: [['TAX', 264], ['FEE', 25]] },
+    { type: 'DIVIDEND', uuid: 'div-nosec', acc: 'acc-1', date: '2023-08-01', amount: 500, units: [['TAX', 132]] },
+    { type: 'INTEREST', uuid: 'int-1', acc: 'acc-1', date: '2023-09-30', amount: 7500, units: [['TAX', 2638]] },
+    { type: 'INTEREST', uuid: 'int-usd', acc: 'acc-usd', date: '2023-09-30', amount: 300 },
+    { type: 'INTEREST_CHARGE', uuid: 'chg-1', acc: 'acc-1', date: '2023-10-31', amount: 1200 },
+  ],
+};
+const secs = d => Date.parse(d + 'T00:00:00Z') / 1000;
+function sameAsXml(D) {
+  const unitsXml = u => u ? `<units>${u.map(([t, a]) => `<unit type="${t}"><amount currency="EUR" amount="${a}"/></unit>`).join('')}</units>` : '';
+  const ptx = (t, type, uuid, cross = '') => `<portfolio-transaction><uuid>${uuid}</uuid><date>${t.date}T00:00</date><currencyCode>EUR</currencyCode>`
+    + `<amount>${t.amount}</amount><security><uuid>${t.sec}</uuid></security>${cross}<shares>${t.shares}</shares><type>${type}</type>${unitsXml(t.units)}</portfolio-transaction>`;
+  const pfTxs = pf => D.txs.flatMap(t => {
+    const cross = `<crossEntry class="portfolio-transfer"><transactionFrom><uuid>${t.uuid}</uuid></transactionFrom></crossEntry>`;
+    if (t.type === 'TRANSFER') return [t.pf === pf ? ptx(t, 'TRANSFER_OUT', t.uuid, cross) : '', t.otherPf === pf ? ptx(t, 'TRANSFER_IN', t.otherUuid, cross) : ''];
+    return t.pf === pf ? [ptx(t, t.type, t.uuid)] : [];
+  }).join('');
+  const accTxs = acc => D.txs.filter(t => !t.pf && t.acc === acc).map(t => {
+    const type = t.type === 'DIVIDEND' ? (t.sec ? 'DIVIDENDS' : 'INTEREST') : t.type; // PP: Ausschüttung ohne Wertpapier = Zins
+    return `<account-transaction><uuid>${t.uuid}</uuid><date>${t.date}T00:00</date><currencyCode>EUR</currencyCode><amount>${t.amount}</amount>`
+      + `${t.sec ? `<security><uuid>${t.sec}</uuid></security>` : ''}<type>${type}</type>${unitsXml(t.units)}</account-transaction>`;
+  }).join('');
+  return `<client><version>66</version><baseCurrency>EUR</baseCurrency><securities>${D.securities.map(s => `<security><uuid>${s.uuid}</uuid><name>${s.name}</name>`
+    + `<currencyCode>${s.cur}</currencyCode><isin>${s.isin || ''}</isin><wkn>${s.wkn || ''}</wkn><prices>${s.prices.map(([t, v]) => `<price t="${t}" v="${v}"/>`).join('')}</prices></security>`).join('')}</securities>`
+    + `<accounts>${D.accounts.map(a => `<account><uuid>${a.uuid}</uuid><name>${a.name}</name><currencyCode>${a.cur}</currencyCode><transactions>${accTxs(a.uuid)}</transactions></account>`).join('')}</accounts>`
+    + `<portfolios>${D.portfolios.map(p => `<portfolio><uuid>${p.uuid}</uuid><name>${p.name}</name><referenceAccount><uuid>${p.acc}</uuid></referenceAccount><transactions>${pfTxs(p.uuid)}</transactions></portfolio>`).join('')}</portfolios></client>`;
+}
+const sameAsPb = D => encodeClient({
+  version: 66, baseCurrency: 'EUR',
+  securities: D.securities.map(s => ({ uuid: s.uuid, name: s.name, currencyCode: s.cur, isin: s.isin, wkn: s.wkn, prices: s.prices.map(([t, v]) => [secs(t) / 86400, v]) })),
+  accounts: D.accounts.map(a => ({ uuid: a.uuid, name: a.name, currencyCode: a.cur })),
+  portfolios: D.portfolios.map(p => ({ uuid: p.uuid, name: p.name, referenceAccount: p.acc })),
+  transactions: D.txs.map(t => ({ type: PB_TYPE[t.type], uuid: t.uuid, account: t.acc, portfolio: t.pf, otherPortfolio: t.otherPf, otherUuid: t.otherUuid,
+    seconds: secs(t.date), currencyCode: 'EUR', amount: t.amount, shares: t.shares, security: t.sec, units: (t.units || []).map(([u, a]) => ({ type: PB_UNIT[u], amount: a, currencyCode: 'EUR' })) })),
+});
+const byKey = (a, b) => (a.date + a.depot + a.type + a.uuid).localeCompare(b.date + b.depot + b.type + b.uuid);
+const norm = d => JSON.stringify({ ...d, prices: [...d.prices.entries()], txs: [...d.txs].sort(byKey), dividends: [...d.dividends].sort(byKey), interest: [...d.interest].sort(byKey), warnings: [...d.warnings].sort() });
 
 export default ({ g, check, near, root }) => {
   const extract = g('extractPortfolio');
@@ -84,4 +140,20 @@ export default ({ g, check, near, root }) => {
   const zn = extract(ZN);
   check('pp minor 11: negative INTEREST skipped', !zn.interest.some(i => i.uuid === 'n1' || i.gross < 0), zn.interest);
   check('pp minor 11: interest deduped per UUID', zn.interest.length === 1 && zn.interest[0].uuid === 'd1' && near(zn.interest[0].gross, 10), zn.interest);
+
+  // Protobuf liefert dieselbe Datenstruktur wie der XML-Leser
+  const xmlText = sameAsXml(SAME), pbBytes = sameAsPb(SAME);
+  const fromPb = g('extractFromProtobuf')(pbBytes), fromXml = extract(xmlText);
+  check('pb: xml fixture is meaningful', fromXml.txs.length === 5 && fromXml.dividends.length === 1 && fromXml.interest.length === 2
+    && fromXml.warnings.length === 2, { txs: fromXml.txs.map(t => t.uuid), warnings: fromXml.warnings });
+  check('pb: protobuf == xml', norm(fromPb) === norm(fromXml), { pb: norm(fromPb), xml: norm(fromXml) });
+  check('pb: canonical order on ties (date, depot index, source order)', fromPb.txs.map(t => t.uuid).join() === fromXml.txs.map(t => t.uuid).join(), fromPb.txs.map(t => t.uuid));
+  check('pb: dividend without security becomes interest', fromPb.interest.some(i => i.uuid === 'div-nosec'));
+  check('pb: transfer pair keyed by source uuid', fromPb.txs.some(t => t.uuid === 'tr-in' && t.type === 'TRANSFER_IN' && t.depot === 'pf-B' && t.transferKey === 'tr-out'));
+  const pbUnknown = encodeClient({ portfolios: [{ uuid: 'pf-A', name: 'A', referenceAccount: 'acc-1' }], accounts: [{ uuid: 'acc-1', name: 'K', currencyCode: 'EUR' }],
+    securities: [{ uuid: 'sec-eur', name: 'ETF', currencyCode: 'EUR' }],
+    transactions: [{ uuid: 'x1', portfolio: 'pf-X', account: 'acc-1', seconds: secs('2023-01-02'), amount: 100, shares: 100000000, security: 'sec-eur' },
+      { uuid: 'x2', type: 9, account: 'acc-X', seconds: secs('2023-01-02'), amount: 100 }] });
+  const du = g('extractFromProtobuf')(pbUnknown);
+  check('pb: unknown portfolio warned', du.warnings.some(w => w.includes('unbekanntem Depot')) && !du.txs.length && !du.interest.length, du);
 };
