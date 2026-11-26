@@ -72,3 +72,78 @@ function optimizeAllowance(result, data, settings, year) {
   // gemeinsamer Modus: taxOf rundet den Topf je Schritt, die genutzten Beträge liegen zusammen nie über spb
   return { banks, pooled: led.pooled, total, used, remaining, rows, harvested: round2(rows.reduce((s, r) => s + r.gainTaxable, 0)) };
 }
+
+// Abschnitt „Altbestand-Freibetrag nutzen“ (Spec §4): Fonds-Lots vor 2009 an den FIFO-Spitzen verkaufen (und zurückkaufen),
+// bis der Rest des 100.000-€-Freibetrags (left, Gewinn vor TFS) gefüllt ist. Läuft nach dem FSA-Vorschlag `alloc`: dessen
+// Stücke sind verbraucht, seine Gewinne stehen schon im Jahr der Bank. bankTax = ΔSteuer wie im Planer (netYear/taxOf je
+// Bank, Jahressaldo gegen den Stand nach dem Vorschlag); refund = erwartete Erstattung (altRefunds wie altFreibetrag,
+// Δ je Zeile), höchstens der Bankabzug der Zeile.
+const ALT_HINT = 'Die Bank behält Steuer ein; sie kommt über die Steuererklärung (Anlage KAP-INV) zurück, frühestens mit dem Steuerbescheid. Bis dahin fehlt das Geld. Lohnt sich vor allem bei hohen Gewinnen; Ordergebühren und Spread beachten.';
+function optimizeAltFreibetrag(result, data, settings, year, alloc) {
+  const led = ledger(result, data, settings, year), rate = led.rate;
+  const af = altFreibetrag(result, data, settings, year, led), left = af.left;
+  const bankOf = new Map(led.banks.flatMap(b => b.depots.map(d => [d, b])));
+  const lots = (result.lots || []).filter(l => bankOf.has(l.depot));
+  const empty = hint => ({ left, rows: [], harvested: 0, bankTax: 0, refund: 0, hint });
+  if (!lots.some(l => l.alt && l.alt.pre2009)) return empty('Kein Fonds-Altbestand von vor 2009 im Bestand.');
+  if (left < 0.01) return empty('Der Altbestand-Freibetrag ist bereits ausgeschöpft.');
+
+  // Jahr je Bank mit den Zeilen des FSA-Vorschlags als Ereignisse
+  const secOf = lot => data.securities.find(s => s.uuid === lot.security);
+  const kindOf = lot => fundTypeOf(settings, secOf(lot)) === 'einzelaktie' ? 'aktie' : 'sonst';
+  const planned = new Map(led.banks.map(b => [b.key, []]));
+  const usedShares = new Map();
+  for (const r of (alloc && alloc.rows) || []) {
+    usedShares.set(r.lot, (usedShares.get(r.lot) || 0) + r.shares);
+    const b = bankOf.get(r.lot.depot);
+    if (b) planned.get(b.key).push({ kind: kindOf(r.lot), amount: r.gainTaxable });
+  }
+  const basePos = new Map(led.banks.map(b => [b.key, netYear(b.potsStart, b.eventsYear).positive]));
+  const posOf = () => Object.fromEntries(led.banks.map(b =>
+    [b.key, b.positiveEff + netYear(b.potsStart, b.eventsYear.concat(planned.get(b.key))).positive - basePos.get(b.key)]));
+  let cur = taxOf(posOf(), led.fsa, rate);
+  const planAlt = [];
+  const refundAt = cap => { const x = altRefunds(rate, cap, af.leftStart, af.yearAlt100k.concat(planAlt), af.yearBfh); return x.refund100k + x.refundBfh; };
+  let refundCur = refundAt(cur.taxable);
+
+  // FIFO-Spitzen nach Abzug der Stücke des Vorschlags
+  const heads = fifoQueues(lots).map(q => {
+    let i = 0, rest = q[0].shares - (usedShares.get(q[0]) || 0);
+    while (rest <= EPS && ++i < q.length) rest = q[i].shares - (usedShares.get(q[i]) || 0);
+    return { lots: q, i, left: round8(rest), price: (result.latest.get(q[0].security) || [])[1] };
+  }).filter(h => h.price > 0 && h.i < h.lots.length);
+  const rawOf = h => {
+    const lot = h.lots[h.i];
+    return lot.alt && lot.alt.pre2009 ? gainParts(lot, h.price, FUND_TYPES[fundTypeOf(settings, secOf(lot))]) : null;
+  };
+
+  const rows = [];
+  let rem = left;
+  while (rem >= 0.01) {
+    let best = null, bp = null;
+    for (const h of heads) {
+      if (h.i >= h.lots.length) continue;
+      const gp = rawOf(h);
+      if (gp && gp.raw > 0 && (!bp || gp.raw > bp.raw)) { best = h; bp = gp; }
+    }
+    if (!best) break;
+    const lot = best.lots[best.i], b = bankOf.get(lot.depot);
+    const n = Math.min(best.left, floor8(rem / bp.raw));
+    if (n <= 0) break;
+    const raw = round2(n * bp.raw), tfs = FUND_TYPES[fundTypeOf(settings, secOf(lot))].tfs;
+    planned.get(b.key).push({ kind: 'sonst', amount: n * bp.taxable });
+    planAlt.push({ amount: raw, tfs });
+    const next = taxOf(posOf(), led.fsa, rate), refundNext = refundAt(next.taxable);
+    const bankTax = round2(Math.max(0, next.tax - cur.tax));
+    rows.push({ lot, bank: b.key, shares: n, price: best.price, gross: round2(n * best.price), raw, bankTax,
+      refund: round2(Math.min(bankTax, Math.max(0, refundNext - refundCur))) });
+    cur = next; refundCur = refundNext;
+    rem = round2(rem - raw);
+    best.left = round8(best.left - n);
+    if (best.left <= EPS) { best.i++; best.left = best.i < best.lots.length ? best.lots[best.i].shares : 0; }
+    else break; // Freibetrag ist gefüllt
+  }
+  const sum = k => round2(rows.reduce((s, r) => s + r[k], 0));
+  return { left, rows, harvested: sum('raw'), bankTax: sum('bankTax'), refund: sum('refund'),
+    hint: rows.length ? ALT_HINT : 'Keine Fonds-Lots von vor 2009 mit Gewinn an der FIFO-Spitze.' };
+}

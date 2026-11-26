@@ -28,3 +28,7 @@ function csvPlan(plan, data) {
   return csvDoc([...CSV_LOT_HEAD, 'Gebühr', 'Gewinn', 'Steuerbasis Δ', 'Freibetrag Δ', 'Steuer (negativ = Erstattung)', 'Netto-Erlös'],
     plan.rows.map(r => [csvBank(plan, data, r.bank), ...csvLotCols(r, data), csvMoney(r.fee || 0), csvMoney(r.gain), csvMoney(r.taxable), csvMoney(r.allowance), csvMoney(r.tax), csvMoney(r.net)]));
 }
+function csvAltFreibetrag(res, data) {
+  return csvDoc([...CSV_LOT_HEAD, 'Gewinn (vor TFS)', 'Bankabzug', 'Erstattung erwartet'],
+    res.rows.map(r => [csvBank(res, data, r.bank), ...csvLotCols(r, data), csvMoney(r.raw), csvMoney(r.bankTax), csvMoney(r.refund)]));
+}

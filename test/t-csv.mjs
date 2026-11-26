@@ -30,4 +30,8 @@ export default ({ g, check }) => {
   const pls = pl.split('\r\n');
   check('csv plan: header', pls[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gebühr;Gewinn;Steuerbasis Δ;Freibetrag Δ;Steuer (negativ = Erstattung);Netto-Erlös', pls[0]);
   check('csv plan: row', pls[1] === 'Hausbank;Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;5,50;-9,00;-6,30;-2,00;-1,66;196,16', pls[1]);
+  // Altbestand-Freibetrag: Gewinn vor TFS, Bankabzug, erwartete Erstattung
+  const al = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, bankTax: 1.66, refund: 1.66 }] }, data).split('\r\n');
+  check('csv alt: header', al[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn (vor TFS);Bankabzug;Erstattung erwartet', al[0]);
+  check('csv alt: row', al[1] === 'Depot A;Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;9,00;1,66;1,66', al[1]);
 };

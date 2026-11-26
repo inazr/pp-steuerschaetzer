@@ -6,7 +6,7 @@ const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String
 const YEAR = +TODAY.slice(0, 4);
 const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 
-const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, plan: null, target: '', tab: 0, banksOffOpen: false };
+const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, altAlloc: null, plan: null, target: '', tab: 0, banksOffOpen: false };
 try { ui.tab = Math.min(3, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
 const S = () => ({ ...ui.settings, depots: ui.depots });
@@ -59,6 +59,7 @@ function recompute() {
 function recalc() {
   ui.led = ledger(ui.result, ui.data, S(), YEAR);
   ui.alloc = optimizeAllowance(ui.result, ui.data, S(), YEAR);
+  ui.altAlloc = optimizeAltFreibetrag(ui.result, ui.data, S(), YEAR, ui.alloc);
   if (ui.plan) ui.plan = planNetSale(ui.result, ui.data, S(), YEAR, ui.planTarget);
   keepFocus(() => { renderKpis(); renderAll(); });
 }
@@ -320,7 +321,19 @@ function renderAllowance() {
       <div class="chart sm" id="c-fb" style="height:120px"></div>
       <p class="note">Verkaufen und sofort zurückkaufen: Der steuerpflichtige Gewinn füllt den freien Betrag, der Einstandskurs steigt, spätere Gewinne fallen niedriger aus. Gerechnet wird je Bank wie die Bank: ein Gewinn wird erst mit ihren Verlusttöpfen verrechnet (Aktiengewinne zuerst mit dem Aktientopf), erst dann greift ihr Freistellungsauftrag. ${a.pooled ? 'Ohne eingetragene Freistellungsaufträge teilen sich die Banken einen gemeinsamen Freibetrag. ' : ''}Verkauft wird je Depot streng nach FIFO, steht ein Lot mit Verlust vorn, endet der Vorschlag für dieses Wertpapier. Ordergebühren und Kursbewegungen zwischen Verkauf und Rückkauf sind nicht berücksichtigt. Gerechnet mit dem letzten Kurs aus der Datei.</p>
     </div>
-    ${a.banks.map(b => allowanceBank(b, a.pooled)).join('') || '<div class="card"><p class="note">Keine Bank mit Bestand.</p></div>'}`;
+    ${a.banks.map(b => allowanceBank(b, a.pooled)).join('') || '<div class="card"><p class="note">Keine Bank mit Bestand.</p></div>'}
+    ${altAllowance(ui.altAlloc)}`;
+}
+// Abschnitt „Altbestand-Freibetrag nutzen“ (Spec §4): unter dem FSA-Vorschlag, Lots je Bank
+function altAllowance(x) {
+  const cols = [['Erlös', r => r.gross], ['Gewinn (vor TFS)', r => r.raw], ['Bankabzug', r => r.bankTax], ['Erstattung erwartet', r => r.refund]];
+  const banks = ui.led.banks.filter(b => x.rows.some(r => r.bank === b.key));
+  return `<div class="card">
+    <div class="card-h"><h2>Altbestand-Freibetrag nutzen</h2><button class="btn" id="csv-alt"${x.rows.length ? '' : ' disabled'}>CSV exportieren</button></div>
+    <div class="facts">${fact('Frei', fmtEur(x.left))}${fact('Geerntet (vor TFS)', fmtEur(x.harvested))}${fact('Bankabzug', fmtEur(x.bankTax))}${fact('Erstattung erwartet', fmtEur(x.refund))}</div>
+    <p class="note">${esc(x.hint)}</p>
+    ${banks.map(b => `<h3>${bankCap} ${esc(b.label)}</h3>${lotTable(x.rows.filter(r => r.bank === b.key), cols)}`).join('')}
+  </div>`;
 }
 
 // ---------- Reiter 4: Verkaufsplanung ----------
@@ -469,6 +482,7 @@ document.addEventListener('click', e => {
   }
   if (id === 'csv-vp') download(`vorabpauschale-${TODAY}.csv`, csvVp(ui.result.vpRows, ui.data));
   else if (id === 'csv-fb') download(`freibetrag-${YEAR}.csv`, csvAllowance(ui.alloc, ui.data));
+  else if (id === 'csv-alt') download(`altbestand-freibetrag-${YEAR}.csv`, csvAltFreibetrag(ui.altAlloc, ui.data));
   else if (id === 'csv-plan') download(`verkaufsplan-${TODAY}.csv`, csvPlan(ui.plan, ui.data));
 });
 
