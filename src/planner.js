@@ -113,12 +113,15 @@ function runNetSale(result, data, settings, year, target, feeAware) {
   const rows = [];
   let needed = target;
   while (needed > 0.005) {
-    // Steuer je Euro netto, plus die noch offene Fixgebühr umgelegt auf das Netto dieses Schritts (sonst splittet der Plan auf viele Orders)
-    let best = null, bs = null, bScore = 0;
+    // Steuer je Euro netto, plus die noch offene Fixgebühr umgelegt auf das Netto dieses Schritts (sonst splittet der Plan auf viele Orders).
+    // Gleichstand (z. B. Quote 0: Vor-2009-Lot unter dem 100k-Freibetrag gegen Verlust-Lot): erst die geringere Bank-Steuer je
+    // Euro netto (die Bank zieht beim Vor-2009-Lot trotzdem ab), dann das ältere Kaufdatum
+    let best = null, bs = null, bScore = 0, bBank = 0;
     for (const h of heads) {
       if (h.i >= h.lots.length) continue;
       const x = info(h), st = step(h, x), score = ratioOf(x, st) + (feeAware && st.F > 0 ? st.F / Math.max(st.net, 0.01) : 0);
-      if (!best || score < bScore || (score === bScore && st.lot.buyDate < bs.lot.buyDate)) { best = h; bs = st; bScore = score; }
+      const bank = st.tax / Math.max(st.net, 0.01);
+      if (!best || score < bScore || (score === bScore && (bank < bBank || (bank === bBank && st.lot.buyDate < bs.lot.buyDate)))) { best = h; bs = st; bScore = score; bBank = bank; }
     }
     if (!best) break;
     const { lot, bank, exempt, price, n, fee, st, tax, net, tfs, altRaw, bfh, gain } = bs;

@@ -149,6 +149,10 @@ const altbestand = ({ g, check, near }) => {
   p = plan(res([X(), Y], { X: 140, Y: 170 }), data, SET, 2025, 1000);
   check('alt plan F4: pre-2009 loss lot -> no refund, chosen like a loss lot', p.rows.length === 1 && p.rows[0].lot.security === 'X' && p.tax === 0
     && p.refund100k === 0 && p.refundBfh === 0 && p.rows[0].refund === 0, [p.rows.map(r => r.lot.security), p.tax, p.refund100k, p.refundBfh]);
+  // Final review M1: Gleichstand (Quote 0) zwischen X (vor 2009, 100k deckt den Gewinn, die Bank zieht aber Steuer ab) und
+  // Verlust-Lot Z (2021, Kosten 200, Kurs 170) bei verbrauchtem FSA -> geringere Bank-Steuer je Euro netto zuerst: Z, Steuer 0
+  p = plan(res([X(), lot(3, 'Y', '2021-01-01', 100, 200)], { X: 170, Y: 170 }), data, SET, 2025, 2000);
+  check('alt plan M1: tie broken by bank tax -> loss lot before pre-2009 lot', p.rows[0].lot.security === 'Y' && p.rows[0].tax === 0, p.rows.map(r => [r.lot.security, r.tax]));
   // 7) Lot 2015 (Altgewinn 50 steuerpflichtig), Kurs 120 -> raw −30/Stück, 10 Stück (Ziel unerreichbar):
   //    Plan-Event 10·(−30·0,7 + 50) = 290 -> Steuer 290·r = 76,49; BFH: F = min(30·10, 50·10) = 300, Posten 300·0,3 = 90,
   //    Erstattung r · min(besteuert 290, 90) = 23,74; Gewinn der Zeile 10·(−30 + 50) = 200
