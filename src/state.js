@@ -53,10 +53,13 @@ function setKey(obj, key, value) {
 
 // Bank-Zuordnung (bankOf) ohne Ketten: Ziele sind immer Gründer. Wird X einer Bank T zugeordnet, folgen alle, die
 // X zugeordnet waren, mit zu T; „eigene Bank“ (null oder X selbst) löscht nur den Eintrag von X.
+// Zur Auswahl stehen nur Banken der aktuellen Ansicht, T ist also Gründer: ein Eintrag von T ist veraltet (zeigt auf ein
+// Depot, das hier keine Bank gründet, s. founder() in bankMembers) und fällt weg – sonst wanderte T später ab, ohne X.
 function assignBank(bankOf, member, target) {
   if (!target || target === member) return setKey(bankOf, member, null);
   const out = {};
   for (const [k, v] of Object.entries(bankOf || {})) out[k] = v === member ? target : v;
+  delete out[target];
   out[member] = target;
   return out;
 }

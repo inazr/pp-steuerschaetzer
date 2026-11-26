@@ -41,6 +41,12 @@ export default ({ g, check, near }) => {
   const m3 = g('bankMembers')(D3, { depots: ['A', 'B', 'C'], bankOf: ab({ C: 'A' }, 'A', 'B') });
   check('state M4: chained assignment keeps the group together', m3.length === 1 && m3[0].key === 'B' && JSON.stringify(m3[0].depots) === '["A","B","C"]', m3);
   check('state M4: assigning to itself means own bank', JSON.stringify(ab({ A: 'B' }, 'A', 'A')) === '{}');
+  // Minor 7: Ziel T mit veraltetem Eintrag (zeigt auf ein abgewähltes Depot Z) – der Eintrag von T fällt weg, T bleibt Gründer
+  const D7 = { portfolios: [{ uuid: 'T' }, { uuid: 'X' }, { uuid: 'Z' }], accounts: [], interest: [] };
+  const b7 = ab({ T: 'Z' }, 'X', 'T');
+  check('state minor 7: stale entry of the target is removed', JSON.stringify(b7) === '{"X":"T"}', b7);
+  const m7 = g('bankMembers')(D7, { depots: ['T', 'X', 'Z'], bankOf: b7 });
+  check('state minor 7: target stays founder when Z is selected again', m7.some(b => b.key === 'T' && JSON.stringify(b.depots) === '["T","X"]'), m7);
   const sel = g('selectedDepots'), nextOff = g('nextDepotsOff');
   check('depots: unknown default on', JSON.stringify(sel({ depotsOff: ['X'] }, ['A', 'B'])) === '["A","B"]');
   check('depots: deselected stays off', JSON.stringify(sel({ depotsOff: ['B'] }, ['A', 'B'])) === '["A"]');
