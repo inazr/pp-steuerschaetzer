@@ -9,7 +9,7 @@ import { ENGINE } from '../scripts/files.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctx = vm.createContext({
   console, performance, TextDecoder, TextEncoder, DecompressionStream, CompressionStream,
-  Blob, Response, Intl, Map, Set, Math, Date, JSON, Uint8Array, DataView, ArrayBuffer,
+  Blob, Response, Intl, crypto: globalThis.crypto, Map, Set, Math, Date, JSON, Uint8Array, DataView, ArrayBuffer,
 });
 for (const f of ENGINE) {
   const p = join(root, 'src', f + '.js');
