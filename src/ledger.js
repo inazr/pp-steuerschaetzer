@@ -79,6 +79,7 @@ function zinsOn(data, settings, accountUuid) {
 const POT_START = 2018;
 const W_PRE2018 = 'Verluste aus 2009–2017 sind nicht berechnet – bitte als Vortrag zum 1.1. eintragen (Jahressteuerbescheinigung der Bank).';
 const W_POOLED = 'Freistellungsaufträge je Bank eintragen, sonst stimmt der Abzug der einzelnen Bank nicht.';
+const W_USED_POOLED = 'Eingetragene genutzte Beträge übersteigen den gemeinsamen Sparerpauschbetrag';
 const bankLabel = (data, key) => ((data.portfolios || []).find(p => p.uuid === key) || (data.accounts || []).find(a => a.uuid === key) || {}).name || key;
 // Vortrag-Override je Feld: nur eingetippte Zahlen ersetzen den berechneten Stand (null/fehlend = berechnet)
 const typedPot = v => typeof v === 'number' && isFinite(v);
@@ -152,6 +153,9 @@ function ledger(result, data, settings, year) {
     // ist, bleibt Bemessungsgrundlage (der Plan kann so auch jenseits des FSA versteuerte Erträge erstatten)
     b.positiveEff = !b.usedOverridden ? b.positiveBase : ov >= b.fsa ? Math.max(b.fsa, b.positiveBase) : round2(Math.max(0, ov));
   }
+  // Gemeinsamer Modus: taxOf verteilt den spb in Schlüsselreihenfolge und kürzt so still – darauf hinweisen
+  const typedUsed = rows.filter(b => b.usedOverridden).reduce((s, b) => s + Math.max(0, genutzt[`${year}|${b.key}`]), 0);
+  if (cfg.pooled && typedUsed > cfg.spb + EPS) warnings.push(W_USED_POOLED);
   const fsa = fsaOf(cfg);
   const base = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveBase])), fsa, rate).usedByBank;
   const eff = taxOf(Object.fromEntries(rows.map(b => [b.key, b.positiveEff])), fsa, rate).usedByBank;

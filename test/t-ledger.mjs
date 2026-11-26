@@ -56,6 +56,12 @@ export default ({ g, check, near }) => {
   check('ledger: two active banks without FSA -> pooled + warning', l.pooled && l.banks.every(b => b.fsaSource === 'gemeinsam') && l.warnings.some(w => w.includes('Freistellungsaufträge je Bank')), l);
   l = L(R([ev('A', 'sonst', 700), ev('B', 'sonst', 600)]), dat, { ...two, fsa: { A: 600, B: 600 } }, 2026);
   check('ledger: entered FSA per bank, sum warning', !l.pooled && l.banks[0].used === 600 && l.banks[1].used === 600 && l.warnings.some(w => w.includes('übersteigen')), l);
+  // Minor 4: gemeinsamer Modus, eingetragene genutzte Beträge zusammen über dem spb -> Hinweis statt stiller Kürzung
+  const W4 = 'Eingetragene genutzte Beträge übersteigen den gemeinsamen Sparerpauschbetrag';
+  l = L(R([ev('A', 'sonst', 700), ev('B', 'sonst', 600)]), dat, { ...two, genutzt: { '2026|A': 700, '2026|B': 600 } }, 2026);
+  check('ledger minor 4: pooled genutzt overrides over spb warn', l.pooled && l.warnings.includes(W4), l.warnings);
+  l = L(R([ev('A', 'sonst', 700), ev('B', 'sonst', 600)]), dat, { ...two, genutzt: { '2026|A': 500, '2026|B': 500, '2025|A': 900 } }, 2026);
+  check('ledger minor 4: overrides within spb (other years ignored) do not warn', l.pooled && !l.warnings.includes(W4), l.warnings);
   l = L(R([ev('A', 'sonst', 700)]), dat, two, 2026);
   check('ledger: inactive bank does not count', !l.pooled && l.banks.find(b => b.key === 'A').fsa === 1000 && !l.banks.find(b => b.key === 'B').active, l.banks);
   l = L(R([ev('A', 'sonst', 300)]), dat, { ...base, fsa: { A: 400 } }, 2026);
