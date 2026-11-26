@@ -152,6 +152,9 @@ const amountField = (id, label, attr, key, value, computed, hint = '') => `<div 
 // Eingabe lesen: leer = null (berechneter Wert gilt), sonst ≥ 0
 const amountOf = el => el.value.trim() === '' ? null : Math.max(0, round2(+el.value.replace(',', '.') || 0));
 
+// Bankname als Überschrift, „Bank“ nur als kleine Beschriftung (Depotnamen tragen oft schon „Depot …“)
+const bankCap = '<span class="sub cap">Bank</span>';
+
 // Bank-Auswahl je Mitglied: „eigene Bank“ (Depots, Konten ohne Depot) bzw. „wie Depot“ (Verrechnungskonten) plus alle anderen Banken
 function memberSelect(u, name, isAcc, bank) {
   const refd = isAcc && ui.data.portfolios.some(p => p.accountUuid === u);
@@ -170,7 +173,7 @@ function bankBox(b, i) {
   const sales = inc.aktie + inc.sonstGewinn - inc.sonstVerlust;
   const calc = `berechnet: VP ${YEAR - 1} ${fmtEur(inc.vp)} · Ausschüttungen ${fmtEur(inc.div)} · Verkäufe ${fmtEur(sales)} · Zinsen ${fmtEur(inc.zins)}, nach Verlusttöpfen`;
   return `<div class="bank">
-    <div class="bank-h"><span>Bank: ${esc(b.label)}</span>${b.vortragOverridden ? '<span class="pill info">Vortrag eingetragen</span>' : ''}${b.usedOverridden ? '<span class="pill info">genutzt eingetragen</span>' : ''}</div>
+    <div class="bank-h">${bankCap}<span>${esc(b.label)}</span>${b.vortragOverridden ? '<span class="pill info">Vortrag eingetragen</span>' : ''}${b.usedOverridden ? '<span class="pill info">genutzt eingetragen</span>' : ''}</div>
     <div class="members">${members}</div>
     <div class="fields four">
       ${amountField(`${id}-fsa`, 'Freistellungsauftrag', 'data-fsa', b.key, (s.fsa || {})[b.key], b.fsa, src)}
@@ -273,7 +276,7 @@ function allowanceBank(b, pooled) {
     : [fact('Freistellungsauftrag', fmtEur(b.fsa)), fact('Bereits genutzt', fmtEur(b.used)), fact('Frei', fmtEur(b.fsaLeft)), fact('Vorschlag: Gewinn', fmtEur(b.harvested)),
       fact('davon gegen Verlusttöpfe', fmtEur(potsSum(b.potsUsed))), fact('Frei nach Vorschlag', fmtEur(Math.max(0, b.fsaLeft - b.fsaUsed)))];
   return `<div class="card">
-    <h2>Bank: ${esc(b.label)}</h2>
+    <h2>${bankCap} ${esc(b.label)}</h2>
     <div class="facts">${facts.join('')}</div>
     ${b.hint ? `<p class="note">${esc(b.hint)}</p>` : ''}
     ${b.rows.length ? lotTable(b.rows, [['Erlös', r => r.gross], ['Gewinn stpfl.', r => r.gainTaxable]]) : `<p class="note">${b.leftStart < 0.01 ? 'Der Freibetrag ist bereits ausgeschöpft.' : 'Keine Lots mit steuerpflichtigem Gewinn an der FIFO-Spitze.'}</p>`}
@@ -327,7 +330,7 @@ function renderPlan() {
     ${p && p.rows.length ? `<div class="card"><h2>Von Brutto zu Netto</h2><div class="chart" id="c-plan"></div></div>
     <div class="card"><h2>Je Bank</h2>${planBanks(p)}</div>
     <div class="card"><h2>Verkaufsplan</h2>${groups.length > 1
-      ? groups.map(b => `<h3>Bank: ${esc(b.label)}</h3>${lotTable(p.rows.filter(r => r.bank === b.key), cols)}`).join('')
+      ? groups.map(b => `<h3>${bankCap} ${esc(b.label)}</h3>${lotTable(p.rows.filter(r => r.bank === b.key), cols)}`).join('')
       : lotTable(p.rows, cols)}</div>` : ''}`;
 }
 
