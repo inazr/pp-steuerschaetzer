@@ -519,7 +519,7 @@ addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; document.body
 // Passwort nur hier aus dem Feld lesen, direkt übergeben, Feld sofort leeren; keine Variable behält es
 $('#pw-form').addEventListener('submit', e => {
   e.preventDefault();
-  if (!pending) return;
+  if (!pending || $('#pw-ok').disabled) return; // Enter während des Entschlüsselns: kein zweiter Lauf
   const { name, buf } = pending, seq = ++loadSeq;
   const loading = loadPortfolioData(buf, $('#pw').value);
   $('#pw').value = '';
