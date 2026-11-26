@@ -6,9 +6,10 @@ function pbRead(bytes) {
   const n = bytes.length;
   const varint = () => {
     const start = i;
-    while (i < n && bytes[i] & 0x80) i++;
+    while (i < n && bytes[i] & 0x80 && i - start < 10) i++;
     if (i >= n) throw new Error('Protobuf: abgeschnittener Varint');
     const len = i - start + 1;
+    if (len > 10) throw new Error('Protobuf: Varint zu lang'); // höchstens 10 Bytes (64 Bit)
     i++;
     if (len <= 7) {
       let v = 0, mul = 1;

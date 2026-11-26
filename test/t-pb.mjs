@@ -16,6 +16,10 @@ export default ({ g, check }) => {
   const throws = f => { try { f(); return false; } catch { return true; } };
   check('pb: negative length varint throws', throws(() => read(Uint8Array.from([0x12, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 1, 2, 3]))));
   check('pb: truncated length-delimited throws', throws(() => read(Uint8Array.from([0x12, 5, 1, 2]))));
+  const longVarint = new Uint8Array(1002); longVarint[0] = 0x08; longVarint.fill(0x80, 1, 1001); longVarint[1001] = 0x01;
+  const t1 = performance.now(), longThrows = throws(() => read(longVarint));
+  check('pb: varint longer than 10 bytes throws quickly', longThrows && performance.now() - t1 < 100, { longThrows, ms: performance.now() - t1 });
+  check('pb: 10-byte varint still read', read(pbEncode([[1, 0, -1]]))[0].v === -1);
   check('pb: truncated varint throws', throws(() => read(Uint8Array.from([0x08, 0x80]))));
   const r = dec(encodeClient({ securities: [{ uuid: 's', wkn: 'WKN123', ticker: 'TCK', retired: true }, { uuid: 's2' }],
     accounts: [{ uuid: 'a' }], portfolios: [{ uuid: 'p' }],
