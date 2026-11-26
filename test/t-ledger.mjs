@@ -26,6 +26,14 @@ export default ({ g, check, near }) => {
     const q = tax(ps, { pooled: true, spb: 1000, byBank: {} }, 0.25), su = Object.values(q.usedByBank).reduce((s, u) => s + u, 0);
     check('tax minor 6: pooled used sums to spb, never above', Math.abs(su - 1000) < 1e-9, [ps, q]);
   }
+  // Minor 12: taxOf / netYear Randfälle
+  const pq = tax({ A: 300, B: 200 }, { pooled: true, spb: 1000, byBank: {} }, 0.25);
+  check('tax minor 12: pooled spb above sum of positives', pq.usedByBank.A === 300 && pq.usedByBank.B === 200 && pq.taxable === 0 && pq.tax === 0, pq);
+  const mq = tax({ A: 300, B: 200 }, { pooled: false, spb: 1000, byBank: { A: 1000 } }, 0.25);
+  check('tax minor 12: bank missing in byBank gets 0', mq.usedByBank.B === 0 && mq.taxable === 200 && mq.tax === 50, mq);
+  const pots0 = { aktien: 100, allg: 50 }, before = JSON.stringify(pots0);
+  net(pots0, [E('aktie', 300), E('sonst', -80), E('div', 20)]);
+  check('net minor 12: input pots not mutated', JSON.stringify(pots0) === before, pots0);
   const members = g('bankMembers'), zinsOn = g('zinsOn');
   const D = { portfolios: [{ uuid: 'A', accountUuid: 'kA' }, { uuid: 'B', accountUuid: 'kB' }, { uuid: 'C', accountUuid: 'kA' }],
     accounts: [{ uuid: 'kA' }, { uuid: 'kB' }, { uuid: 'kT' }, { uuid: 'kX' }], interest: [{ account: 'kT', date: '2026-01-31', gross: 5 }] };
