@@ -73,4 +73,15 @@ export default ({ g, check, near, root }) => {
   check('pp: interest gross = net + tax', zd.interest.length === 1 && zd.interest[0].account === 'acc-1' && near(zd.interest[0].gross, 101.38) && zd.interest[0].date === '2026-03-31', zd.interest);
   check('pp: INTEREST_CHARGE ignored', !zd.interest.some(i => i.uuid === 'z2'));
   check('pp: non-EUR interest warned', zd.warnings.some(w => w.includes('Zinsen in USD ignoriert') && w.includes('USD-Konto')), zd.warnings);
+  // Minor 11: negative INTEREST (Negativzins) übersprungen; dieselbe UUID zählt einmal
+  const ZN = `<client><securities/><accounts>
+    <account><uuid>acc-1</uuid><name>Verrechnung</name><currencyCode>EUR</currencyCode><transactions>
+      <account-transaction><uuid>n1</uuid><date>2026-01-31T00:00</date><amount>-500</amount><type>INTEREST</type></account-transaction>
+      <account-transaction><uuid>d1</uuid><date>2026-02-28T00:00</date><amount>1000</amount><type>INTEREST</type></account-transaction>
+      <account-transaction><uuid>d1</uuid><date>2026-02-28T00:00</date><amount>1000</amount><type>INTEREST</type></account-transaction>
+    </transactions></account></accounts>
+    <portfolios><portfolio><uuid>pf-1</uuid><name>Depot</name><referenceAccount><uuid>acc-1</uuid></referenceAccount><transactions/></portfolio></portfolios></client>`;
+  const zn = extract(ZN);
+  check('pp minor 11: negative INTEREST skipped', !zn.interest.some(i => i.uuid === 'n1' || i.gross < 0), zn.interest);
+  check('pp minor 11: interest deduped per UUID', zn.interest.length === 1 && zn.interest[0].uuid === 'd1' && near(zn.interest[0].gross, 10), zn.interest);
 };
