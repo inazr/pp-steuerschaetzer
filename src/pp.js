@@ -114,7 +114,11 @@ const PB_UNIT_TAX = 1, PB_UNIT_FEE = 2;
 function extractFromProtobuf(bytes) {
   const c = decodeClient(bytes);
   const warnings = [];
-  const day = seconds => new Date(seconds * 1000).toISOString().slice(0, 10); // UTC
+  // UTC-Tag; '' bei Werten außerhalb von Date oder ohne vierstelliges Jahr (Kurse fallen dann am Datumsfilter heraus)
+  const day = seconds => {
+    const d = new Date(seconds * 1000), s = isNaN(d) ? '' : d.toISOString().slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+  };
   const units = (tx, type) => tx.units.filter(u => u.type === type).reduce((s, u) => s + u.amount / 100, 0);
 
   const securities = c.securities.map(s => ({
@@ -125,10 +129,13 @@ function extractFromProtobuf(bytes) {
   const accounts = c.accounts.map(a => ({ uuid: a.uuid, name: a.name, currency: a.currencyCode || 'EUR', txs: [] }));
   const portfolioOf = new Map(portfolios.map(p => [p.uuid, p])), accountOf = new Map(accounts.map(a => [a.uuid, a]));
 
-  let unknown = false;
+  let unknown = false, badDate = false;
   for (const tx of c.transactions) {
+    const date = day(tx.seconds);
+    const relevant = tx.type in PB_PORTFOLIO_TYPES || tx.type === PB_SECURITY_TRANSFER || tx.type === PB_DIVIDEND || tx.type === PB_INTEREST;
+    if (relevant && !date) { badDate = true; continue; }
     const data = () => ({
-      date: day(tx.seconds), security: tx.security, shares: tx.shares / 1e8, amount: tx.amount / 100,
+      date, security: tx.security, shares: tx.shares / 1e8, amount: tx.amount / 100,
       fees: units(tx, PB_UNIT_FEE), taxes: units(tx, PB_UNIT_TAX),
     });
     if (tx.type in PB_PORTFOLIO_TYPES) {
@@ -149,6 +156,7 @@ function extractFromProtobuf(bytes) {
     } // INTEREST_CHARGE und übrige Typen: nicht steuerrelevant für dieses Tool
   }
   if (unknown) warnings.push('Buchung mit unbekanntem Depot/Konto ignoriert');
+  if (badDate) warnings.push('Buchung mit ungültigem Datum ignoriert');
 
   return mapPortfolio({ securities, portfolios, accounts }, warnings);
 }

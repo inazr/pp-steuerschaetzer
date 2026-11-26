@@ -159,4 +159,19 @@ export default ({ g, check, near, root }) => {
   check('pb: unknown account warned', unknownWarned(du), du);
   const dt = unknownCase([{ uuid: 'x3', type: 4, portfolio: 'pf-A', otherPortfolio: 'pf-X', otherUuid: 'x3-in', seconds: secs('2023-01-02'), amount: 100, shares: 100000000, security: 'sec-eur' }]);
   check('pb: transfer to unknown portfolio warned, both halves dropped', unknownWarned(dt), dt);
+  // Datum außerhalb des gültigen Bereichs: Kurs verworfen, Buchung mit Warnung übersprungen, Rest geladen
+  const huge = 9e15; // Sekunden → kein gültiges Date
+  const badDate = g('extractFromProtobuf')(encodeClient({
+    securities: [{ uuid: 'sec-eur', name: 'ETF', currencyCode: 'EUR', prices: [[19000, 1e10], [huge, 1e10], [3e6, 1e10]] }],
+    portfolios: [{ uuid: 'pf-A', name: 'A', referenceAccount: 'acc-1' }], accounts: [{ uuid: 'acc-1', name: 'K', currencyCode: 'EUR' }],
+    transactions: [
+      { uuid: 'ok', portfolio: 'pf-A', account: 'acc-1', seconds: secs('2023-01-02'), amount: 100, shares: 100000000, security: 'sec-eur' },
+      { uuid: 'bad', portfolio: 'pf-A', account: 'acc-1', seconds: huge, amount: 100, shares: 100000000, security: 'sec-eur' },
+      { uuid: 'far', portfolio: 'pf-A', account: 'acc-1', seconds: 3e6 * 86400, amount: 100, shares: 100000000, security: 'sec-eur' },
+      { uuid: 'bad-div', type: 8, account: 'acc-1', seconds: -huge, amount: 100, security: 'sec-eur' },
+    ] }));
+  check('pb: invalid date tx skipped with warning', badDate.txs.map(t => t.uuid).join() === 'ok' && !badDate.dividends.length
+    && badDate.warnings.filter(w => w === 'Buchung mit ungültigem Datum ignoriert').length === 1, badDate);
+  const badPrices = badDate.prices.get('sec-eur');
+  check('pb: invalid price dates dropped', badPrices.length === 1 && badPrices[0][0] === '2022-01-08', badPrices);
 };
