@@ -103,6 +103,7 @@ export default ({ g, check, near }) => {
   timing({ g, check });
 };
 // Final review M3: Laufzeit linear in der Planlänge (Plan-Events je Bank laufend zusammengefasst)
+// Grenze 3 s für langsamere CI-Runner: linear ~0,6 s, die alte quadratische Version brauchte lokal 3,6–4,9 s
 const timing = ({ g, check }) => {
   const secs = [], lots = [], prices = {};
   for (let s = 0; s < 30; s++) {
@@ -112,5 +113,5 @@ const timing = ({ g, check }) => {
   const t0 = performance.now();
   const p = g('planNetSale')(res(lots, prices), { ...data, securities: secs }, { ...SET, genutzt: {}, gebuehrFix: 5 }, 2025, 1e9);
   const ms = performance.now() - t0;
-  check('plan M3: 30 securities x 100 lots, unreachable, < 1.5 s', !p.reached && p.rows.length === 3000 && ms < 1500, Math.round(ms));
+  check('plan M3: 30 securities x 100 lots, unreachable, < 3 s', !p.reached && p.rows.length === 3000 && ms < 3000, Math.round(ms));
 };
