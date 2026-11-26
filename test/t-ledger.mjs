@@ -46,6 +46,19 @@ export default ({ g, check, near }) => {
   check('banks: account of deselected depot excluded', !members(D, { depots: ['A'], bankOf: {} }).some(b => b.accounts.includes('kB')));
   check('zins: default on for depot account, off for loose account', zinsOn(D, { depots: ['A'], zinsen: {} }, 'kA') && !zinsOn(D, { depots: ['A'], zinsen: {} }, 'kT'));
   check('zins: explicit switch wins', !zinsOn(D, { depots: ['A'], zinsen: { kA: false } }, 'kA'));
+  // Minor 13: Kette und Zyklus in bankOf – kein Absturz, jedes Depot und Konto genau einmal
+  const once = (ms, k) => ms.flatMap(b => b[k]).sort().join();
+  m = members(D, { depots: ['A', 'B', 'C'], bankOf: { C: 'A', A: 'B' } });
+  check('banks minor 13: chain C->A->B keeps every depot once', once(m, 'depots') === 'A,B,C' && once(m, 'accounts') === 'kA,kB,kT'
+    && JSON.stringify(m.find(b => b.key === 'B').depots) === '["A","B"]', m);
+  m = members(D, { depots: ['A', 'B', 'C'], bankOf: { A: 'B', B: 'A' } });
+  check('banks minor 13: cycle A<->B keeps every depot once', once(m, 'depots') === 'A,B,C' && once(m, 'accounts') === 'kA,kB,kT', m);
+  check('zins minor 13: explicit true on a loose account', zinsOn(D, { depots: ['A'], zinsen: { kT: true } }, 'kT'));
+  m = members(D, { depots: ['A', 'B'], bankOf: { kA: 'B', kT: 'A' } });
+  check('banks minor 13: bankOf keyed by account UUID', JSON.stringify(m.map(b => [b.key, b.depots, b.accounts])) === '[["A",["A"],["kT"]],["B",["B"],["kA","kB"]]]', m);
+  // Minor 16: leeres depots-Array = kein Depot ausgewählt (nur lose Konten), fehlendes = alle Depots
+  check('banks minor 16: empty depots array selects no depot', JSON.stringify(members(D, { depots: [], bankOf: {} }).map(b => b.key)) === '["kT"]');
+  check('banks minor 16: undefined depots selects all', JSON.stringify(members(D, { bankOf: {} }).map(b => b.key)) === '["A","B","C","kT"]');
   const L = g('ledger');
   const ev = (owner, kind, amount, year = 2026) => ({ year, date: `${year}-05-01`, owner, kind, amount });
   const dat = { portfolios: [{ uuid: 'A', name: 'Depot A', accountUuid: 'kA' }, { uuid: 'B', name: 'Depot B', accountUuid: 'kB' }], accounts: [{ uuid: 'kA', name: 'kA' }, { uuid: 'kB', name: 'kB' }], interest: [] };

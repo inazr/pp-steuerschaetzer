@@ -48,6 +48,8 @@ function taxOf(positiveByBank, fsa, rate, rnd = round2) {
 // ausgewählten Depot mit diesem Referenzkonto, lose Konten mit Zinsen gründen eine eigene Bank.
 function bankMembers(data, settings) {
   const ports = data.portfolios || [], bankOf = settings.bankOf || {};
+  // settings.depots fehlt (undefined) = alle Depots; ein leeres Array heißt wirklich „kein Depot“ (dann nur lose Konten).
+  // Die Oberfläche übergibt nie ein leeres Array (selectedDepots fällt auf alle zurück).
   const sel = new Set(settings.depots || ports.map(p => p.uuid));
   const depots = ports.filter(p => sel.has(p.uuid));
   const refd = new Set(ports.map(p => p.accountUuid).filter(Boolean));
