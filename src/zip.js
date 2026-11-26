@@ -1,6 +1,6 @@
 // Liest eine PP-Datei. Erkennung an den ersten Bytes: PORTFOLIO → verschlüsselt, PK\3\4 → ZIP, sonst XML-Text.
 // Ergebnis: { kind: 'xml', text } | { kind: 'protobuf', bytes } (Protobuf ohne den Vorspann PPPBV1).
-// Fehler: UNSUPPORTED_FORMAT, NEEDS_PASSWORD, WRONG_PASSWORD. Das Passwort wird nirgends gespeichert.
+// Fehler: UNSUPPORTED_FORMAT (auch: beschädigt), NEEDS_PASSWORD, WRONG_PASSWORD. Das Passwort wird nirgends gespeichert.
 const PP_ENCRYPTED_SIG = 'PORTFOLIO', PP_PROTOBUF_SIG = 'PPPBV1';
 const PP_CONTENT_XML = 1, PP_CONTENT_PROTOBUF = 2;
 
@@ -50,20 +50,29 @@ async function decryptPortfolio(u8, password) {
   const subtle = crypto.subtle;
   const base = await subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
   const key = await subtle.deriveKey({ name: 'PBKDF2', salt: PP_SALT, iterations: PP_ITERATIONS, hash: 'SHA-1' },
-    base, { name: 'AES-CBC', length: keyLength }, false, ['decrypt']);
+    base, { name: 'AES-CBC', length: keyLength }, false, ['encrypt', 'decrypt']);
+  const iv = u8.slice(ivStart, dataStart), cipher = u8.slice(dataStart);
+
+  // Passwortprüfung nur an Block 0: c0 plus ein Block, der zu reinem Padding entschlüsselt (16 × 0x10) → Padding immer gültig.
+  // So bleibt eine abgeschnittene oder beschädigte Datei mit richtigem Passwort „beschädigt“ statt „Passwort falsch“.
+  const c0 = cipher.slice(0, 16);
+  const pad = new Uint8Array(await subtle.encrypt({ name: 'AES-CBC', iv: c0 }, key, new Uint8Array(16).fill(16))).slice(0, 16);
+  const p0 = new DataView(await subtle.decrypt({ name: 'AES-CBC', iv }, key, concatBytes(c0, pad)));
+  const contentType = p0.getUint32(0), version = p0.getUint32(4);
+  if ((contentType !== PP_CONTENT_XML && contentType !== PP_CONTENT_PROTOBUF) || version < 1 || version > PP_MAX_VERSION) throw new Error('WRONG_PASSWORD');
+
   let plain;
   try {
-    plain = new Uint8Array(await subtle.decrypt({ name: 'AES-CBC', iv: u8.slice(ivStart, dataStart) }, key, u8.slice(dataStart)));
+    plain = new Uint8Array(await subtle.decrypt({ name: 'AES-CBC', iv }, key, cipher));
   } catch (e) {
-    if (e && e.name === 'OperationError') throw new Error('WRONG_PASSWORD'); // Padding falsch
+    if (e && e.name === 'OperationError') throw new Error('UNSUPPORTED_FORMAT'); // Padding falsch: Datei beschädigt
     throw e;
   }
-  if (plain.length < 8) throw new Error('WRONG_PASSWORD');
-  const dv = new DataView(plain.buffer, plain.byteOffset, plain.byteLength);
-  const contentType = dv.getUint32(0), version = dv.getUint32(4);
-  if ((contentType !== PP_CONTENT_XML && contentType !== PP_CONTENT_PROTOBUF) || version < 1 || version > PP_MAX_VERSION) throw new Error('WRONG_PASSWORD');
+  if (plain.length < 8) throw new Error('UNSUPPORTED_FORMAT');
   return { contentType, version, inner: plain.subarray(8) };
 }
+
+const concatBytes = (a, b) => { const out = new Uint8Array(a.length + b.length); out.set(a); out.set(b, a.length); return out; };
 
 // Erster ZIP-Eintrag (optional: dessen Name nameFilter erfüllt), entpackt. Größen aus dem zentralen Verzeichnis,
 // damit auch gestreamt geschriebene ZIPs (Java ZipOutputStream, Data Descriptor) lesbar sind.

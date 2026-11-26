@@ -60,7 +60,7 @@ async function showLoaded(seq, name, buf, loading) {
       if (m === 'NEEDS_PASSWORD') return;
     } else closePasswordForm();
     err.textContent = m === 'WRONG_PASSWORD' ? 'Passwort falsch'
-      : m === 'UNSUPPORTED_FORMAT' ? 'Dieses Dateiformat wird nicht unterstützt.'
+      : m === 'UNSUPPORTED_FORMAT' ? 'Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.'
         : m === 'NO_PORTFOLIOS' ? 'Die Datei enthält keine Depots.'
           : 'Die Datei konnte nicht gelesen werden: ' + m;
     err.hidden = false;

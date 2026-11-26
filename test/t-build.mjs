@@ -22,6 +22,6 @@ export default ({ check, root }) => {
   const empty = (html.match(/<section class="panel" id="empty">[\s\S]*?<\/section>/) || [''])[0];
   check('build: empty state names formats', empty.includes('XML, binär oder verschlüsselt'));
   check('build: password field', /<input[^>]*type="password"[^>]*autocomplete="off"/.test(html) || /<input[^>]*autocomplete="off"[^>]*type="password"/.test(html));
-  check('build: error texts', html.includes('Passwort falsch') && html.includes('Dieses Dateiformat wird nicht unterstützt.'));
+  check('build: error texts', html.includes('Passwort falsch') && html.includes('Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.') && !html.includes('Dieses Dateiformat wird nicht unterstützt.'));
   check('build: version stamped', html.includes(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version));
 };

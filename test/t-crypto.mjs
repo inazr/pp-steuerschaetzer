@@ -63,6 +63,20 @@ export default async ({ g, check, root, ctx }) => {
     }
   }
 
+  // Beschädigt bei richtigem Passwort: Format kaputt, nicht Passwort falsch (Kopf wird vorab aus Block 0 geprüft)
+  const cut16 = full.slice(0, full.length - 16), flipped = full.slice(); flipped[flipped.length - 1] ^= 1;
+  for (const [label, bytes] of [['cut at 16-byte multiple', cut16], ['last byte flipped', flipped]]) {
+    const right = await code(load(bytes.slice().buffer, 'p'));
+    check(`crypto: ${label}, correct password → UNSUPPORTED_FORMAT`, right === 'UNSUPPORTED_FORMAT', right);
+    const wrong = await code(load(bytes.slice().buffer, 'falsch'));
+    check(`crypto: ${label}, wrong password → WRONG_PASSWORD`, wrong === 'WRONG_PASSWORD', wrong);
+  }
+  // Nur ein Block (Kopf ohne ZIP) bei richtigem Passwort: beschädigt
+  const keyP = pbkdf2Sync('p', SALT, 65536, 32, 'sha1'), ivP = randomBytes(16), oneBlock = createCipheriv('aes-256-cbc', keyP, ivP);
+  const oneBlockFile = concat(te.encode('PORTFOLIO'), Uint8Array.of(1), ivP, Buffer.concat([oneBlock.update(concat(u32be(2), u32be(66))), oneBlock.final()]));
+  const ob = await code(load(oneBlockFile.buffer, 'p'));
+  check('crypto: header without zip, correct password → UNSUPPORTED_FORMAT', ob === 'UNSUPPORTED_FORMAT', ob);
+
   const dec = await decryptPortfolio(new Uint8Array(await encFile({ method: 0, contentType: 2, version: 59, pw: 'p' })), 'p');
   check('crypto: decryptPortfolio header + inner zip', dec.contentType === 2 && dec.version === 59 && dec.inner[0] === 0x50 && dec.inner[1] === 0x4b, dec);
 
