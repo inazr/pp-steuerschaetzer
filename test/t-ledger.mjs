@@ -19,6 +19,13 @@ export default ({ g, check, near }) => {
   const p = tax({ A: 700, B: 600 }, { pooled: true, spb: 1000, byBank: {} }, 0.25);
   check('tax: pooled FSA over the sum', p.usedByBank.A + p.usedByBank.B === 1000 && p.taxable === 300, p);
   check('tax: negative positive is 0', tax({ A: -50 }, { pooled: false, spb: 1000, byBank: { A: 1000 } }, 0.25).tax === 0);
+  // Minor 6: unbekannte Art wird ignoriert (kein NaN); gemeinsamer Topf je Schritt gerundet (Summe genutzt ≤ spb)
+  r = net(z, [E('foo', 5), E('div', 10)]);
+  check('net minor 6: unknown kind ignored', r.positive === 10 && !('foo' in r.byKind) && Object.values(r.byKind).every(v => Number.isFinite(v)), r);
+  for (const ps of [{ A: 0.005, B: 2000 }, { A: 0.105, B: 0.105, C: 2000 }, { A: 333.335, B: 333.335, C: 333.335, D: 5 }]) {
+    const q = tax(ps, { pooled: true, spb: 1000, byBank: {} }, 0.25), su = Object.values(q.usedByBank).reduce((s, u) => s + u, 0);
+    check('tax minor 6: pooled used sums to spb, never above', Math.abs(su - 1000) < 1e-9, [ps, q]);
+  }
   const members = g('bankMembers'), zinsOn = g('zinsOn');
   const D = { portfolios: [{ uuid: 'A', accountUuid: 'kA' }, { uuid: 'B', accountUuid: 'kB' }, { uuid: 'C', accountUuid: 'kA' }],
     accounts: [{ uuid: 'kA' }, { uuid: 'kB' }, { uuid: 'kT' }, { uuid: 'kX' }], interest: [{ account: 'kT', date: '2026-01-31', gross: 5 }] };

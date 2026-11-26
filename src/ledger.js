@@ -5,9 +5,11 @@
 // allgemeiner Topf mindert dann alle positiven Einkünfte (inkl. restlicher Aktiengewinne).
 // byKind: Summen je Art; sonstGewinn / sonstVerlust als POSITIVE Beträge (Verlust als Betrag).
 // rnd: Rundung der Ergebnisse (Standard Cent; der Verkaufsplan rechnet für seine Suche ungerundet mit x => x).
+const EVENT_KINDS = new Set(['aktie', 'sonst', 'div', 'vp', 'zins']);
 function netYear(pots, events, rnd = round2) {
   const by = { aktie: 0, sonstGewinn: 0, sonstVerlust: 0, div: 0, vp: 0, zins: 0 };
   for (const e of events) {
+    if (!EVENT_KINDS.has(e.kind)) continue;   // unbekannte Art: ignorieren statt NaN
     if (e.kind === 'sonst') { if (e.amount < 0) by.sonstVerlust += -e.amount; else by.sonstGewinn += e.amount; }
     else by[e.kind] += e.amount;
   }
@@ -33,8 +35,9 @@ function taxOf(positiveByBank, fsa, rate, rnd = round2) {
   const used = {}; let pool = fsa.spb, taxable = 0;
   for (const k of Object.keys(positiveByBank)) {
     const pos = Math.max(0, positiveByBank[k]);
-    const u = fsa.pooled ? Math.min(pool, pos) : Math.min(fsa.byBank[k] ?? 0, pos);
-    if (fsa.pooled) pool -= u;
+    // gemeinsamer Topf: je Schritt gerundet, damit die genutzten Beträge zusammen nie über spb liegen
+    const u = fsa.pooled ? rnd(Math.min(pool, pos)) : Math.min(fsa.byBank[k] ?? 0, pos);
+    if (fsa.pooled) pool = rnd(pool - u);
     used[k] = rnd(u); taxable += pos - u;
   }
   taxable = rnd(taxable);
