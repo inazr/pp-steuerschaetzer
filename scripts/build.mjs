@@ -35,7 +35,7 @@ const sub = (page, needle, repl) => {
 
 // Kleine Platzhalter zuerst, Engine und UI zuletzt: so trifft nie eingebetteter Code einen Platzhalter.
 let page = rd('src/page.html');
-if (!page.includes('{{TITLE}}')) throw new Error('Platzhalter fehlt: {{TITLE}}');
+for (const ph of ['{{TITLE}}', '{{VERSION}}']) if (!page.includes(ph)) throw new Error('Platzhalter fehlt: ' + ph);
 page = page.replaceAll('{{TITLE}}', 'Steuerschätzer für Portfolio Performance');
 page = page.replaceAll('{{VERSION}}', version);
 page = sub(page, '{{HEAD}}', head);
@@ -55,4 +55,4 @@ ${page}
 `;
 mkdirSync(join(root, 'dist'), { recursive: true });
 writeFileSync(join(root, 'dist', 'index.html'), html);
-console.log(`dist/index.html gebaut (Version ${version}, ${(html.length / 1024).toFixed(0)} KB)`);
+console.log(`dist/index.html gebaut (Version ${version}, ${(Buffer.byteLength(html) / 1024).toFixed(0)} KB)`);

@@ -24,5 +24,6 @@ export default ({ check, root }) => {
   check('build: password field', /<input[^>]*type="password"[^>]*autocomplete="off"/.test(html) || /<input[^>]*autocomplete="off"[^>]*type="password"/.test(html));
   check('build: error texts', html.includes('Passwort falsch') && html.includes('Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.') && !html.includes('Dieses Dateiformat wird nicht unterstützt.'));
   check('build: insecure-context text', html.includes('Entschlüsseln ist hier nicht möglich (unsicherer Kontext). Bitte die Datei lokal öffnen oder über https.'));
-  check('build: version stamped', html.includes(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version));
+  check('build: version stamped', html.includes('Version ' + JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version));
+  check('build: no placeholder left', !html.includes('{{VERSION}}') && !html.includes('{{TITLE}}') && !html.includes('{{HEAD}}'));
 };
