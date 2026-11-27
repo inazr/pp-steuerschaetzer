@@ -40,7 +40,7 @@ Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github
 Steuerlogik im Überblick:
 
 - **FIFO je Depot** (§ 20 Abs. 4 S. 7 EStG). Depotüberträge in Portfolio Performance nehmen die Lots mit Kaufdatum, Einstand und bereits versteuerter Vorabpauschale mit.
-- **Vorabpauschale je Lot**, zum Jahresende verbucht und beim Verkauf auf den Gewinn angerechnet. Ausschüttungen zählen brutto (netto plus einbehaltene Steuern) und werden nach dem Bestand im jeweiligen Depot am Zahltag verteilt. Anteile, die nach einer Ausschüttung desselben Jahres gekauft werden, bekommen diese Ausschüttung je Stück angerechnet (§ 18 Abs. 1 InvStG), sofern ein Depot am selben Konto sie erhalten hat.
+- **Vorabpauschale je Lot**, zum Jahresende verbucht und beim Verkauf auf den Gewinn angerechnet. Ausschüttungen zählen brutto (netto plus einbehaltene Steuern) und werden nach dem Bestand im jeweiligen Depot am Zahltag verteilt. Anteile, die nach einer Ausschüttung desselben Jahres gekauft werden, bekommen diese Ausschüttung je Stück angerechnet (§ 18 Abs. 1 InvStG), sofern ein Depot am selben Konto sie erhalten hat. Als Kurs zu Jahresbeginn zählt der letzte Kurs am oder vor dem 01.01. (höchstens 10 Tage alt), sonst der erste Kurs bis zum 10.01.
 - **Teilfreistellung** je Fondstyp: Aktienfonds 30 %, Mischfonds 15 %, Immobilienfonds 60 % (Inland) bzw. 80 % (Ausland). Für **Einzelaktien** gibt es keine Vorabpauschale und keine Teilfreistellung, Käufe vor 2009 sind steuerfrei (Bestandsschutz). **Sonstige Wertpapiere** (ETC, Anleihe, Zertifikat): keine Vorabpauschale, keine Teilfreistellung, kein Bestandsschutz.
 - **Fondstyp** steht nicht in der PP-Datei und wird geraten: ISIN aus Irland oder Luxemburg (außer mit Gesellschaftsform wie „plc“ im Namen oder bekannten Aktien wie Linde, Accenture, ArcelorMittal) oder Fondswörter wie ETF/UCITS → Aktienfonds, Renten- und Geldmarkt-Wörter → Sonstiger Fonds, ETC/Zertifikat/Anleihe → Sonstiges Wertpapier, sonst Einzelaktie. Geratene Typen sind markiert, bis du sie bestätigst oder änderst.
 - **Steuersatz** Abgeltungsteuer + Soli, wahlweise mit Kirchensteuer (8 % oder 9 %) und Ermäßigung nach § 32d Abs. 1 EStG.
@@ -54,7 +54,7 @@ Steuerlogik im Überblick:
 
 ## Gesetzliche Werte
 
-Stand 26.11.2026. Status: **G** geltendes Recht, **B** beschlossen, **E** Entwurf, **A** Annahme/Vereinfachung des Tools. Dieselben Zeilen zeigt der Reiter „Gesetze & Annahmen“; Zahlen für 2026, Einzelveranlagung ohne Kirchensteuer.
+Stand 27.11.2026. Status: **G** geltendes Recht, **B** beschlossen, **E** Entwurf, **A** Annahme/Vereinfachung des Tools. Dieselben Zeilen zeigt der Reiter „Gesetze & Annahmen“; Zahlen für 2026, Einzelveranlagung ohne Kirchensteuer.
 
 | Bereich | Wert | Status | Norm |
 |---|---|---|---|
@@ -97,11 +97,11 @@ Stand 26.11.2026. Status: **G** geltendes Recht, **B** beschlossen, **E** Entwur
 | Quellensteuer | Keine Anrechnung ausländischer Quellensteuer | A | Annahme des Tools |
 | Ehegatten | Keine ehegattenübergreifende Verlustverrechnung zum Jahresende | A | Annahme des Tools |
 
-Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden: Wert in `LAW.basiszins.values[year]`, Fundstelle in `LAW.basiszins.source[year]` und Link in `LAW.basiszins.url[year]` (ein Test verlangt für jede Zeile mit Status G einen `https://`-Link). Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale und zeigt einen Hinweis. Die Tabelle oben ist ein Abzug von `lawRows()` für 2026, Einzelveranlagung ohne Kirchensteuer; ein Test prüft, dass sie übereinstimmt. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
+Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/law.js` nachgetragen werden: Wert in `LAW.basiszins.values[year]`, Fundstelle in `LAW.basiszins.source[year]` und Link in `LAW.basiszins.url[year]` (ein Test verlangt für jede Zeile mit Status G einen `https://`-Link). Fehlt er, rechnet das Tool für dieses Jahr keine Vorabpauschale (auch keine Prognose) und zeigt einen Hinweis. Die Tabelle oben ist ein Abzug von `lawRows()` für 2026, Einzelveranlagung ohne Kirchensteuer; ein Test prüft, dass sie übereinstimmt. `LAW_STAND` in `src/law.js` (Anzeige „Stand TT.MM.JJJJ“ im Seitenkopf und im Reiter) wird bei jeder Prüfung der Rechtslage auf das Prüfdatum gesetzt; Tabelle und Reiter kommen aus `lawRows()` in derselben Datei.
 
 ## Grenzen
 
-- Gelesen werden Dateien aus Portfolio Performance als **XML** (beide XStream-Varianten, auch als `.portfolio`-ZIP), **binär** und **verschlüsselt** (AES-128 und AES-256). Für verschlüsselte Dateien fragt das Tool nach dem Passwort; es wird nur zum Entschlüsseln verwendet und nirgends gespeichert. Andere Formate und beschädigte Dateien werden mit „Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.“ abgelehnt.
+- Gelesen werden Dateien aus Portfolio Performance als **XML** (beide XStream-Varianten, auch als `.portfolio`-ZIP), **binär** und **verschlüsselt** (AES-128 und AES-256). Für verschlüsselte Dateien fragt das Tool nach dem Passwort; es wird nur zum Entschlüsseln verwendet und nirgends gespeichert. Andere Formate und beschädigte oder abgeschnittene Dateien werden mit „Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.“ abgelehnt.
 - Nur **Wertpapiere und Buchungen in EUR**. Wertpapiere in anderer Währung und Buchungen über Fremdwährungskonten werden ausgelassen und angezeigt.
 - **Gold-ETCs mit Lieferanspruch** (z. B. Xetra-Gold, steuerfrei nach einem Jahr Haltedauer) sind nicht abgebildet; als „Sonstiges Wertpapier“ wird der Gewinn voll besteuert.
 - Verluste werden je Bank in Aktien- und allgemeinem Topf verrechnet, aber erst **ab 2018** aus der Datei; ältere Verluste bitte als Vortrag zum 1.1. eintragen.

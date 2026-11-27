@@ -37,7 +37,7 @@ const LAW = {
   altFreibetrag: { values: { 2018: 100000 }, source: '§ 56 Abs. 6 S. 1 Nr. 2 InvStG' },
 };
 // Datum der letzten Prüfung der Rechtslage; bei jeder Prüfung der Werte unten mitziehen
-const LAW_STAND = '2026-11-26';
+const LAW_STAND = '2026-11-27';
 
 function param(name, year) {
   const p = LAW[name];
