@@ -114,7 +114,7 @@ export default ({ g, check, near }) => {
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: 0, allg: 500 } } }, 2026);
   check('ledger: earlier-year vortrag override is carried forward', l.banks[0].vortragComputed.allg === 500 && l.banks[0].used === 0 && l.banks[0].pots.allg === 200 && !l.banks[0].vortragOverridden, l.banks[0]);
   l = L(R([ev('A', 'div', 300)]), dat, { ...base, vortrag: { '2025|A': { aktien: 0, allg: 500 }, '2026|A': { aktien: 0, allg: 100 } } }, 2026);
-  check('ledger: current-year vortrag override wins over earlier one', l.banks[0].vortragComputed.allg === 500 && l.banks[0].vortrag.allg === 100 && l.banks[0].vortragOverridden && l.banks[0].used === 200, l.banks[0]);
+  check('ledger: current-year vortrag override wins over earlier one', l.banks[0].vortragComputed.allg === 500 && l.banks[0].potsStart.allg === 100 && l.banks[0].vortragOverridden && l.banks[0].used === 200, l.banks[0]);
   // Final review M6: kein Hinweis auf 2009–2017, sobald die Bank einen Vortrag (bis zum laufenden Jahr) eingetragen hat
   l = L(R([ev('A', 'sonst', -400, 2017), ev('A', 'div', 300, 2026)]), dat, { ...base, vortrag: { '2026|A': { aktien: null, allg: 400 } } }, 2026);
   check('ledger M6: pre-2018 hint suppressed by current-year vortrag', !l.warnings.some(w => w.includes('2009–2017')), l.warnings);

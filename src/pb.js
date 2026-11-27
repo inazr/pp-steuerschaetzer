@@ -40,21 +40,16 @@ function pbRead(bytes) {
 function decodeClient(bytes) {
   const td = new TextDecoder();
   const str = v => td.decode(v);
-  const c = { version: 0, baseCurrency: '', securities: [], accounts: [], portfolios: [], transactions: [] };
+  const c = { securities: [], accounts: [], portfolios: [], transactions: [] };
   for (const { f, w, v } of pbRead(bytes)) {
-    if (f === 1 && w === 0) c.version = v;
-    else if (f === 12 && w === 2) c.baseCurrency = str(v);
-    else if (w !== 2) continue;
+    if (w !== 2) continue;
     else if (f === 2) {
-      const s = { uuid: '', name: '', currencyCode: '', isin: '', wkn: '', ticker: '', retired: false, prices: [] };
+      const s = { uuid: '', name: '', currencyCode: '', isin: '', prices: [] };
       for (const e of pbRead(v)) {
         if (e.f === 1 && e.w === 2) s.uuid = str(e.v);
         else if (e.f === 3 && e.w === 2) s.name = str(e.v);
         else if (e.f === 4 && e.w === 2) s.currencyCode = str(e.v);
         else if (e.f === 7 && e.w === 2) s.isin = str(e.v);
-        else if (e.f === 8 && e.w === 2) s.ticker = str(e.v);
-        else if (e.f === 9 && e.w === 2) s.wkn = str(e.v);
-        else if (e.f === 20 && e.w === 0) s.retired = e.v !== 0;
         else if (e.f === 13 && e.w === 2) {
           let day = 0, close = 0;
           for (const p of pbRead(e.v)) { if (p.f === 1 && p.w === 0) day = p.v; else if (p.f === 2 && p.w === 0) close = p.v; }
@@ -77,7 +72,7 @@ function decodeClient(bytes) {
       }
       c.portfolios.push(p);
     } else if (f === 5) {
-      const t = { type: 0, uuid: '', account: '', portfolio: '', otherAccount: '', otherPortfolio: '', otherUuid: '', seconds: 0,
+      const t = { type: 0, uuid: '', account: '', portfolio: '', otherPortfolio: '', otherUuid: '', seconds: 0,
         currencyCode: '', amount: 0, shares: 0, security: '', units: [] };
       for (const e of pbRead(v)) {
         if (e.w === 0) {
@@ -86,17 +81,15 @@ function decodeClient(bytes) {
           if (e.f === 1) t.uuid = str(e.v);
           else if (e.f === 3) t.account = str(e.v);
           else if (e.f === 4) t.portfolio = str(e.v);
-          else if (e.f === 5) t.otherAccount = str(e.v);
           else if (e.f === 6) t.otherPortfolio = str(e.v);
           else if (e.f === 7) t.otherUuid = str(e.v);
           else if (e.f === 10) t.currencyCode = str(e.v);
           else if (e.f === 14) t.security = str(e.v);
           else if (e.f === 9) { for (const d of pbRead(e.v)) if (d.f === 1 && d.w === 0) t.seconds = d.v; }
           else if (e.f === 15) {
-            const u = { type: 0, amount: 0, currencyCode: '' };
+            const u = { type: 0, amount: 0 };
             for (const x of pbRead(e.v)) {
               if (x.f === 1 && x.w === 0) u.type = x.v; else if (x.f === 2 && x.w === 0) u.amount = x.v;
-              else if (x.f === 3 && x.w === 2) u.currencyCode = str(x.v);
             }
             t.units.push(u);
           }

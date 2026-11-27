@@ -4,8 +4,7 @@ const floor8 = x => Math.floor(x * 1e8 + 1e-6) / 1e8;
 
 // Steuerpflichtiger Gewinn je Stück; null = Lot ist steuerfrei (Bestandsschutz)
 function taxableGainPerShare(lot, price, settings, data) {
-  const sec = data.securities.find(s => s.uuid === lot.security);
-  const ft = FUND_TYPES[fundTypeOf(settings, sec)];
+  const ft = FUND_TYPES[fundTypeOf(settings, secByUuid(data, lot.security))];
   if (ft.bestandsschutz && lot.buyDate < ft.bestandsschutz) return null;
   return gainParts(lot, price, ft).taxable;
 }
@@ -15,6 +14,13 @@ function fifoQueues(lots) {
   const m = new Map();
   for (const l of lots) { const k = l.depot + '|' + l.security; if (!m.has(k)) m.set(k, []); m.get(k).push(l); }
   return [...m.values()];
+}
+// n Stück vom FIFO-Kopf h abziehen; ist der Lot damit verbraucht, auf den nächsten schalten (true)
+function advanceHead(h, n) {
+  h.left = round8(h.left - n);
+  if (h.left > EPS) return false;
+  h.i++; h.left = h.i < h.lots.length ? h.lots[h.i].shares : 0;
+  return true;
 }
 
 // Je aktiver Bank ein Greedy-Durchlauf (höchster stpfl. Gewinn je Stück an den FIFO-Spitzen der Bank-Depots).
@@ -48,7 +54,7 @@ function optimizeAllowance(result, data, settings, year) {
       }
       if (!best) break;
       const lot = best.lots[best.i];
-      const stock = fundTypeOf(settings, data.securities.find(s => s.uuid === lot.security)) === 'einzelaktie';
+      const stock = potKind(settings, secByUuid(data, lot.security)) === 'aktie';
       const cap = (stock ? st.aktien : 0) + st.allg + left;
       const n = Math.min(best.left, floor8(cap / bestGain));
       if (n <= 0) break;
@@ -58,9 +64,7 @@ function optimizeAllowance(result, data, settings, year) {
       const c = Math.min(st.allg, g); st.allg = round2(st.allg - c); potsUsed.allg = round2(potsUsed.allg + c); g -= c;
       left = round2(Math.max(0, left - g));
       brows.push({ bank: b.key, lot, shares: n, price: best.price, gross: round2(n * best.price), gainTaxable });
-      best.left = round8(best.left - n);
-      if (best.left <= EPS) { best.i++; best.left = best.i < best.lots.length ? best.lots[best.i].shares : 0; }
-      else break; // Freibetrag/Topf ist ausgeschöpft
+      if (!advanceHead(best, n)) break; // Lot nicht verbraucht: Freibetrag/Topf ist ausgeschöpft
     }
     if (led.pooled) poolLeft = left;
     const hint = start.allg > 0 ? `Verluste von ${fmtEur(start.allg)} werden zuerst verrechnet. Alternative: bis 15.12. Verlustbescheinigung beantragen, dann wirkt der Freistellungsauftrag sofort.` : '';
@@ -93,8 +97,8 @@ function optimizeAltFreibetrag(result, data, settings, year, alloc) {
   if (left < 0.01) return empty('Der Altbestand-Freibetrag ist bereits ausgeschöpft.');
 
   // Jahr je Bank mit den Zeilen des FSA-Vorschlags als Ereignisse
-  const secOf = lot => data.securities.find(s => s.uuid === lot.security);
-  const kindOf = lot => fundTypeOf(settings, secOf(lot)) === 'einzelaktie' ? 'aktie' : 'sonst';
+  const secOf = lot => secByUuid(data, lot.security);
+  const kindOf = lot => potKind(settings, secOf(lot));
   const planned = new Map(led.banks.map(b => [b.key, []]));
   const usedShares = new Map();
   for (const r of (alloc && alloc.rows) || []) {
@@ -143,9 +147,7 @@ function optimizeAltFreibetrag(result, data, settings, year, alloc) {
       refund: round2(Math.min(bankTax, Math.max(0, refundNext - refundCur))) });
     cur = next; refundCur = refundNext;
     rem = round2(rem - used);
-    best.left = round8(best.left - n);
-    if (best.left <= EPS) { best.i++; best.left = best.i < best.lots.length ? best.lots[best.i].shares : 0; }
-    else break; // Freibetrag ist gefüllt
+    if (!advanceHead(best, n)) break; // Lot nicht verbraucht: Freibetrag ist gefüllt
   }
   const sum = k => round2(rows.reduce((s, r) => s + r[k], 0));
   return { left, rows, harvested: sum('raw'), used: sum('used'), bankTax: sum('bankTax'), refund: sum('refund'),
@@ -168,8 +170,7 @@ function decemberEffect(result, data, settings, year, rows, today) {
   for (const r of rows || []) {
     const g = r.gainTaxable != null ? r.gainTaxable : (gp => gp === null ? null : gp * r.shares)(taxableGainPerShare(r.lot, r.price, settings, data));
     if (g === null || !Number.isFinite(g)) continue;
-    const sec = data.securities.find(x => x.uuid === r.lot.security);
-    sold.push({ year, date: today, owner: r.lot.depot, kind: fundTypeOf(settings, sec) === 'einzelaktie' ? 'aktie' : 'sonst', amount: round2(g) });
+    sold.push({ year, date: today, owner: r.lot.depot, kind: potKind(settings, secByUuid(data, r.lot.security)), amount: round2(g) });
   }
   const planned = { ...result, income: [...(result.income || []), ...sold] };
   const base = ledgerNextYear(planned, data, settings, year);

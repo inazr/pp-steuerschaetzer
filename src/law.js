@@ -61,14 +61,15 @@ function taxRate(settings, year) {
   return eff + eff * s + eff * k;
 }
 
+// pot: Verlusttopf, in den Gewinne und Verluste aus Verkäufen laufen ('aktie' = Aktientopf, 'sonst' = allgemeiner Topf)
 const FUND_TYPES = {
-  aktienfonds: { label: 'Aktienfonds', tfs: 0.30, vp: true },
-  mischfonds: { label: 'Mischfonds', tfs: 0.15, vp: true },
-  immo_inland: { label: 'Immobilienfonds (Inland)', tfs: 0.60, vp: true },
-  immo_ausland: { label: 'Immobilienfonds (Ausland)', tfs: 0.80, vp: true },
-  sonstige: { label: 'Sonstiger Fonds', tfs: 0, vp: true },
-  einzelaktie: { label: 'Einzelaktie', tfs: 0, vp: false, bestandsschutz: '2009-01-01' },
-  sonstiges_wp: { label: 'Sonstiges Wertpapier (ETC, Anleihe, Zertifikat)', tfs: 0, vp: false },
+  aktienfonds: { label: 'Aktienfonds', tfs: 0.30, vp: true, pot: 'sonst' },
+  mischfonds: { label: 'Mischfonds', tfs: 0.15, vp: true, pot: 'sonst' },
+  immo_inland: { label: 'Immobilienfonds (Inland)', tfs: 0.60, vp: true, pot: 'sonst' },
+  immo_ausland: { label: 'Immobilienfonds (Ausland)', tfs: 0.80, vp: true, pot: 'sonst' },
+  sonstige: { label: 'Sonstiger Fonds', tfs: 0, vp: true, pot: 'sonst' },
+  einzelaktie: { label: 'Einzelaktie', tfs: 0, vp: false, pot: 'aktie', bestandsschutz: '2009-01-01' },
+  sonstiges_wp: { label: 'Sonstiges Wertpapier (ETC, Anleihe, Zertifikat)', tfs: 0, vp: false, pot: 'sonst' },
 };
 
 // Fondstyp raten: PP-Dateien kennen keinen Wertpapiertyp, Namen sind oft Broker-Kürzel („VANG FTSE AW USDD“).

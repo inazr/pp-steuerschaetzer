@@ -64,7 +64,7 @@ function runNetSale(result, data, settings, year, target, feeAware) {
   const feeFix = Math.max(0, +settings.gebuehrFix || 0), feePct = Math.max(0, +settings.gebuehrProz || 0) / 100;
   const heads = fifoQueues(result.lots || []).map(lots => ({ lots, i: 0, left: lots[0].shares, price: (result.latest.get(lots[0].security) || [])[1], ordered: false }))
     .filter(h => h.price > 0 && bankOf.has(h.lots[0].depot));
-  const secOf = lot => data.securities.find(s => s.uuid === lot.security);
+  const secOf = lot => secByUuid(data, lot.security);
   const info = h => {
     const lot = h.lots[h.i], a = h.price * (1 - feePct); // Erlös je Stück nach Prozentgebühr
     const g = taxableGainPerShare(lot, a, settings, data); // stpfl. Gewinn je Stück, bei Verlust negativ
@@ -84,7 +84,7 @@ function runNetSale(result, data, settings, year, target, feeAware) {
     const ft = fundTypeOf(settings, secOf(lot)), tfs = FUND_TYPES[ft].tfs, gp = gainParts(lot, a, FUND_TYPES[ft]);
     // Plan-Event wie der Verkauf (Spec §2): n·taxable − F·(1 − tfs) mit taxable = raw·(1 − tfs) + Altgewinn (2009–2017)
     // aus gainParts, also (n·raw − F)·(1 − tfs) + n·alt; Bestandsschutz-Lots: kein Event
-    const ev = n => ({ year, date: '', owner: lot.depot, kind: ft === 'einzelaktie' ? 'aktie' : 'sonst', amount: n * g - F * (1 - tfs) });
+    const ev = n => ({ year, date: '', owner: lot.depot, kind: FUND_TYPES[ft].pot, amount: n * g - F * (1 - tfs) });
     const after = n => {
       if (exempt) return { pos, t: cur, ev: null };
       const e = ev(n), p = { ...pos, [b.key]: posEff(b, e) };
@@ -140,8 +140,7 @@ function runNetSale(result, data, settings, year, target, feeAware) {
     pos = st.pos; cur = st.t;
     best.ordered = true;
     needed -= net;
-    best.left = round8(best.left - n);
-    if (best.left <= EPS) { best.i++; best.left = best.i < best.lots.length ? best.lots[best.i].shares : 0; }
+    advanceHead(best, n);
   }
   const sum = (rs, k) => round2(rs.reduce((s, r) => s + r[k], 0));
   // Je Bank: fsaUsed = genutzter FSA mit Plan − ohne Plan (im gemeinsamen Modus kann sich Nutzung zwischen Banken

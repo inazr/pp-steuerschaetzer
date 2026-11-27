@@ -82,7 +82,7 @@ export default ({ g, check, near, root }) => {
 
   const d = extract(fx('xpath.xml'));
   check('pp: one EUR security kept', d.securities.length === 1 && d.securities[0].uuid === 'sec-etf', d.securities);
-  check('pp: security fields', d.securities[0].name === 'World ETF & Co' && d.securities[0].isin === 'IE00TEST0001' && d.securities[0].wkn === 'A0TEST');
+  check('pp: security fields', d.securities[0].name === 'World ETF & Co' && d.securities[0].isin === 'IE00TEST0001' && !('wkn' in d.securities[0]), d.securities[0]);
   check('pp: non-EUR warning', d.warnings.includes('Nicht in EUR, ignoriert: US Stock'), d.warnings);
   check('pp: portfolio with account', d.portfolios.length === 1 && d.portfolios[0].uuid === 'pf-1' && d.portfolios[0].name === 'Depot A' && d.portfolios[0].accountUuid === 'acc-1', d.portfolios);
   check('pp: 3 EUR txs', d.txs.length === 3, d.txs.map(t => t.uuid));

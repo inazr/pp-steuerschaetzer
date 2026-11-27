@@ -1,12 +1,12 @@
 // Oberfläche: Datei laden, Einstellungen, fünf Reiter mit Tabellen, Charts und CSV-Export.
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const esc = htmlEsc; // eine HTML-Maskierung für Seite und Chart-Tooltips (charts.js)
 const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
 const YEAR = +TODAY.slice(0, 4);
 const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 
-const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, altAlloc: null, plan: null, target: '', tab: 0, banksOffOpen: false };
+const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, altAlloc: null, plan: null, target: '', planTarget: 0, dez: null, tab: 0, banksOffOpen: false };
 try { ui.tab = Math.min(4, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
 const S = () => ({ ...ui.settings, depots: ui.depots });
@@ -335,7 +335,7 @@ function renderVp() {
     </div>
     <div class="card">
       <div class="card-h"><h2>Berechnung nach § 18 InvStG</h2><button class="btn" id="csv-vp"${rows.length ? '' : ' disabled'}>CSV exportieren</button></div>
-      <p class="note">Basisertrag = Wert 01.01. × Basiszins × 0,7, höchstens Wertsteigerung + Ausschüttungen; davon gehen die Ausschüttungen ab. Im Kaufjahr je vollem Monat vor dem Kauf ein Zwölftel weniger. Steuer vor Sparerpauschbetrag. Jahre mit negativem Basiszins (2021, 2022) ergeben keine Vorabpauschale.</p>
+      <p class="note">Basisertrag = Wert 01.01. × Basiszins × ${param('vpFaktor', YEAR).toLocaleString('de-DE')}, höchstens Wertsteigerung + Ausschüttungen; davon gehen die Ausschüttungen ab. Im Kaufjahr je vollem Monat vor dem Kauf ein Zwölftel weniger. Steuer vor Sparerpauschbetrag. Jahre mit negativem Basiszins (${Object.keys(LAW.basiszins.values).filter(y => LAW.basiszins.values[y] < 0).join(', ')}) ergeben keine Vorabpauschale.</p>
       <div class="tablebox"><table>
         <thead><tr><th>Jahr</th>${multiDepot() ? '<th>Depot</th>' : ''}<th>Wertpapier</th><th>Wert 01.01.</th><th>Wert 31.12.</th><th>Basisertrag</th><th>Ausschüttungen</th><th>Vorabpauschale</th><th>TFS</th><th>Steuerpflichtig</th><th>Steuer</th></tr></thead>
         <tbody>${body || `<tr><td class="txt" colspan="11">Keine Einträge</td></tr>`}</tbody>
@@ -561,7 +561,7 @@ function bankSetting(el) {
   if (el.dataset.bankOf) ui.settings.bankOf = assignBank(ui.settings.bankOf, el.dataset.bankOf, el.value || null);
   else if (el.dataset.zins) ui.settings.zinsen = setKey(ui.settings.zinsen, el.dataset.zins, el.checked);
   else if (el.dataset.fsa) ui.settings.fsa = setKey(ui.settings.fsa, el.dataset.fsa, amountOf(el));
-  else if (el.hasAttribute('data-altfb')) ui.settings.altFb = setYearBankKeep(ui.settings.altFb, YEAR, el.dataset.altfb, amountOf(el));
+  else if (el.hasAttribute('data-altfb')) ui.settings.altFb = setKey(ui.settings.altFb, `${YEAR}|${el.dataset.altfb}`, amountOf(el)); // ältere Bescheid-Stände bleiben und werden fortgeschrieben
   else if (el.dataset.genutzt) ui.settings.genutzt = setYearBank(ui.settings.genutzt, YEAR, el.dataset.genutzt, amountOf(el));
   else if (el.dataset.vortragAktien || el.dataset.vortragAllg) {
     // Vortrag je Feld: gespeichert wird nur das Eingetippte, ein leeres Feld bleibt berechnet (keine Zahl aus der Datei).

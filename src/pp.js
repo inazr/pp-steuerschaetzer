@@ -1,7 +1,7 @@
 // Liest die steuerrelevanten Daten aus einer PP-Datei (XML oder Protobuf): Wertpapiere, Depots, Depotbuchungen, Ausschüttungen, Zinsen, Kurse.
 // Beträge: Cent (÷100), Stücke: ÷1e8, Kurse: ÷1e8. Nur EUR-Wertpapiere und Buchungen in EUR werden berücksichtigt.
 // Beide Leser erzeugen dasselbe Rohmodell; mapPortfolio wendet die gemeinsame Fachlogik an (EUR-Filter, Brutto, Warnungen, Reihenfolge).
-//   securities: [{ uuid, name, isin, wkn, currency, prices: () => [[YYYY-MM-DD, Kurs]] }]
+//   securities: [{ uuid, name, isin, currency, prices: () => [[YYYY-MM-DD, Kurs]] }]
 //   portfolios: [{ uuid, name, accountUuid, txs: [{ uuid, type, date, security, shares, amount, fees, taxes, transferKey? }] }]
 //   accounts:   [{ uuid, name, currency, txs: [{ uuid, type: 'INTEREST' | 'DIVIDENDS', date, security, amount, fees, taxes }] }]
 const PP_TX_TYPES = new Set(['BUY', 'SELL', 'DELIVERY_INBOUND', 'DELIVERY_OUTBOUND', 'TRANSFER_IN', 'TRANSFER_OUT']);
@@ -74,7 +74,7 @@ function mapPortfolio(raw, warnings = []) {
   }
 
   return {
-    securities: raw.securities.filter(s => eur.has(s.uuid)).map(({ uuid, name, isin, wkn, currency }) => ({ uuid, name, isin, wkn, currency })),
+    securities: raw.securities.filter(s => eur.has(s.uuid)).map(({ uuid, name, isin, currency }) => ({ uuid, name, isin, currency })),
     portfolios: raw.portfolios.map(({ uuid, name, accountUuid }) => ({ uuid, name, accountUuid })),
     txs, dividends, accounts, interest, prices, warnings,
   };
@@ -92,7 +92,7 @@ function extractPortfolio(xmlText) {
   });
 
   const securities = kids(child(root, 'securities'), 'security').map(s => ({
-    uuid: childText(s, 'uuid'), name: childText(s, 'name'), isin: childText(s, 'isin'), wkn: childText(s, 'wkn'),
+    uuid: childText(s, 'uuid'), name: childText(s, 'name'), isin: childText(s, 'isin'),
     currency: childText(s, 'currencyCode') || 'EUR',
     prices: () => kids(child(s, 'prices'), 'price').map(p => [p.attrs.t || '', +p.attrs.v / 1e8]),
   }));
@@ -131,7 +131,7 @@ function extractFromProtobuf(bytes) {
   const units = (tx, type) => tx.units.filter(u => u.type === type).reduce((s, u) => s + u.amount / 100, 0);
 
   const securities = c.securities.map(s => ({
-    uuid: s.uuid, name: s.name, isin: s.isin, wkn: s.wkn, currency: s.currencyCode || 'EUR',
+    uuid: s.uuid, name: s.name, isin: s.isin, currency: s.currencyCode || 'EUR',
     prices: () => s.prices.map(([epochDay, close]) => [day(epochDay * 86400), close / 1e8]),
   }));
   const portfolios = c.portfolios.map(p => ({ uuid: p.uuid, name: p.name, accountUuid: p.referenceAccount, txs: [] }));

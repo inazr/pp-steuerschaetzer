@@ -27,7 +27,8 @@ export default ({ g, check, near }) => {
   const syb = g('setYearBank'), sk = g('setKey');
   check('state: setYearBank drops other years', JSON.stringify(syb({ '2025|A': 1, '2026|B': 2 }, 2026, 'A', 5)) === '{"2026|B":2,"2026|A":5}');
   check('state: setYearBank null clears', JSON.stringify(syb({ '2026|A': 1 }, 2026, 'A', null)) === '{}');
-  const sybk = g('setYearBankKeep');
+  const sybk = (obj, year, key, value) => sk(obj, `${year}|${key}`, value); // setYearBankKeep entfiel: Aufrufer bilden den Schlüssel selbst
+  check('cleanup: dead helpers removed', g('typeof setYearBankKeep') === 'undefined' && g('typeof ceil8') === 'undefined');
   check('state: setYearBankKeep keeps other years', JSON.stringify(sybk({ '2019|A': { aktien: 1, allg: 2 }, '2026|B': 3 }, 2026, 'A', { aktien: 0, allg: 5 }))
     === '{"2019|A":{"aktien":1,"allg":2},"2026|B":3,"2026|A":{"aktien":0,"allg":5}}');
   check('state I1: altFb setter keeps other years and selections', JSON.stringify(sybk({ '2025|A': 80000, '2026|A,B': 1 }, 2026, 'A', 50000)) === '{"2025|A":80000,"2026|A,B":1,"2026|A":50000}');

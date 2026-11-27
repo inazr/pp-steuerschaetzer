@@ -2,7 +2,6 @@
 // verbucht zu jedem Jahresende die Vorabpauschale auf die offenen Lots und protokolliert realisierte Gewinne.
 const round2 = x => Math.sign(x) * Math.round(Math.abs(x) * 100 + 1e-9) / 100;
 const round8 = x => Math.sign(x) * Math.round(Math.abs(x) * 1e8 + 1e-6) / 1e8;
-const ceil8 = x => Math.ceil(x * 1e8 - 1e-6) / 1e8;
 const isoToDe = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const EPS = 1e-8;
 // Zufluss der Vorabpauschale: erster Werktag des Jahres (02.01., am Wochenende der folgende Montag; § 18 Abs. 3 InvStG)
@@ -17,6 +16,9 @@ const DIV_ORPHAN_DAYS = 60;
 const explicitFundType = (settings, sec) => { const key = settings.fundTypes && sec && settings.fundTypes[sec.isin || sec.uuid]; return FUND_TYPES[key] ? key : null; };
 const fundTypeOf = (settings, sec) => explicitFundType(settings, sec) || guessFundType(sec);
 const fundTypeGuessed = (settings, sec) => !explicitFundType(settings, sec);
+// Ereignisart eines Verkaufs: 'aktie' (Aktientopf) oder 'sonst' (allgemeiner Topf)
+const potKind = (settings, sec) => FUND_TYPES[fundTypeOf(settings, sec)].pot;
+const secByUuid = (data, uuid) => data.securities.find(s => s.uuid === uuid);
 
 // Gewinn je Stück bei Verkauf zu price: neues Recht (raw, mit TFS) und Altgewinn bis 31.12.2017 (§ 56 InvStG)
 function gainParts(lot, price, ft) {
@@ -166,7 +168,7 @@ function replay(data, settings, today) {
           }
           if (gp.pre2009 && gp.raw > 0) veranlagung.push({ year: y, date: ev.date, depot: ev.depot, kind: 'alt100k', amount: round2(gp.raw * (1 - ft.tfs) * p.shares) }); // nach Teilfreistellung (BMF 21.05.2019, Rz. 56.101)
         }
-        if (counted) addIncome(ev.date, ev.depot, fundTypeOf(settings, sec) === 'einzelaktie' ? 'aktie' : 'sonst', total);
+        if (counted) addIncome(ev.date, ev.depot, potKind(settings, sec), total);
         return;
       }
       case 'DELIVERY_OUTBOUND': { const { missing } = takeFrom(ev); if (missing) oversold(ev, missing); return; }
@@ -263,8 +265,8 @@ function replay(data, settings, today) {
   // VP des Jahres Y fließt am ersten Werktag des Folgejahres zu; Zinsen je Konto
   for (const r of vpRows) if (r.taxable > 0 && vpInflowDate(r.year + 1) <= today) addIncome(vpInflowDate(r.year + 1), r.depot, 'vp', r.taxable);
   for (const z of data.interest || []) if (z.date <= today) addIncome(z.date, z.account, 'zins', z.gross);
-  income.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-  veranlagung.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  income.sort(byDate);
+  veranlagung.sort(byDate);
 
   const latest = new Map();
   for (const [sec, list] of data.prices) if (list.length) latest.set(sec, list[list.length - 1]);

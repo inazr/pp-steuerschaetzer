@@ -16,7 +16,7 @@ const chartValueAxis = t => ({
 });
 const chartCatAxis = (t, data) => ({ type: 'category', data, axisLine: { lineStyle: { color: t.line } }, axisTick: { show: false }, axisLabel: { color: t.ink2 } });
 const chartLegend = (t, show) => ({ show, top: 0, left: 0, icon: 'roundRect', itemWidth: 10, itemHeight: 10, textStyle: { color: t.ink2 } });
-const htmlEsc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const htmlEsc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const tipHead = v => `<b>${htmlEsc(v)}</b>`;
 const tipRow = (color, name, value) => `<div style="display:flex;gap:12px;justify-content:space-between"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color};margin-right:6px"></span>${htmlEsc(name)}</span><b style="font-family:var(--font-num)">${value}</b></div>`;
 // Farbe folgt dem Wertpapier (Reihenfolge in der Datei), nie dem Rang
@@ -169,7 +169,7 @@ function optWaterfall(plan, data, t) {
   const bySec = [];
   for (const r of plan.rows) {
     let e = bySec.find(x => x.uuid === r.lot.security);
-    if (!e) bySec.push(e = { uuid: r.lot.security, name: (data.securities.find(s => s.uuid === r.lot.security) || {}).name, gross: 0 });
+    if (!e) bySec.push(e = { uuid: r.lot.security, name: (secByUuid(data, r.lot.security) || {}).name, gross: 0 });
     e.gross += r.gross;
   }
   const fees = plan.fees || 0;

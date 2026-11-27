@@ -41,4 +41,9 @@ export default ({ g, check }) => {
   check('ft: unknown explicit key -> guess', of({ fundTypes: { DE0007236101: 'kaputt' } }, sec) === 'einzelaktie' && guessed({ fundTypes: { DE0007236101: 'kaputt' } }, sec));
   check('ft: uuid key when no isin', of({ fundTypes: { 'u-Foo': 'sonstige' } }, S('Foo')) === 'sonstige');
   check('ft: sonstiges_wp shape', FT.sonstiges_wp.tfs === 0 && FT.sonstiges_wp.vp === false && !FT.sonstiges_wp.bestandsschutz);
+  check('pot: only single stocks use the stock pot', Object.entries(FT).every(([k, v]) => v.pot === (k === 'einzelaktie' ? 'aktie' : 'sonst')), Object.entries(FT).map(([k, v]) => [k, v.pot]));
+  check('potKind follows explicit fund type', g('potKind')({ fundTypes: { X: 'einzelaktie' } }, { isin: 'X', name: 'World UCITS ETF' }) === 'aktie' && g('potKind')({ fundTypes: {} }, { isin: 'IE1', name: 'World UCITS ETF' }) === 'sonst');
+  check('secByUuid finds by uuid', g('secByUuid')({ securities: [{ uuid: 'a' }, { uuid: 'b', name: 'B' }] }, 'b').name === 'B' && g('secByUuid')({ securities: [] }, 'x') === undefined);
+  const h7 = { lots: [{ shares: 5 }, { shares: 7 }], i: 0, left: 5 };
+  check('advanceHead: partial stays, full moves on', g('advanceHead')(h7, 2) === false && h7.left === 3 && h7.i === 0 && g('advanceHead')(h7, 3) === true && h7.i === 1 && h7.left === 7 && g('advanceHead')(h7, 7) === true && h7.i === 2 && h7.left === 0, h7);
 };

@@ -144,7 +144,7 @@ function ledger(result, data, settings, year) {
     return { key: m.key, label, depots: m.depots, accounts: m.accounts,
       active: eventsYear.length > 0 || hasLots || potsPositive(potsStart),
       closedWithPot: !hasLots && potsPositive(net.potsAfter),
-      vortragComputed, vortrag: potsStart, vortragOverridden: !!o, potsStart,
+      vortragComputed, vortragOverridden: !!o, potsStart,
       eventsYear, income: net.byKind, positiveBase: net.positive, pots: net.potsAfter };
   });
   const cfg = fsaConfig(rows, settings, year);
@@ -224,7 +224,7 @@ function altFreibetrag(result, data, settings, year, led) {
   const ov = altFbOverride(settings.altFb, altFbSel(sel), year);
   const leftStartOverridden = !!ov, leftStartFrom = ov ? ov.year : null;
   const leftStart = ov ? Math.min(total, Math.max(0, ov.value - sum(alt.filter(v => v.year >= ov.year && v.year < year)))) : leftStartComputed;
-  const thisYear = alt.filter(v => v.year === year).sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
+  const thisYear = alt.filter(v => v.year === year).sort(byDate);
   const usedThisYear = sum(thisYear);
   const left = Math.max(0, leftStart - usedThisYear);
   const cap = led.banks.reduce((s, b) => s + Math.max(0, b.positiveEff - b.used), 0);
