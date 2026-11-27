@@ -21,7 +21,9 @@ function parseXml(s) {
     const gt = s.indexOf('>', lt);
     if (gt < 0) throw new Error('XML_BROKEN');
     if (s[lt + 1] === '/') {
-      if (cur) { cur.text = textOf(text); text = ''; }
+      // schließendes Tag muss zum offenen Element passen (sonst: falsch geschachtelt oder beschädigt)
+      if (!cur || s.slice(lt + 2, gt).trim() !== cur.name) throw new Error('XML_BROKEN');
+      cur.text = textOf(text); text = '';
       cur = stack.pop() || null;
       i = gt + 1; continue;
     }
@@ -38,7 +40,7 @@ function parseXml(s) {
     if (!selfClose) { if (cur) stack.push(cur); cur = node; }
     i = gt + 1;
   }
-  if (!doc.root) throw new Error('XML_BROKEN');
+  if (!doc.root || cur) throw new Error('XML_BROKEN'); // cur: Datei endet mit offenem Element (abgeschnitten)
   return doc.root;
 }
 // CDATA-Teile (mit \0 markiert) bleiben roh, der Rest wird dekodiert

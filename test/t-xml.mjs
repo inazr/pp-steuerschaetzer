@@ -41,4 +41,21 @@ export default async ({ g, check }) => {
     let err = null; try { await readPortfolioFile(buf); } catch (e) { err = e; }
     check('file: ' + name + ' -> UNSUPPORTED_FORMAT', err && err.message === 'UNSUPPORTED_FORMAT', err && err.message);
   }
+
+  // B5: Wohlgeformtheit – offene Elemente und falsch geschachtelte Tags sind Fehler
+  const { readFileSync } = await import('node:fs');
+  const broken = s => { try { parseXml(s); return 'OK'; } catch (e) { return e.message; } };
+  check('B5: mismatched close', broken('<a><b></a></b>') === 'XML_BROKEN', broken('<a><b></a></b>'));
+  check('B5: unclosed root', broken('<client><securities></securities>') === 'XML_BROKEN');
+  check('B5: stray close', broken('<a></a></b>') === 'XML_BROKEN');
+  check('B5: self-closing root ok', broken('<client/>') === 'OK');
+  check('B5: whitespace in closing tag ok', broken('<a><b>1</b ></a\n>') === 'OK');
+  for (const f of ['xpath.xml', 'transfer.xml', 'altbestand.xml']) check('B5: fixture still loads ' + f, broken(readFileSync(new URL('./fixtures/' + f, import.meta.url), 'utf8')) === 'OK');
+  // B6: Leserfehler erscheinen einheitlich als UNSUPPORTED_FORMAT
+  const load6 = g("loadPortfolioData"), enc6 = s => new TextEncoder().encode(s).buffer, code6 = p => p.then(() => 'OK', e => e.message);
+  check('B6: truncated XML -> UNSUPPORTED_FORMAT', await code6(load6(enc6('<client><portfolios><portfolio>'))) === 'UNSUPPORTED_FORMAT');
+  check('B6: broken reference -> UNSUPPORTED_FORMAT', await code6(load6(enc6('<client><portfolios><portfolio reference="../nix"/></portfolios></client>'))) === 'UNSUPPORTED_FORMAT');
+  const pbBad = new Uint8Array([...new TextEncoder().encode('PPPBV1'), 0x80]);
+  check('B6: truncated protobuf -> UNSUPPORTED_FORMAT', await code6(load6(await makeZip([['data.portfolio', pbBad]]))) === 'UNSUPPORTED_FORMAT');
+  check('B6: valid file still loads', await code6(load6(enc6('<client><securities/><accounts/><portfolios><portfolio><uuid>p</uuid><name>D</name><transactions/></portfolio></portfolios></client>'))) === 'OK');
 };

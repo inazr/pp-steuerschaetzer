@@ -173,5 +173,11 @@ function extractFromProtobuf(bytes) {
 // Datei (ArrayBuffer) → Datenstruktur, egal ob XML, binär oder verschlüsselt. password nur für verschlüsselte Dateien.
 async function loadPortfolioData(buf, password) {
   const file = await readPortfolioFile(buf, password);
-  return file.kind === 'protobuf' ? extractFromProtobuf(file.bytes) : extractPortfolio(file.text);
+  try {
+    return file.kind === 'protobuf' ? extractFromProtobuf(file.bytes) : extractPortfolio(file.text);
+  } catch (e) {
+    // Leserfehler (kaputtes XML, hängende Referenz, kaputtes Protobuf) einheitlich als „beschädigt“ melden
+    if (/^(XML_BROKEN|BROKEN_REFERENCE|Protobuf:)/.test(String(e && e.message))) throw new Error('UNSUPPORTED_FORMAT');
+    throw e;
+  }
 }
