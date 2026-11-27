@@ -187,7 +187,7 @@ export default ({ g, check, near, root }) => {
 </transactions></portfolio></portfolios></client>`;
   const pu = g('extractPortfolio')(usd);
   check('B3 xml: USD buy and dividend skipped, EUR buys kept (missing currency = EUR)', pu.txs.length === 2 && pu.txs[0].amount === 1000 && pu.dividends.length === 0, [pu.txs, pu.dividends]);
-  const W_DEP = 'Depotbuchungen in USD ignoriert: ETF UCITS – Bestand und Steuerwerte dieses Wertpapiers sind unvollständig', W_DIV = 'Ausschüttungen in USD ignoriert: ETF UCITS';
+  const W_DEP = 'Depotbuchungen in USD ignoriert: ETF UCITS – Bestand und Steuerwerte dieses Wertpapiers sind unvollständig', W_DIV = 'Ausschüttungen in USD ignoriert: ETF UCITS – Erträge fehlen, die Vorabpauschale dieses Wertpapiers fällt zu hoch aus';
   check('B3 xml: one warning per security, currency and kind', pu.warnings.filter(w => w === W_DEP).length === 1 && pu.warnings.filter(w => w === W_DIV).length === 1 && pu.warnings.length === 2, pu.warnings);
   // Schlussprüfung I1: EUR-Kauf, Verkauf in USD – der Bestand bleibt stehen, das muss die Meldung sagen
   const pSell = g('extractPortfolio')(usd.replace('<currencyCode>USD</currencyCode><amount>1100000</amount>', '<currencyCode>EUR</currencyCode><amount>1100000</amount>').replace('<uuid>t3</uuid><date>2026-01-12T00:00</date>', '<uuid>t3</uuid><date>2026-01-12T00:00</date><currencyCode>USD</currencyCode>').replace('<type>BUY</type></portfolio-transaction>\n</transactions>', '<type>SELL</type></portfolio-transaction>\n</transactions>'));

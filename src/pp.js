@@ -19,7 +19,7 @@ function mapPortfolio(raw, warnings = []) {
     const k = tx.security + '|' + cur + '|' + depotTx, name = secName.get(tx.security) || tx.security;
     if (!warnedCur.has(k)) {
       warnedCur.add(k);
-      warnings.push(depotTx ? `Depotbuchungen in ${cur} ignoriert: ${name} – Bestand und Steuerwerte dieses Wertpapiers sind unvollständig` : `Ausschüttungen in ${cur} ignoriert: ${name}`);
+      warnings.push(depotTx ? `Depotbuchungen in ${cur} ignoriert: ${name} – Bestand und Steuerwerte dieses Wertpapiers sind unvollständig` : `Ausschüttungen in ${cur} ignoriert: ${name} – Erträge fehlen, die Vorabpauschale dieses Wertpapiers fällt zu hoch aus`);
     }
     return true;
   };
