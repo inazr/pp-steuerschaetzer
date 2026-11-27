@@ -12,11 +12,15 @@ function mapPortfolio(raw, warnings = []) {
   const used = new Set();
   // Buchung in Fremdwährung (z. B. EUR-Wertpapier über ein USD-Konto): Betrag ist nicht in EUR – auslassen, einmal je Wertpapier und Währung melden
   const secName = new Map(raw.securities.map(s => [s.uuid, s.name])), warnedCur = new Set();
-  const foreign = tx => {
+  // Eine ausgelassene Depotbuchung (Kauf, Verkauf, Lieferung, Übertrag) macht den Bestand falsch – das sagt die Meldung ausdrücklich
+  const foreign = (tx, depotTx) => {
     const cur = tx.currency || 'EUR';
     if (cur === 'EUR') return false;
-    const k = tx.security + '|' + cur;
-    if (!warnedCur.has(k)) { warnedCur.add(k); warnings.push(`Buchungen in ${cur} ignoriert: ${secName.get(tx.security) || tx.security}`); }
+    const k = tx.security + '|' + cur + '|' + depotTx, name = secName.get(tx.security) || tx.security;
+    if (!warnedCur.has(k)) {
+      warnedCur.add(k);
+      warnings.push(depotTx ? `Depotbuchungen in ${cur} ignoriert: ${name} – Bestand und Steuerwerte dieses Wertpapiers sind unvollständig` : `Ausschüttungen in ${cur} ignoriert: ${name}`);
+    }
     return true;
   };
 
@@ -27,7 +31,7 @@ function mapPortfolio(raw, warnings = []) {
       if (seen.has(tx.uuid) || !PP_TX_TYPES.has(tx.type)) continue;
       seen.add(tx.uuid);
       used.add(tx.security);
-      if (!eur.has(tx.security) || foreign(tx)) continue;
+      if (!eur.has(tx.security) || foreign(tx, true)) continue;
       const t = {
         uuid: tx.uuid, date: tx.date, type: tx.type, depot: p.uuid, security: tx.security,
         shares: tx.shares, amount: tx.amount, fees: tx.fees, taxes: tx.taxes,
@@ -54,7 +58,7 @@ function mapPortfolio(raw, warnings = []) {
       if (seenDiv.has(tx.uuid)) continue;
       seenDiv.add(tx.uuid);
       used.add(tx.security);
-      if (!eur.has(tx.security) || foreign(tx)) continue;
+      if (!eur.has(tx.security) || foreign(tx, false)) continue;
       // Alle Depots am Konto; die Engine verteilt nach Bestand am Zahltag
       if (!owners.length) { warnings.push(`Ausschüttung ohne Depot ignoriert: ${tx.date}`); continue; }
       dividends.push({ uuid: tx.uuid, date: tx.date, depots: owners.map(p => p.uuid), security: tx.security, gross: tx.amount + tx.taxes + tx.fees });

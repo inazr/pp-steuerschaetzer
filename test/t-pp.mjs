@@ -187,7 +187,11 @@ export default ({ g, check, near, root }) => {
 </transactions></portfolio></portfolios></client>`;
   const pu = g('extractPortfolio')(usd);
   check('B3 xml: USD buy and dividend skipped, EUR buys kept (missing currency = EUR)', pu.txs.length === 2 && pu.txs[0].amount === 1000 && pu.dividends.length === 0, [pu.txs, pu.dividends]);
-  check('B3 xml: one warning per security and currency', pu.warnings.filter(w => w === 'Buchungen in USD ignoriert: ETF UCITS').length === 1, pu.warnings);
+  const W_DEP = 'Depotbuchungen in USD ignoriert: ETF UCITS – Bestand und Steuerwerte dieses Wertpapiers sind unvollständig', W_DIV = 'Ausschüttungen in USD ignoriert: ETF UCITS';
+  check('B3 xml: one warning per security, currency and kind', pu.warnings.filter(w => w === W_DEP).length === 1 && pu.warnings.filter(w => w === W_DIV).length === 1 && pu.warnings.length === 2, pu.warnings);
+  // Schlussprüfung I1: EUR-Kauf, Verkauf in USD – der Bestand bleibt stehen, das muss die Meldung sagen
+  const pSell = g('extractPortfolio')(usd.replace('<currencyCode>USD</currencyCode><amount>1100000</amount>', '<currencyCode>EUR</currencyCode><amount>1100000</amount>').replace('<uuid>t3</uuid><date>2026-01-12T00:00</date>', '<uuid>t3</uuid><date>2026-01-12T00:00</date><currencyCode>USD</currencyCode>').replace('<type>BUY</type></portfolio-transaction>\n</transactions>', '<type>SELL</type></portfolio-transaction>\n</transactions>'));
+  check('I1: skipped foreign-currency sell says the holding is incomplete', pSell.txs.every(t => t.type === 'BUY') && pSell.warnings.includes(W_DEP), [pSell.txs.map(t => t.type), pSell.warnings]);
   const sec26 = Date.UTC(2026, 0, 10) / 1000;
   const pbu = g('extractFromProtobuf')(encodeClient({
     securities: [{ uuid: 's1', name: 'ETF UCITS', currencyCode: 'EUR', isin: 'IE1' }], accounts: [{ uuid: 'a1', name: 'USD', currencyCode: 'USD' }],
@@ -198,5 +202,5 @@ export default ({ g, check, near, root }) => {
       { uuid: 'x1', type: 8, account: 'a1', seconds: sec26, currencyCode: 'USD', amount: 50000, security: 's1' },
     ] }));
   check('B3 protobuf: USD buy and dividend skipped, EUR buy kept', pbu.txs.length === 1 && pbu.txs[0].amount === 1000 && pbu.dividends.length === 0, [pbu.txs, pbu.dividends]);
-  check('B3 protobuf: one warning', pbu.warnings.filter(w => w === 'Buchungen in USD ignoriert: ETF UCITS').length === 1, pbu.warnings);
+  check('B3 protobuf: same warnings', pbu.warnings.filter(w => w === W_DEP).length === 1 && pbu.warnings.filter(w => w === W_DIV).length === 1, pbu.warnings);
 };
