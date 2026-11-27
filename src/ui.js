@@ -293,7 +293,7 @@ function renderAltFb() {
     </div>
     ${!a.leftStartOverridden && altFbOtherSelection(ui.settings.altFb, key) ? '<p class="note">Für eine andere Depotauswahl ist ein Restbetrag eingetragen; er gilt nur für genau diese Auswahl.</p>' : ''}
     ${a.joint ? '<p class="note">Der Freibetrag gilt je Person für die eigenen Anteile; hier vereinfacht als gemeinsamer Betrag für die ausgewählten Depots.</p>' : ''}
-    <p class="note">Gewinne ab 2018 aus Fondsanteilen, die vor 2009 gekauft wurden, sind bis ${fmtEur(param('altFreibetrag', YEAR))} je Person${a.joint ? ` (hier gemeinsam ${fmtEur(a.total)})` : ''} steuerfrei (angerechnet wird hier der Gewinn vor Teilfreistellung); der Altgewinn bis 31.12.2017 bleibt ohnehin steuerfrei. Die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung (Anlage KAP-INV). Der Rest wird jährlich festgestellt: Trage ihn aus dem letzten Bescheid ein, wenn Verkäufe fehlen (andere Banken, vor der Datei). ${a.refundBfh > 0.005 ? `Die erwartete Erstattung enthält ${fmtEur(a.refundBfh)} aus Verlusten mit Altanteilen 2009–2017 (BFH). ` : ''}Freibetrag nutzen: Reiter 3.</p>
+    <p class="note">Gewinne ab 2018 aus Fondsanteilen, die vor 2009 gekauft wurden, sind bis ${fmtEur(param('altFreibetrag', YEAR))} je Person${a.joint ? ` (hier gemeinsam ${fmtEur(a.total)})` : ''} steuerfrei (angerechnet wird der Gewinn nach Teilfreistellung); der Altgewinn bis 31.12.2017 bleibt ohnehin steuerfrei. Die Bank zieht trotzdem Steuer ab, zurück kommt sie über die Steuererklärung (Anlage KAP-INV). Der Rest wird jährlich festgestellt: Trage ihn aus dem letzten Bescheid ein, wenn Verkäufe fehlen (andere Banken, vor der Datei). ${a.refundBfh > 0.005 ? `Die erwartete Erstattung enthält ${fmtEur(a.refundBfh)} aus Verlusten mit Altanteilen 2009–2017 (BFH). ` : ''}Freibetrag nutzen: Reiter 3.</p>
   </div>`;
 }
 
@@ -415,11 +415,11 @@ function decemberCard(d) {
 }
 // Abschnitt „Altbestand-Freibetrag nutzen“ (Spec §4): unter dem FSA-Vorschlag, Lots je Bank
 function altAllowance(x) {
-  const cols = [['Erlös', r => r.gross], ['Gewinn (vor TFS)', r => r.raw], ['Bankabzug', r => r.bankTax], ['Erstattung erwartet', r => r.refund]];
+  const cols = [['Erlös', r => r.gross], ['Gewinn (vor TFS)', r => r.raw], ['Freibetrag verbraucht', r => r.used], ['Bankabzug', r => r.bankTax], ['Erstattung erwartet', r => r.refund]];
   const banks = ui.led.banks.filter(b => x.rows.some(r => r.bank === b.key));
   return `<div class="card">
     <div class="card-h"><h2>Altbestand-Freibetrag nutzen</h2><button class="btn" id="csv-alt"${x.rows.length ? '' : ' disabled'}>CSV exportieren</button></div>
-    <div class="facts">${fact('Frei', fmtEur(x.left))}${fact('Geerntet (vor TFS)', fmtEur(x.harvested))}${fact('Bankabzug', fmtEur(x.bankTax))}${fact('Erstattung erwartet', fmtEur(x.refund))}</div>
+    <div class="facts">${fact('Frei', fmtEur(x.left))}${fact('Geerntet (vor TFS)', fmtEur(x.harvested))}${fact('Freibetrag verbraucht', fmtEur(x.used))}${fact('Bankabzug', fmtEur(x.bankTax))}${fact('Erstattung erwartet', fmtEur(x.refund))}</div>
     <p class="note">${esc(x.hint)}</p>
     ${banks.map(b => `<h3>${bankCap} ${esc(b.label)}</h3>${lotTable(x.rows.filter(r => r.bank === b.key), cols)}`).join('')}
   </div>`;

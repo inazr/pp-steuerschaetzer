@@ -134,9 +134,12 @@ const altbestand = ({ g, check, near }) => {
   // 2) Rest 100 (Bescheid): deckt nur 100 von raw ≈ 120,26 – Quote 14·(1 − 100/120,26) ≈ 2,36 < 7 -> weiterhin X;
   //    Erstattung r · min(14·n ≈ 84,18, 100·0,7 = 70) = 70·r = 18,46
   p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { '2025|A': 100 } }, 2025, 1000);
-  check('alt plan: partly covered step, refund capped by left', p.rows[0].lot.security === 'X' && near(p.refund100k, round2(70 * rate), 0.001) && near(p.rows[0].refund, p.refund100k, 0.001), [p.rows.map(r => r.lot.security), p.refund100k]);
-  // 3) Rest 50: 14·(1 − 50/120,26) ≈ 8,18 > 7 -> normal, Y zuerst (Y deckt das Ziel); keine Erstattung
+  check('alt plan B2: left 100 covers the step after TFS (84,18) fully', p.rows[0].lot.security === 'X' && near(p.refund100k, p.tax, 0.011) && near(p.rows[0].refund, p.refund100k, 0.001), [p.rows.map(r => r.lot.security), p.refund100k, p.tax]);
+  // B2: Rest 50 deckt 50 von 84,18 nach TFS – Quote 14·(1 − 50/84,18) ≈ 5,68 < 7 -> X; Erstattung 50·r
   p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { '2025|A': 50 } }, 2025, 1000);
+  check('alt plan B2: partly covered step, refund capped by left', p.rows[0].lot.security === 'X' && near(p.refund100k, round2(50 * rate), 0.001) && near(p.rows[0].refund, p.refund100k, 0.001), [p.rows.map(r => r.lot.security), p.refund100k]);
+  // 3) Rest 50: 14·(1 − 50/120,26) ≈ 8,18 > 7 -> normal, Y zuerst (Y deckt das Ziel); keine Erstattung
+  p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { '2025|A': 30 } }, 2025, 1000); // 14·(1 − 30/84,18) ≈ 9,01 > 7
   check('alt plan: small left -> normal choice (Y first)', p.rows.length === 1 && p.rows[0].lot.security === 'Y' && p.refund100k === 0 && p.rows[0].refund === 0, [p.rows.map(r => r.lot.security), p.refund100k]);
   // 4) Freibetrag verbraucht (Bescheid 0): X wie jeder andere Lot -> Y zuerst
   p = plan(res([X(), Y], { X: 170, Y: 170 }), data, { ...SET, altFb: { '2025|A': 0 } }, 2025, 1000);

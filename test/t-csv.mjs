@@ -38,10 +38,10 @@ export default ({ g, check }) => {
   const pl0 = g('csvPlan')({ rows: [{ bank: 'A', lot, shares: 1, price: 100, gross: 100, fee: 0, gain: 4, taxable: 2.8, allowance: 0, tax: 0.74, net: 99.26, exempt: false, refund: 0 }] }, data).split('\r\n');
   check('csv plan T7: no refund column when all refunds 0', !pl0[0].includes('Erstattung später') && pl0[1].endsWith(';0,74;99,26'), pl0);
   // Altbestand-Freibetrag: Gewinn vor TFS, Bankabzug, erwartete Erstattung
-  const al = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, bankTax: 1.66, refund: 1.66 }] }, data).split('\r\n');
-  check('csv alt: header', al[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn (vor TFS);Bankabzug;Erstattung erwartet', al[0]);
-  check('csv alt: row', al[1] === 'Depot A;Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;9,00;1,66;1,66', al[1]);
+  const al = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, used: 6.3, bankTax: 1.66, refund: 1.66 }] }, data).split('\r\n');
+  check('csv alt: header', al[0] === '﻿Bank;Depot;Wertpapier;ISIN;Stück;Kaufdatum;Einstandskurs;Aktueller Kurs;Brutto-Erlös;Gewinn (vor TFS);Freibetrag verbraucht;Bankabzug;Erstattung erwartet', al[0]);
+  check('csv alt: row', al[1] === 'Depot A;Depot A;"ETF; ""World""";IE00X;2;15.03.2020;95,50;100,00;200,00;9,00;6,30;1,66;1,66', al[1]);
   // Bank-Label aus res.banks (wie csvAllowance/csvPlan)
-  const al2 = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, bankTax: 1.66, refund: 1.66 }], banks: [{ key: 'A', label: 'Hausbank' }] }, data).split('\r\n');
+  const al2 = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, used: 6.3, bankTax: 1.66, refund: 1.66 }], banks: [{ key: 'A', label: 'Hausbank' }] }, data).split('\r\n');
   check('csv alt: bank label from res.banks', al2[1].startsWith('Hausbank;Depot A;'), al2[1]);
 };

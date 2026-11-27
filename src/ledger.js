@@ -243,11 +243,11 @@ function altCardMode(result, depots, a) {
   return pre ? 'full' : a.refundBfh > 0.005 ? 'bfh' : '';
 }
 
-// Erwartete Erstattungen eines Jahres (Annahme A), ungerundet: alt100k-Posten { amount, tfs } in Datumsreihenfolge gegen
-// den Rest ab leftStart (frei100k = Σ min(Rest, amount) × (1 − tfs)), danach die BFH-Posten (Summe bfh); beides zusammen
+// Erwartete Erstattungen eines Jahres (Annahme A), ungerundet: alt100k-Posten { amount } (Gewinn nach Teilfreistellung,
+// BMF 21.05.2019 Rz. 56.101) in Datumsreihenfolge gegen den Rest ab leftStart (frei100k = Σ min(Rest, amount)), danach die BFH-Posten (Summe bfh); beides zusammen
 // höchstens bis zur im Jahr besteuerten Bemessungsgrundlage cap.
 function altRefunds(rate, cap, leftStart, alt100k, bfh) {
   let rest = leftStart, frei100k = 0;
-  for (const v of alt100k) { const u = Math.min(rest, v.amount); frei100k += u * (1 - v.tfs); rest -= u; }
+  for (const v of alt100k) { const u = Math.min(rest, v.amount); frei100k += u; rest -= u; }
   return { refund100k: rate * Math.min(cap, frei100k), refundBfh: rate * Math.min(Math.max(0, cap - frei100k), bfh) };
 }

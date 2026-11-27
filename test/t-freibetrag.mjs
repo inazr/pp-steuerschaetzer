@@ -95,21 +95,24 @@ export default ({ g, check, near }) => {
   const run = (rr, s) => altOpt(rr, dXY, s, 2025, opt(rr, dXY, s, 2025));
   // left 1000 (Bescheid), FSA frei: 50 Stück, geerntet 1000; die Bank verrechnet 700 mit dem FSA -> kein Abzug, keine Erstattung
   let ra = run(rP([lP()]), { ...SA, altFb: { '2025|A': 1000 } });
-  check('alt fb: fills left with raw (50 shares)', ra.left === 1000 && ra.rows.length === 1 && near(ra.rows[0].shares, 50, 1e-9) && near(ra.harvested, 1000)
-    && near(ra.rows[0].raw, 1000) && near(ra.rows[0].gross, 8500) && ra.rows[0].price === 170 && ra.rows[0].bank === 'A', ra);
+  check('alt fb B2: fills left with gain after TFS (1000/14 shares)', ra.left === 1000 && ra.rows.length === 1 && near(ra.rows[0].shares, 1000 / 14, 1e-7) && near(ra.used, 1000, 0.01) && near(ra.rows[0].used, 1000, 0.01)
+    && near(ra.harvested, 1428.57, 0.01) && near(ra.rows[0].raw, 1428.57, 0.01) && near(ra.rows[0].gross, 12142.86, 0.01) && ra.rows[0].price === 170 && ra.rows[0].bank === 'A', ra);
+  // B2: Fonds ohne Teilfreistellung – verbraucht = Gewinn
+  const ra0 = run(rP([lP()]), { ...SA, fundTypes: { IEX: 'sonstige', IEY: 'aktienfonds' }, altFb: { '2025|A': 1000 } });
+  check('alt fb B2: 0 % TFS -> used = raw (50 shares)', near(ra0.rows[0].shares, 50, 1e-9) && near(ra0.used, 1000) && near(ra0.harvested, 1000), ra0);
   check('alt fb: FSA free -> no bank tax, no refund', ra.bankTax === 0 && ra.refund === 0, ra);
   check('alt fb: hint from spec', ra.hint.startsWith('Die Bank behält Steuer ein; sie kommt über die Steuererklärung (Anlage KAP-INV) zurück'), ra.hint);
   // FSA schon verbraucht: Bankabzug 1000 × 0,7 × rate, Erstattung ebenso
   ra = run(rP([lP()]), { ...SA, altFb: { '2025|A': 1000 }, genutzt: { '2025|A': 1000 } });
-  check('alt fb: FSA used -> bankTax = 700 × rate', near(ra.bankTax, 1000 * 0.7 * rate, 0.01) && near(ra.rows[0].bankTax, ra.bankTax), ra);
+  check('alt fb: FSA used -> bankTax = 1000 × rate', near(ra.bankTax, 1000 * rate, 0.01) && near(ra.rows[0].bankTax, ra.bankTax), ra);
   check('alt fb: refund ≈ bankTax', near(ra.refund, ra.bankTax, 0.01) && near(ra.rows[0].refund, ra.refund), ra);
   // Läuft nach dem FSA-Vorschlag: der Vorschlag füllt den FSA mit Lot Y (2020) -> Altbestand-Ernte voll besteuert
   ra = run(rP([lP(), lY]), { ...SA, altFb: { '2025|A': 1000 } });
-  check('alt fb: after FSA proposal -> bank tax on the harvest', ra.rows.length === 1 && ra.rows[0].lot.security === 'X' && near(ra.bankTax, 700 * rate, 0.01) && near(ra.refund, ra.bankTax, 0.01), ra);
+  check('alt fb: after FSA proposal -> bank tax on the harvest', ra.rows.length === 1 && ra.rows[0].lot.security === 'X' && near(ra.bankTax, 1000 * rate, 0.01) && near(ra.refund, ra.bankTax, 0.01), ra);
   // Stücke aus alloc.rows sind verbraucht: 60 Stück, 30 davon im (vorgegebenen) Vorschlag -> höchstens 30 Stück = 600
   const l60 = lP(60), r60 = rP([l60]);
   ra = altOpt(r60, dXY, { ...SA, altFb: { '2025|A': 1000 } }, 2025, { rows: [{ bank: 'A', lot: l60, shares: 30, price: 170, gross: 5100, gainTaxable: 420 }] });
-  check('alt fb: shares in alloc.rows excluded', ra.rows.length === 1 && near(ra.rows[0].shares, 30, 1e-9) && near(ra.harvested, 600), ra);
+  check('alt fb: shares in alloc.rows excluded', ra.rows.length === 1 && near(ra.rows[0].shares, 30, 1e-9) && near(ra.harvested, 600) && near(ra.used, 420), ra);
   // FIFO: dahinter liegender Lot ab 2009 wird nicht geerntet, auch wenn left noch frei ist
   ra = run(rP([lP(10), { ...lY, security: 'X', buyDate: '2010-01-01', alt: { price: 150, gainPS: 50, pre2009: false } }]), { ...SA, altFb: { '2025|A': 1000 } });
   check('alt fb: only pre-2009 lots at the FIFO head', ra.rows.length === 1 && near(ra.rows[0].shares, 10, 1e-9) && near(ra.harvested, 200), ra);

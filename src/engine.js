@@ -151,7 +151,7 @@ function replay(data, settings, today) {
             const F = Math.min(Math.max(0, -gp.priceRaw * p.shares), gp.alt * p.shares);
             if (F * ft.tfs > 0) veranlagung.push({ year: y, date: ev.date, depot: ev.depot, kind: 'bfh', amount: round2(F * ft.tfs), tfs: ft.tfs });
           }
-          if (gp.pre2009 && gp.raw > 0) veranlagung.push({ year: y, date: ev.date, depot: ev.depot, kind: 'alt100k', amount: round2(gp.raw * p.shares), tfs: ft.tfs });
+          if (gp.pre2009 && gp.raw > 0) veranlagung.push({ year: y, date: ev.date, depot: ev.depot, kind: 'alt100k', amount: round2(gp.raw * (1 - ft.tfs) * p.shares) }); // nach Teilfreistellung (BMF 21.05.2019, Rz. 56.101)
         }
         if (counted) addIncome(ev.date, ev.depot, fundTypeOf(settings, sec) === 'einzelaktie' ? 'aktie' : 'sonst', total);
         return;

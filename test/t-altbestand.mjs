@@ -30,7 +30,7 @@ export default ({ g, check, near, root }) => {
   let r2 = sell('2015-03-02', 180);
   check('sale 2015 lot: new gain with TFS + old gain without', near(ev(r2)[0].amount, 30 * 10 * 0.7 + 50 * 10) && r2.veranlagung.length === 0, [ev(r2), r2.veranlagung]);
   r2 = sell('2005-03-02', 180, [['2004-12-30', 90]]);
-  check('sale pre-2009 lot: old gain tax-free, alt100k = raw', near(ev(r2)[0].amount, 210) && r2.veranlagung.length === 1 && r2.veranlagung[0].kind === 'alt100k' && near(r2.veranlagung[0].amount, 300), r2.veranlagung);
+  check('sale pre-2009 lot: old gain tax-free, alt100k = gain after TFS', near(ev(r2)[0].amount, 210) && r2.veranlagung.length === 1 && r2.veranlagung[0].kind === 'alt100k' && near(r2.veranlagung[0].amount, 210) && !('tfs' in r2.veranlagung[0]), r2.veranlagung);
   r2 = sell('2015-03-02', 120);
   check('BFH: fiction loss counts fully (extra 90)', near(ev(r2)[0].amount, -30 * 10 * 0.7 + 500) && r2.veranlagung[0].kind === 'bfh' && near(r2.veranlagung[0].amount, 90), r2.veranlagung);
   r2 = sell('2015-03-02', 80);
@@ -40,17 +40,17 @@ export default ({ g, check, near, root }) => {
   check('BFH: VP-only negative raw is no fiction loss', !r2.veranlagung.some(v => v.kind === 'bfh'), r2.veranlagung);
   const AF = g('altFreibetrag');
   const res = (post, income = []) => ({ veranlagung: post, income, lots: [], vpForecast: [] });
-  const post = (year, amount, kind = 'alt100k', tfs = 0.3) => ({ year, date: `${year}-06-01`, depot: 'A', kind, amount, tfs });
+  const post = (year, amount, kind = 'alt100k') => ({ year, date: `${year}-06-01`, depot: 'A', kind, amount, ...(kind === 'bfh' ? { tfs: 0.3 } : {}) });
   const led = { rate: 0.26375, banks: [{ positiveEff: 50000, used: 1000 }] };
   let a = AF(res([post(2019, 30000), post(2020, 20000), post(2026, 5000)]), {}, { veranlagung: 'single', depots: ['A'], altFb: {} }, 2026, led);
   check('100k: computed left', a.leftStartComputed === 50000 && a.usedThisYear === 5000 && a.left === 45000 && !a.leftStartOverridden, a);
-  check('100k: refund this year', near(a.refund100k, 0.26375 * 5000 * 0.7, 0.02), a);
+  check('100k: refund this year', near(a.refund100k, 0.26375 * 5000, 0.02), a);
   a = AF(res([post(2019, 30000)]), {}, { veranlagung: 'joint', depots: ['A'], altFb: {} }, 2026, led);
   check('100k: joint 200k', a.total === 200000 && a.leftStartComputed === 170000 && a.joint, a);
   a = AF(res([post(2026, 5000)]), {}, { veranlagung: 'joint', depots: ['A'], altFb: { '2026|A': 999999 } }, 2026, led);
   check('100k: override capped to total', a.leftStart === 200000 && a.leftStartOverridden && a.left === 195000, a);
   a = AF(res([post(2026, 5000)]), {}, { veranlagung: 'single', depots: ['A'], altFb: { '2026|A': 2000 } }, 2026, led);
-  check('100k: override = left per last notice', a.leftStart === 2000 && a.left === 0 && near(a.refund100k, 0.26375 * 2000 * 0.7, 0.02), a);
+  check('100k: override = left per last notice', a.leftStart === 2000 && a.left === 0 && near(a.refund100k, 0.26375 * 2000, 0.02), a);
   a = AF(res([post(2026, 90, 'bfh')]), {}, { veranlagung: 'single', depots: ['A'], altFb: {} }, 2026, { rate: 0.26375, banks: [{ positiveEff: 50, used: 50 }] });
   check('bfh: refund capped by taxed base (0)', a.refundBfh === 0, a);
   // Final review I1: Override mit Jahr (`Jahr|Depots` = Rest zum 31.12. Jahr−1); spätere Verkäufe werden abgezogen
@@ -85,5 +85,11 @@ export default ({ g, check, near, root }) => {
     && near(l15.origCost, 60) && near(l15.alt.gainPS, -10) && !l15.alt.pre2009 && !fr.warnings.length, [fr.lots, fr.warnings]);
   // raw = 20 × (100 − 50) − anteilige VP (der Rest-Lot trägt 80/100 der VP bis 2025, der verkaufte Teil 20/80 davon)
   const ver = fr.veranlagung;
-  check('fixture: one alt100k item = new gain before TFS', ver.length === 1 && ver[0].kind === 'alt100k' && near(ver[0].amount, 20 * (50 - l05.vpCum / 80), 0.01), ver);
+  check('fixture: one alt100k item = new gain after TFS', ver.length === 1 && ver[0].kind === 'alt100k' && near(ver[0].amount, 20 * (50 - l05.vpCum / 80) * 0.7, 0.01), ver);
+  // B2 (BMF 21.05.2019, Rz. 56.101): nur der Gewinn nach Teilfreistellung mindert den Freibetrag
+  const ar = g('altRefunds');
+  let x = ar(0.26375, 1e9, 70, [{ amount: 70 }], 0);
+  check('B2: 70 left covers a 100 raw gain of an equity fund fully', near(x.refund100k, 70 * 0.26375, 1e-9), x);
+  x = ar(0.26375, 1e9, 50, [{ amount: 70 }], 0);
+  check('B2: partial cover', near(x.refund100k, 50 * 0.26375, 1e-9), x);
 };

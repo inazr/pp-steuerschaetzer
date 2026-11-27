@@ -71,10 +71,10 @@ function runNetSale(result, data, settings, year, target, feeAware) {
     return { lot, a, exempt: g === null, g };
   };
   // Auswahlquote (Steuer je Euro netto, endgültige Steuer): Verlust-Lots haben Quote 0. Vor-2009-Lots: der Teil des
-  // Schritt-Gewinns (raw), den der Rest des 100k-Freibetrags deckt, zählt als frei – ganz gedeckt Quote 0, ohne Rest normal
+  // Schritt-Gewinns (nach Teilfreistellung), den der Rest des 100k-Freibetrags deckt, zählt als frei – ganz gedeckt Quote 0, ohne Rest normal
   const ratioOf = (x, st) => {
     let taxablePS = x.exempt ? 0 : Math.max(0, x.g);
-    if (st.altRaw > 0 && altLeft >= 0.01) taxablePS *= 1 - Math.min(1, altLeft / st.altRaw);
+    if (st.alt100k > 0 && altLeft >= 0.01) taxablePS *= 1 - Math.min(1, altLeft / st.alt100k);
     return taxablePS * rate / (x.a - taxablePS * rate);
   };
   // Ein Verkaufsschritt dieses Kopfes für den aktuellen Restbedarf
@@ -102,12 +102,12 @@ function runNetSale(result, data, settings, year, target, feeAware) {
     if (ok(K)) { let lo = 0; while (hi - lo > 1) { const m = Math.floor((lo + hi) / 2); if (ok(m)) hi = m; else lo = m; } }
     const n = hi === K ? h.left : hi / 1e8, st = after(n);
     const fee = round2(F + n * price * feePct), tax = round2(st.t.tax - cur.tax);
-    // Veranlagungs-Posten der Zeile wie im Verkauf (Spec §2), Gewinn nach Gebühren: vor 2009 alt100k = raw (> 0);
+    // Veranlagungs-Posten der Zeile wie im Verkauf (Spec §2), Gewinn nach Gebühren: vor 2009 alt100k = raw·(1 − tfs) (> 0, nach Teilfreistellung);
     // 2009–2017 bei raw < 0 BFH-Differenz F·tfs mit Fiktions-Anteil F = min(Kursverlust unter Kurs 31.12.2017, Altgewinn)
     const raw = n * gp.raw - F, priceRaw = n * gp.priceRaw - F;
-    const altRaw = gp.pre2009 && raw > 0 ? raw : 0;
+    const alt100k = gp.pre2009 && raw > 0 ? raw * (1 - tfs) : 0;
     const bfh = lot.alt && !gp.pre2009 && raw < 0 && gp.alt > 0 ? Math.min(Math.max(0, -priceRaw), n * gp.alt) * tfs : 0;
-    return { lot, bank: b.key, exempt, price, F, n, fee, st, tax, net: round2(n * price - fee - tax), tfs, altRaw, bfh,
+    return { lot, bank: b.key, exempt, price, F, n, fee, st, tax, net: round2(n * price - fee - tax), alt100k, bfh,
       gain: round2(n * (gainParts(lot, price, FUND_TYPES[ft]).raw + gp.alt) - fee) };
   };
   const rows = [];
@@ -124,8 +124,8 @@ function runNetSale(result, data, settings, year, target, feeAware) {
       if (!best || score < bScore || (score === bScore && (bank < bBank || (bank === bBank && st.lot.buyDate < bs.lot.buyDate)))) { best = h; bs = st; bScore = score; bBank = bank; }
     }
     if (!best) break;
-    const { lot, bank, exempt, price, n, fee, st, tax, net, tfs, altRaw, bfh, gain } = bs;
-    if (altRaw > 0) { planAlt.push({ amount: altRaw, tfs }); altLeft = Math.max(0, altLeft - altRaw); }
+    const { lot, bank, exempt, price, n, fee, st, tax, net, alt100k, bfh, gain } = bs;
+    if (alt100k > 0) { planAlt.push({ amount: alt100k }); altLeft = Math.max(0, altLeft - alt100k); }
     planBfh += bfh;
     const refundNext = refundsAt(st.t.taxable, planAlt, planBfh);
     const refund = round2(Math.max(0, refundNext.refund100k + refundNext.refundBfh - refundCur.refund100k - refundCur.refundBfh));

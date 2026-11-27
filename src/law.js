@@ -147,7 +147,7 @@ function lawRows(settings, year) {
     row('Gemeinsamer Freibetrag', 'Ohne eingetragene Freistellungsaufträge wird der Sparerpauschbetrag gemeinsam über alle Banken gerechnet', 'A', 'Annahme des Tools'),
     row('Fondstyp', 'Steht nicht in der PP-Datei und wird aus Name und ISIN geraten, bis du ihn bestätigst', 'A', 'Annahme des Tools'),
     row('Altgewinn', 'Kurs 31.12.2017 − Einstand, ohne ausschüttungsgleiche Erträge aus der Zeit vor 2018', 'A', 'Annahme des Tools; § 56 Abs. 3 InvStG', LAW_URL.invstg56),
-    row('Freibetrag Altanteile: Bemessung', `${eur0(fb)} werden auf den Gewinn vor Teilfreistellung angerechnet`, 'A', 'Annahme des Tools; § 56 Abs. 6 InvStG', LAW_URL.invstg56),
+    row('Freibetrag Altanteile: Bemessung', `${eur0(fb)} werden auf den Gewinn nach Teilfreistellung angerechnet`, 'G', 'BMF-Schreiben vom 21.05.2019, Rz. 56.101; § 56 Abs. 6 InvStG', LAW_URL.invstg56),
     row('Freibetrag Altanteile: Paare', `Bei Zusammenveranlagung gemeinsam ${eur0(2 * fb)} statt ${eur0(fb)} je Person für die eigenen Anteile`, 'A', 'Annahme des Tools; § 56 Abs. 6 InvStG', LAW_URL.invstg56),
     row('Erwartete Erstattungen', 'Vereinfacht: nur für das laufende Jahr bzw. die Planung, höchstens bis zur im Jahr besteuerten Bemessungsgrundlage; die Veranlagung wird nicht im Detail nachgebildet', 'A', 'Annahme des Tools'),
     row('BFH-Urteile: Anwendung', 'Anwendung durch BMF und Banken offen; das Tool rechnet die Bank-Sicht und zeigt die Differenz als erwartete Erstattung über die Veranlagung', 'A', 'Annahme des Tools; BFH VIII R 22/23', LAW_URL.bfh2223),

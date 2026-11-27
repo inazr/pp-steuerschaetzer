@@ -32,6 +32,6 @@ function csvPlan(plan, data) {
       ...(refund ? [csvMoney(r.refund || 0)] : [])]));
 }
 function csvAltFreibetrag(res, data) {
-  return csvDoc([...CSV_LOT_HEAD, 'Gewinn (vor TFS)', 'Bankabzug', 'Erstattung erwartet'],
-    res.rows.map(r => [csvBank(res, data, r.bank), ...csvLotCols(r, data), csvMoney(r.raw), csvMoney(r.bankTax), csvMoney(r.refund)]));
+  return csvDoc([...CSV_LOT_HEAD, 'Gewinn (vor TFS)', 'Freibetrag verbraucht', 'Bankabzug', 'Erstattung erwartet'],
+    res.rows.map(r => [csvBank(res, data, r.bank), ...csvLotCols(r, data), csvMoney(r.raw), csvMoney(r.used), csvMoney(r.bankTax), csvMoney(r.refund)]));
 }
