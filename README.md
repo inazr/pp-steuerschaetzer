@@ -23,9 +23,7 @@
 Der Steuerschätzer liest eine Datei aus [Portfolio Performance](https://www.portfolio-performance.info/) (XML, binär oder verschlüsselt) und rechnet die deutschen Kapitalertragsteuer-Themen eines ETF- und Fondsdepots durch: Vorabpauschale je Jahr, Verlusttöpfe und Freistellungsaufträge je Bank, wie du den Sparerpauschbetrag mit Verkauf und Rückkauf ausnutzt, und wie viel du verkaufen musst, um einen Netto-Betrag zu erhalten.
 
 > [!TIP]
-> Die ganze Anwendung ist **eine einzige HTML-Datei** mit eingebetteten Charts (Apache ECharts) und Schriften. Sie funktioniert ohne Internet, auch per Doppelklick. Deine Datei wird nur im Browser gelesen. Eine Content-Security-Policy verhindert jede Netzwerkanfrage. Gespeichert werden im Browser nur deine Einstellungen, Fondstypen, abgewählte Depots (als interne IDs) und deine Eingaben je Bank: Bank-Zuordnung, Freistellungsaufträge, Vorträge, Zinsschalter, ein überschriebener genutzter Freibetrag und der verbleibende Altbestand-Freibetrag laut Steuerbescheid, nie Buchungen, Kurse, Beträge aus der Datei, Depot- und Kontonamen oder das Passwort einer verschlüsselten Datei.
-
-Neu umgesetzt nach der Idee von [inazr/PortfolioPerformanceTaxes](https://github.com/inazr/PortfolioPerformanceTaxes) (Python/PyQt), mit korrigierter Steuerlogik.
+> Die ganze Anwendung ist **eine einzige HTML-Datei** mit eingebetteten Charts (Apache ECharts) und Schriften. Sie funktioniert ohne Internet, auch per Doppelklick. Deine Datei wird nur im Browser gelesen. Gespeichert werden im Browser nur deine Einstellungen, Fondstypen, abgewählte Depots (als interne IDs) und deine Eingaben je Bank: Bank-Zuordnung, Freistellungsaufträge, Vorträge, Zinsschalter, ein überschriebener genutzter Freibetrag und der verbleibende Altbestand-Freibetrag laut Steuerbescheid, nie Buchungen, Kurse, Beträge aus der Datei, Depot- und Kontonamen oder das Passwort einer verschlüsselten Datei.
 
 ## Was der Rechner abbildet
 
