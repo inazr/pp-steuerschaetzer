@@ -1,12 +1,14 @@
 // CSV-Export für Excel (deutsch): Semikolon, Dezimalkomma, UTF-8 mit BOM, CRLF
 const csvCell = v => /[;"\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+// Namen aus der Datei, die Excel als Formel läse (=, +, -, @ am Anfang), mit Hochkomma entschärfen – nie auf Zahlen anwenden
+const csvText = v => /^[=+\-@\t\r]/.test(v) ? "'" + v : v;
 const csvMoney = x => round2(x).toFixed(2).replace('.', ',');
 const csvPct = x => (x * 100).toFixed(2).replace('.', ',') + ' %';
 const csvShares = x => round8(x).toFixed(8).replace(/\.?0+$/, '').replace('.', ',');
 const csvDoc = (header, rows) => '﻿' + [header, ...rows].map(r => r.map(c => csvCell(String(c))).join(';')).join('\r\n') + '\r\n';
 const csvNames = (data, depot, security) => {
   const s = data.securities.find(x => x.uuid === security) || {};
-  return [(data.portfolios.find(p => p.uuid === depot) || {}).name || depot, s.name || security, s.isin || ''];
+  return [csvText((data.portfolios.find(p => p.uuid === depot) || {}).name || depot), csvText(s.name || security), s.isin || ''];
 };
 
 function csvVp(rows, data) {
@@ -16,7 +18,7 @@ function csvVp(rows, data) {
 }
 
 // Bank-Label aus dem Ergebnis (res.banks), sonst Name des gründenden Depots/Kontos
-const csvBank = (res, data, key) => ((res.banks || []).find(b => b.key === key) || {}).label || bankLabel(data, key);
+const csvBank = (res, data, key) => csvText(((res.banks || []).find(b => b.key === key) || {}).label || bankLabel(data, key));
 const csvLotCols = (r, data) => [...csvNames(data, r.lot.depot, r.lot.security), csvShares(r.shares), fmtDate(r.lot.buyDate), csvMoney(r.lot.cost), csvMoney(r.price), csvMoney(r.gross)];
 const CSV_LOT_HEAD = ['Bank', 'Depot', 'Wertpapier', 'ISIN', 'Stück', 'Kaufdatum', 'Einstandskurs', 'Aktueller Kurs', 'Brutto-Erlös'];
 

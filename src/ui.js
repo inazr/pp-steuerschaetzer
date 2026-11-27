@@ -89,6 +89,7 @@ function recompute() {
 }
 // Nur Verrechnung: Bank, FSA, Vortrag, Zinsen, genutzt wirken nicht auf replay (Spec: kein FIFO-Neulauf)
 function recalc() {
+  const t = $('#plan-target'); if (t) ui.target = t.value; // getipptes, noch nicht berechnetes Ziel über das Neuzeichnen retten
   ui.led = ledger(ui.result, ui.data, S(), YEAR);
   ui.alloc = optimizeAllowance(ui.result, ui.data, S(), YEAR);
   ui.altAlloc = optimizeAltFreibetrag(ui.result, ui.data, S(), YEAR, ui.alloc);
@@ -403,7 +404,7 @@ function decemberCard(d) {
   const banks = !months[0].next.pooled && months[0].next.banks.length > 1; // im gemeinsamen Modus ist der Rest je Bank derselbe
   return `
     <div class="card">
-      <div class="card-h"><h2>Dezember-Effekt (Rückkauf-Monat)</h2><span class="sub">Vorabpauschale ${YEAR}, fließt am 02.01.${YEAR + 1} zu</span></div>
+      <div class="card-h"><h2>Dezember-Effekt (Rückkauf-Monat)</h2><span class="sub">Vorabpauschale ${YEAR}, fließt am ${fmtDate(vpInflowDate(YEAR + 1))} zu</span></div>
       <p class="note">Wer die vorgeschlagenen Anteile verkauft und im selben Monat zurückkauft, trägt für sie im Rückkaufjahr nur noch (13 − Monat)/12 der Vorabpauschale (§ 18 Abs. 2 InvStG). Dadurch bleibt ${YEAR + 1} mehr Freistellungsauftrag frei. „Vorher“ heißt: mit den Verkäufen des Vorschlags, aber ohne diesen Effekt.</p>
       <div class="tablebox"><table>
         <thead><tr><th>Rückkauf im</th><th>Vorabpauschale vorher</th><th>nachher</th><th>Steuer im Januar gespart</th><th>Restfreibetrag ${YEAR + 1} vorher</th><th>nachher</th></tr></thead>
@@ -580,7 +581,6 @@ document.addEventListener('change', e => {
   else if (el.id === 'p-fix' || el.id === 'p-pct') {
     const v = Math.max(0, +el.value.replace(',', '.') || 0);
     ui.settings[el.id === 'p-fix' ? 'gebuehrFix' : 'gebuehrProz'] = v;
-    const t = $('#plan-target'); if (t) ui.target = t.value; // eingetipptes Ziel nicht verlieren
   }
   else if (el.dataset.ft) ui.settings.fundTypes = { ...ui.settings.fundTypes, [el.dataset.ft]: el.value };
   else if (bankSetting(el)) { save(); later(recalc); return; } // nur Verrechnung neu, kein FIFO-Neulauf

@@ -5,6 +5,11 @@ const round8 = x => Math.sign(x) * Math.round(Math.abs(x) * 1e8 + 1e-6) / 1e8;
 const ceil8 = x => Math.ceil(x * 1e8 - 1e-6) / 1e8;
 const isoToDe = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 const EPS = 1e-8;
+// Zufluss der Vorabpauschale: erster Werktag des Jahres (02.01., am Wochenende der folgende Montag; § 18 Abs. 3 InvStG)
+function vpInflowDate(year) {
+  const dow = new Date(Date.UTC(year, 0, 2)).getUTCDay();
+  return `${year}-01-0${dow === 6 ? 4 : dow === 0 ? 3 : 2}`;
+}
 // Ex-Tag bis Zahltag liegt bei ETFs meist 1–4 Wochen: so lange gilt ein geleertes Depot noch als Empfänger einer Ausschüttung
 const DIV_ORPHAN_DAYS = 60;
 
@@ -255,8 +260,8 @@ function replay(data, settings, today) {
     : [];
   if (!hasParam('basiszins', currentYear) && [...queues.values()].some(l => l.length)) warnings.push(`Kein Basiszins für ${currentYear} hinterlegt – Prognose der Vorabpauschale nicht berechnet`);
 
-  // VP des Jahres Y fließt am 02.01. des Folgejahres zu; Zinsen je Konto
-  for (const r of vpRows) if (r.taxable > 0 && `${r.year + 1}-01-02` <= today) addIncome(`${r.year + 1}-01-02`, r.depot, 'vp', r.taxable);
+  // VP des Jahres Y fließt am ersten Werktag des Folgejahres zu; Zinsen je Konto
+  for (const r of vpRows) if (r.taxable > 0 && vpInflowDate(r.year + 1) <= today) addIncome(vpInflowDate(r.year + 1), r.depot, 'vp', r.taxable);
   for (const z of data.interest || []) if (z.date <= today) addIncome(z.date, z.account, 'zins', z.gross);
   income.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   veranlagung.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);

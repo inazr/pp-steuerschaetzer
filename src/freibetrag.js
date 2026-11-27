@@ -153,7 +153,7 @@ function optimizeAltFreibetrag(result, data, settings, year, alloc) {
 }
 
 // Dezember-Effekt (§ 18 Abs. 2 InvStG): Verkauf + Rückkauf im Monat m → die zurückgekauften Anteile tragen nur (13 − m)/12 der
-// Vorabpauschale des laufenden Jahres. Sie fließt am 02.01. des Folgejahres zu, also bleibt dort mehr Freistellungsauftrag frei.
+// Vorabpauschale des laufenden Jahres. Sie fließt am ersten Werktag des Folgejahres zu, also bleibt dort mehr Freistellungsauftrag frei.
 // rows: [{ lot, shares }] (Zeilen der Vorschläge). Rechnet mit der Prognose je Lot aus replay, keine eigene Formel.
 function decemberEffect(result, data, settings, year, rows, today) {
   const lots = new Map((result.vpForecastLots || []).map(f => [f.lotId, f]));

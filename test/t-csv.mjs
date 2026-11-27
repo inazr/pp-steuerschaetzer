@@ -44,4 +44,11 @@ export default ({ g, check }) => {
   // Bank-Label aus res.banks (wie csvAllowance/csvPlan)
   const al2 = g('csvAltFreibetrag')({ rows: [{ bank: 'A', lot, shares: 2, price: 100, gross: 200, raw: 9, used: 6.3, bankTax: 1.66, refund: 1.66 }], banks: [{ key: 'A', label: 'Hausbank' }] }, data).split('\r\n');
   check('csv alt: bank label from res.banks', al2[1].startsWith('Hausbank;Depot A;'), al2[1]);
+
+  // B9: Namen, die Excel als Formel läse, bekommen ein Hochkomma; Zahlen nie
+  check('B9: formula name neutralised', g('csvText')('=SUM(A1)') === "'=SUM(A1)" && g('csvText')('@x') === "'@x" && g('csvText')('-1+1') === "'-1+1" && g('csvText')('World ETF') === 'World ETF');
+  check('B9: negative money untouched', g('csvMoney')(-12.3) === '-12,30');
+  const d9 = { securities: [{ uuid: 'S9', name: '=HYPERLINK("x")', isin: 'IE9' }], portfolios: [{ uuid: 'D9', name: '+Depot' }] };
+  const l9 = g('csvAllowance')({ rows: [{ bank: 'D9', lot: { depot: 'D9', security: 'S9', buyDate: '2020-01-02', cost: 10 }, shares: 1, price: 5, gross: 5, gainTaxable: -5 }] }, d9).split('\r\n')[1];
+  check('B9: export guards names, keeps negative amount', l9.startsWith("'+Depot;'+Depot;\"'=HYPERLINK(\"\"x\"\")\";IE9;") && l9.endsWith(';-5,00'), l9);
 };

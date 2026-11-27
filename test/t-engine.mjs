@@ -166,4 +166,10 @@ export default ({ g, check, near }) => {
   check('B4: missing base rate of current year is reported', r4.warnings.some(w => w.includes('Kein Basiszins für 2027')), r4.warnings);
   r4 = replay(mk({ txs: [], prices: [] }), SET, '2027-01-05');
   check('B4: no base-rate warning without holdings', !r4.warnings.length, r4.warnings);
+
+  // B10: Vorabpauschale fließt am ersten Werktag des Jahres zu
+  const vid = g('vpInflowDate');
+  check('B10: 2026 Friday', vid(2026) === '2026-01-02', vid(2026));
+  check('B10: 2027 Jan 2 is Saturday', vid(2027) === '2027-01-04', vid(2027));
+  check('B10: 2028 Jan 2 is Sunday', vid(2028) === '2028-01-03', vid(2028));
 };

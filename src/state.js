@@ -11,6 +11,11 @@ function loadSettings(storage) {
     const raw = JSON.parse(storage.getItem(STORE_KEY) || '{}');
     for (const k of SETTINGS_KEYS) if (k in raw) s[k] = raw[k];
   } catch { /* defekter Speicher: Standardwerte */ }
+  // Einfache Werte prüfen: ein beschädigter Speicher darf nicht zu NaN in der Rechnung führen
+  if (s.veranlagung !== 'joint') s.veranlagung = 'single';
+  if (!['default', 'bayern', 'baden_wuerttemberg'].includes(s.bundesland)) s.bundesland = 'default';
+  s.kirchensteuer = s.kirchensteuer === true;
+  for (const k of ['gebuehrFix', 'gebuehrProz']) if (!(typeof s[k] === 'number' && Number.isFinite(s[k]) && s[k] >= 0)) s[k] = 0;
   if (!isObj(s.fundTypes)) s.fundTypes = {};
   // bis 0.2 eine Zahl ohne Jahr, bis 0.3 Schlüssel `Jahr|Depots`: keiner Bank zuordenbar, verwerfen
   if (!isObj(s.genutzt) || !(s.settingsVersion >= 4)) s.genutzt = {};
@@ -18,7 +23,7 @@ function loadSettings(storage) {
   for (const k of ['bankOf', 'fsa', 'vortrag', 'zinsen', 'altFb']) if (!isObj(s[k])) s[k] = {};
   // altFb bis 0.5-Entwurf ohne Jahr (nur Depots): nicht datierbar, verwerfen
   s.altFb = Object.fromEntries(Object.entries(s.altFb).filter(([k]) => /^\d{4}\|/.test(k)));
-  if (!Array.isArray(s.depotsOff)) s.depotsOff = [];
+  s.depotsOff = Array.isArray(s.depotsOff) ? s.depotsOff.filter(u => typeof u === 'string') : [];
   return s;
 }
 function saveSettings(storage, s) {

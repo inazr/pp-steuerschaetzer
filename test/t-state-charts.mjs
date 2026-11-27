@@ -170,4 +170,11 @@ export default ({ g, check, near }) => {
     && !ag[1].pre2009 && near(ag[1].orig, 30), ag);
   const am = g('altMark');
   check('altMark: labels', am(altLot('2005-03-01', true)) === 'vor 2009 (Bestandsschutz Altgewinn)' && am(altLot('2015-06-01', false)) === '2009–2017 (Altgewinn steuerpflichtig)' && am(lot('S')) === '');
+
+  // B8: gespeicherte Einstellungen werden geprüft
+  const st8 = v => ({ getItem: () => JSON.stringify({ settingsVersion: 4, ...v }) });
+  const bad8 = g('loadSettings')(st8({ veranlagung: 'xx', kirchensteuer: 'ja', bundesland: 5, gebuehrFix: 'abc', gebuehrProz: -1, depotsOff: [1, null, 'u'] }));
+  check('B8: invalid settings fall back', bad8.veranlagung === 'single' && bad8.kirchensteuer === false && bad8.bundesland === 'default' && bad8.gebuehrFix === 0 && bad8.gebuehrProz === 0 && JSON.stringify(bad8.depotsOff) === '["u"]', bad8);
+  const ok8 = g('loadSettings')(st8({ veranlagung: 'joint', kirchensteuer: true, bundesland: 'bayern', gebuehrFix: 9.9, gebuehrProz: 0.25 }));
+  check('B8: valid settings kept', ok8.veranlagung === 'joint' && ok8.kirchensteuer === true && ok8.bundesland === 'bayern' && ok8.gebuehrFix === 9.9 && ok8.gebuehrProz === 0.25, ok8);
 };

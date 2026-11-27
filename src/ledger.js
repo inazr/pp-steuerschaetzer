@@ -175,11 +175,11 @@ function ledger(result, data, settings, year) {
   return { banks: rows, pooled: cfg.pooled, fsaSum: cfg.fsaSum, spb: cfg.spb, fsa, rate, warnings };
 }
 
-// Vorschau Folgejahr: nur die prognostizierte VP (Ertrag am 02.01.), Töpfe zum Jahresende `year`
+// Vorschau Folgejahr: nur die prognostizierte VP (Ertrag am ersten Werktag), Töpfe zum Jahresende `year`
 function ledgerNextYear(result, data, settings, year) {
   const next = year + 1, cur = ledger(result, data, settings, year), rate = taxRate(settings, next);
   const vp = (result.vpForecast || []).filter(r => r.taxable > 0)
-    .map(r => ({ year: next, date: `${next}-01-02`, owner: r.depot, kind: 'vp', amount: round2(r.taxable) }));
+    .map(r => ({ year: next, date: vpInflowDate(next), owner: r.depot, kind: 'vp', amount: round2(r.taxable) }));
   const rows = cur.banks.map(b => {
     const evs = vp.filter(e => b.depots.includes(e.owner));
     return { key: b.key, label: b.label, active: evs.length > 0 || lotsIn(result, b.depots) || potsPositive(b.pots),
