@@ -174,4 +174,29 @@ export default ({ g, check, near, root }) => {
     && badDate.warnings.filter(w => w === 'Buchung mit ungültigem Datum ignoriert').length === 1, badDate);
   const badPrices = badDate.prices.get('sec-eur');
   check('pb: invalid price dates dropped', badPrices.length === 1 && badPrices[0][0] === '2022-01-08', badPrices);
+
+  // B3: EUR-Wertpapier über USD-Konto – Buchungen in Fremdwährung werden ausgelassen und gemeldet
+  const usd = `<client><securities><security><uuid>s1</uuid><name>ETF UCITS</name><currencyCode>EUR</currencyCode><isin>IE1</isin><prices/></security></securities>
+<accounts><account><uuid>a1</uuid><name>USD</name><currencyCode>USD</currencyCode><transactions>
+<account-transaction><uuid>x1</uuid><date>2026-03-01T00:00</date><currencyCode>USD</currencyCode><amount>50000</amount><security reference="../../../../../securities/security"/><shares>0</shares><type>DIVIDENDS</type></account-transaction>
+</transactions></account></accounts>
+<portfolios><portfolio><uuid>p1</uuid><name>Depot</name><referenceAccount reference="../../../accounts/account"/><transactions>
+<portfolio-transaction><uuid>t1</uuid><date>2026-01-10T00:00</date><currencyCode>USD</currencyCode><amount>1100000</amount><security reference="../../../../../securities/security"/><shares>10000000000</shares><type>BUY</type></portfolio-transaction>
+<portfolio-transaction><uuid>t2</uuid><date>2026-01-11T00:00</date><currencyCode>EUR</currencyCode><amount>100000</amount><security reference="../../../../../securities/security"/><shares>1000000000</shares><type>BUY</type></portfolio-transaction>
+<portfolio-transaction><uuid>t3</uuid><date>2026-01-12T00:00</date><amount>100000</amount><security reference="../../../../../securities/security"/><shares>1000000000</shares><type>BUY</type></portfolio-transaction>
+</transactions></portfolio></portfolios></client>`;
+  const pu = g('extractPortfolio')(usd);
+  check('B3 xml: USD buy and dividend skipped, EUR buys kept (missing currency = EUR)', pu.txs.length === 2 && pu.txs[0].amount === 1000 && pu.dividends.length === 0, [pu.txs, pu.dividends]);
+  check('B3 xml: one warning per security and currency', pu.warnings.filter(w => w === 'Buchungen in USD ignoriert: ETF UCITS').length === 1, pu.warnings);
+  const sec26 = Date.UTC(2026, 0, 10) / 1000;
+  const pbu = g('extractFromProtobuf')(encodeClient({
+    securities: [{ uuid: 's1', name: 'ETF UCITS', currencyCode: 'EUR', isin: 'IE1' }], accounts: [{ uuid: 'a1', name: 'USD', currencyCode: 'USD' }],
+    portfolios: [{ uuid: 'p1', name: 'Depot', referenceAccount: 'a1' }],
+    transactions: [
+      { uuid: 't1', type: 0, portfolio: 'p1', account: 'a1', seconds: sec26, currencyCode: 'USD', amount: 1100000, shares: 10000000000, security: 's1' },
+      { uuid: 't2', type: 0, portfolio: 'p1', account: 'a1', seconds: sec26, currencyCode: 'EUR', amount: 100000, shares: 1000000000, security: 's1' },
+      { uuid: 'x1', type: 8, account: 'a1', seconds: sec26, currencyCode: 'USD', amount: 50000, security: 's1' },
+    ] }));
+  check('B3 protobuf: USD buy and dividend skipped, EUR buy kept', pbu.txs.length === 1 && pbu.txs[0].amount === 1000 && pbu.dividends.length === 0, [pbu.txs, pbu.dividends]);
+  check('B3 protobuf: one warning', pbu.warnings.filter(w => w === 'Buchungen in USD ignoriert: ETF UCITS').length === 1, pbu.warnings);
 };

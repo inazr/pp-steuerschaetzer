@@ -1,5 +1,5 @@
 // Liest die steuerrelevanten Daten aus einer PP-Datei (XML oder Protobuf): Wertpapiere, Depots, Depotbuchungen, Ausschüttungen, Zinsen, Kurse.
-// Beträge: Cent (÷100), Stücke: ÷1e8, Kurse: ÷1e8. Nur EUR-Wertpapiere werden berücksichtigt.
+// Beträge: Cent (÷100), Stücke: ÷1e8, Kurse: ÷1e8. Nur EUR-Wertpapiere und Buchungen in EUR werden berücksichtigt.
 // Beide Leser erzeugen dasselbe Rohmodell; mapPortfolio wendet die gemeinsame Fachlogik an (EUR-Filter, Brutto, Warnungen, Reihenfolge).
 //   securities: [{ uuid, name, isin, wkn, currency, prices: () => [[YYYY-MM-DD, Kurs]] }]
 //   portfolios: [{ uuid, name, accountUuid, txs: [{ uuid, type, date, security, shares, amount, fees, taxes, transferKey? }] }]
@@ -10,6 +10,15 @@ const byDate = (a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
 function mapPortfolio(raw, warnings = []) {
   const eur = new Set(raw.securities.filter(s => s.currency === 'EUR').map(s => s.uuid));
   const used = new Set();
+  // Buchung in Fremdwährung (z. B. EUR-Wertpapier über ein USD-Konto): Betrag ist nicht in EUR – auslassen, einmal je Wertpapier und Währung melden
+  const secName = new Map(raw.securities.map(s => [s.uuid, s.name])), warnedCur = new Set();
+  const foreign = tx => {
+    const cur = tx.currency || 'EUR';
+    if (cur === 'EUR') return false;
+    const k = tx.security + '|' + cur;
+    if (!warnedCur.has(k)) { warnedCur.add(k); warnings.push(`Buchungen in ${cur} ignoriert: ${secName.get(tx.security) || tx.security}`); }
+    return true;
+  };
 
   // Reihenfolge: Datum, dann Depot in der Depotliste, dann Quellreihenfolge (stabile Sortierung)
   const txs = [], seen = new Set();
@@ -18,7 +27,7 @@ function mapPortfolio(raw, warnings = []) {
       if (seen.has(tx.uuid) || !PP_TX_TYPES.has(tx.type)) continue;
       seen.add(tx.uuid);
       used.add(tx.security);
-      if (!eur.has(tx.security)) continue;
+      if (!eur.has(tx.security) || foreign(tx)) continue;
       const t = {
         uuid: tx.uuid, date: tx.date, type: tx.type, depot: p.uuid, security: tx.security,
         shares: tx.shares, amount: tx.amount, fees: tx.fees, taxes: tx.taxes,
@@ -45,7 +54,7 @@ function mapPortfolio(raw, warnings = []) {
       if (seenDiv.has(tx.uuid)) continue;
       seenDiv.add(tx.uuid);
       used.add(tx.security);
-      if (!eur.has(tx.security)) continue;
+      if (!eur.has(tx.security) || foreign(tx)) continue;
       // Alle Depots am Konto; die Engine verteilt nach Bestand am Zahltag
       if (!owners.length) { warnings.push(`Ausschüttung ohne Depot ignoriert: ${tx.date}`); continue; }
       dividends.push({ uuid: tx.uuid, date: tx.date, depots: owners.map(p => p.uuid), security: tx.security, gross: tx.amount + tx.taxes + tx.fees });
@@ -79,7 +88,7 @@ function extractPortfolio(xmlText) {
   const secOf = tx => childText(child(tx, 'security'), 'uuid');
   const base = tx => ({
     uuid: childText(tx, 'uuid'), type: childText(tx, 'type'), date: day(childText(tx, 'date')), security: secOf(tx),
-    amount: +childText(tx, 'amount') / 100, fees: units(tx, 'FEE'), taxes: units(tx, 'TAX'),
+    amount: +childText(tx, 'amount') / 100, fees: units(tx, 'FEE'), taxes: units(tx, 'TAX'), currency: childText(tx, 'currencyCode') || 'EUR',
   });
 
   const securities = kids(child(root, 'securities'), 'security').map(s => ({
@@ -136,7 +145,7 @@ function extractFromProtobuf(bytes) {
     if (relevant && !date) { badDate = true; continue; }
     const data = () => ({
       date, security: tx.security, shares: tx.shares / 1e8, amount: tx.amount / 100,
-      fees: units(tx, PB_UNIT_FEE), taxes: units(tx, PB_UNIT_TAX),
+      fees: units(tx, PB_UNIT_FEE), taxes: units(tx, PB_UNIT_TAX), currency: tx.currencyCode || 'EUR',
     });
     if (tx.type in PB_PORTFOLIO_TYPES) {
       const p = portfolioOf.get(tx.portfolio);

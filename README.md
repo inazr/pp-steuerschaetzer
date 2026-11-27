@@ -102,7 +102,7 @@ Ein neuer Basiszins wird jedes Jahr im Januar veröffentlicht und muss in `src/l
 ## Grenzen
 
 - Gelesen werden Dateien aus Portfolio Performance als **XML** (beide XStream-Varianten, auch als `.portfolio`-ZIP), **binär** und **verschlüsselt** (AES-128 und AES-256). Für verschlüsselte Dateien fragt das Tool nach dem Passwort; es wird nur zum Entschlüsseln verwendet und nirgends gespeichert. Andere Formate und beschädigte Dateien werden mit „Die Datei ist beschädigt oder ihr Format wird nicht unterstützt.“ abgelehnt.
-- Nur **Wertpapiere in EUR**. Andere werden ausgelassen und angezeigt.
+- Nur **Wertpapiere und Buchungen in EUR**. Wertpapiere in anderer Währung und Buchungen über Fremdwährungskonten werden ausgelassen und angezeigt.
 - **Gold-ETCs mit Lieferanspruch** (z. B. Xetra-Gold, steuerfrei nach einem Jahr Haltedauer) sind nicht abgebildet; als „Sonstiges Wertpapier“ wird der Gewinn voll besteuert.
 - Verluste werden je Bank in Aktien- und allgemeinem Topf verrechnet, aber erst **ab 2018** aus der Datei; ältere Verluste bitte als Vortrag zum 1.1. eintragen.
 - **Kein Quellensteuertopf** (keine Anrechnung ausländischer Quellensteuer), keine **ehegattenübergreifende Verlustverrechnung** zum Jahresende, keine Günstigerprüfung und keine NV-Bescheinigung.
