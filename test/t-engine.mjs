@@ -181,4 +181,20 @@ export default ({ g, check, near }) => {
   const m5r = replay(mk2({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-06-02', 'TRANSFER_OUT', 'A', 100, 11000, { transferKey: 'm5' }), tx('2025-06-02', 'TRANSFER_IN', 'B', 100, 11000, { transferKey: 'm5' }),
     tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
   check('M5: buy after transfer inherits from the moved lot', m5r.lots.length === 2 && near(m5r.lots[0].vpCum, 77.1, 0.006) && near(m5r.lots[1].vpCum, 77.1 * 3 / 12, 0.006), m5r.lots.map(l => [l.depot, l.vpCum, l.divPS]));
+
+  // Nachprüfung 4: kein Basiszins-Hinweis, wenn nur Wertpapiere ohne Vorabpauschale im Bestand sind
+  const P4 = [['2025-12-30', 100], ['2026-12-30', 110]];
+  const bzWarn = r => r.warnings.filter(w => w.startsWith('Kein Basiszins'));
+  for (const ft of ['einzelaktie', 'sonstiges_wp']) {
+    const r = replay(mk({ txs: [tx('2025-06-02', 'BUY', 'A', 10, 1000)], prices: P4 }), { ...SET, fundTypes: { IS: ft } }, '2027-01-05');
+    check(`N4: no forecast base-rate warning with ${ft} only`, !bzWarn(r).length, r.warnings);
+  }
+  const bz = g('LAW').basiszins.values, bz26 = bz[2026];
+  try {
+    delete bz[2026];
+    let r = replay(mk({ txs: [tx('2025-06-02', 'BUY', 'A', 10, 1000)], prices: P4 }), { ...SET, fundTypes: { IS: 'einzelaktie' } }, '2027-01-05');
+    check('N4: no closed-year base-rate warning with single stocks only', !bzWarn(r).length, r.warnings);
+    r = replay(mk({ txs: [tx('2025-06-02', 'BUY', 'A', 10, 1000)], prices: P4 }), { ...SET, fundTypes: { IS: 'aktienfonds' } }, '2027-01-05');
+    check('N4: closed-year base-rate warning with a fund', bzWarn(r).some(w => w.includes('2026')), r.warnings);
+  } finally { bz[2026] = bz26; }
 };

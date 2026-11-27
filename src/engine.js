@@ -232,9 +232,11 @@ function replay(data, settings, today) {
     }
     return out;
   };
+  // Bestand, für den eine Vorabpauschale anfällt: nur dann fehlt ein Basiszins wirklich (Einzelaktien, sonstige Wertpapiere brauchen keinen)
+  const holdsVpFunds = () => [...queues.entries()].some(([key, lots]) => lots.length && FUND_TYPES[fundTypeOf(settings, secById.get(key.split('|')[1]))].vp);
   const yearEnd = Y => {
     if (!hasParam('basiszins', Y)) {
-      if (Y >= 2018 && [...queues.values()].some(l => l.length)) warnings.push(`Kein Basiszins für ${Y} hinterlegt – Vorabpauschale ${Y} nicht berechnet`);
+      if (Y >= 2018 && holdsVpFunds()) warnings.push(`Kein Basiszins für ${Y} hinterlegt – Vorabpauschale ${Y} nicht berechnet`);
       return;
     }
     vpRows.push(...vpYear(Y, list => { const p = priceOnOrBefore(list, `${Y}-12-31`); return p === null ? null : [p, `${Y}-12-31`]; }, true, `Vorabpauschale ${Y}`));
@@ -265,7 +267,7 @@ function replay(data, settings, today) {
   const vpForecast = hasParam('basiszins', currentYear)
     ? vpYear(currentYear, list => list.length ? [list[list.length - 1][1], list[list.length - 1][0]] : null, false, `Prognose Vorabpauschale ${currentYear}`)
     : [];
-  if (!hasParam('basiszins', currentYear) && [...queues.values()].some(l => l.length)) warnings.push(`Kein Basiszins für ${currentYear} hinterlegt – Prognose der Vorabpauschale nicht berechnet`);
+  if (!hasParam('basiszins', currentYear) && holdsVpFunds()) warnings.push(`Kein Basiszins für ${currentYear} hinterlegt – Prognose der Vorabpauschale nicht berechnet`);
 
   // VP des Jahres Y fließt am ersten Werktag des Folgejahres zu; Zinsen je Konto
   // (vpRows gibt es nur für abgeschlossene Jahre: der Ertrag zählt ab Jahresbeginn, auch in den Tagen vor dem ersten Werktag)
