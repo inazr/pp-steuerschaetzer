@@ -141,4 +141,17 @@ export default ({ g, check, near }) => {
   check('income: orphan distribution emits div event', inc(res, 'div').length === 1 && inc(res, 'div')[0].owner === 'A' && near(inc(res, 'div')[0].amount, 35), inc(res, 'div'));
   const taxStock = replay(mk({ txs: [tx('2020-01-10', 'BUY', 'A', 10, 500), tx('2024-02-01', 'SELL', 'A', 10, 1200)], prices: P, secs: [{ uuid: 'S', name: 'Siemens AG', isin: 'DE0007236101', currency: 'EUR' }] }), SET, '2024-05-01');
   check('income: taxable stock sale emits aktie event', inc(taxStock, 'aktie').length === 1 && near(inc(taxStock, 'aktie')[0].amount, 700), taxStock.income);
+
+  // B1: Ausschüttung im März, Kauf im Oktober → der neue Lot erbt die Ausschüttung je Stück des Jahres
+  const PB1 = [['2024-12-30', 100], ['2025-12-30', 120], ['2026-11-20', 125]];
+  const div = depots => [{ uuid: 'd1', date: '2025-03-15', depots, security: 'S', gross: 100 }];
+  let b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-10-10', 'BUY', 'A', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
+  check('B1: old lot unchanged', near(b1.lots[0].vpCum, 77.1, 0.006), b1.lots[0].vpCum);
+  check('B1: late lot inherits distribution', near(b1.lots[1].vpCum, 77.1 * 3 / 12, 0.006), b1.lots[1].vpCum);
+  b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A', 'B']), prices: PB1 }), SET, '2026-11-27');
+  check('B1: sibling depot inherits', near(b1.lots.find(l => l.depot === 'B').vpCum, 77.1 * 3 / 12, 0.006), b1.lots.map(l => l.vpCum));
+  b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
+  check('B1: foreign account not inherited', near(b1.lots.find(l => l.depot === 'B').vpCum, 177.1 * 3 / 12, 0.006), b1.lots.map(l => l.vpCum));
+  b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2026-02-10', 'BUY', 'A', 10, 1200)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
+  check('B1: next-year lot has no 2025 distribution', !(b1.lots[1].divPS[2025] > 0), b1.lots[1].divPS);
 };

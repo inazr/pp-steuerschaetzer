@@ -90,7 +90,14 @@ function replay(data, settings, today) {
     return r;
   };
   const oversold = (ev, missing) => errors.push(`Buchung über Bestand am ${isoToDe(ev.date)}: ${(secById.get(ev.security) || {}).name || ev.security} in ${depName(ev.depot)} (${round8(missing)} Stück fehlen)`);
-  const buy = ev => { if (ev.shares > EPS) insert(q(ev.depot, ev.security), { id: ++lotId, depot: ev.depot, security: ev.security, buyDate: ev.date, shares: ev.shares, cost: ev.amount / ev.shares, vpCum: 0, divPS: {} }); };
+  // Ausschüttung je Stück, die ein Depot (bzw. sein Konto) im Jahr schon gesehen hat: depot|security|Jahr. § 18 Abs. 1 InvStG zählt die
+  // Ausschüttungen des Fonds im Kalenderjahr je Anteil – ein später gekaufter Lot erbt sie deshalb für sein Kaufjahr.
+  const divSeen = new Map();
+  const buy = ev => {
+    if (!(ev.shares > EPS)) return;
+    const y = +ev.date.slice(0, 4), seen = divSeen.get(`${ev.depot}|${ev.security}|${y}`);
+    insert(q(ev.depot, ev.security), { id: ++lotId, depot: ev.depot, security: ev.security, buyDate: ev.date, shares: ev.shares, cost: ev.amount / ev.shares, vpCum: 0, divPS: seen > 0 ? { [y]: seen } : {} });
+  };
 
   const handle = ev => {
     const y = +ev.date.slice(0, 4);
@@ -102,6 +109,7 @@ function replay(data, settings, today) {
         const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
         const perDepot = new Map();
         if (held > EPS) {
+          for (const d of ev.depots || [ev.depot]) { const k = `${d}|${ev.security}|${y}`; divSeen.set(k, (divSeen.get(k) || 0) + ev.gross / held); }
           for (const qu of queues) for (const lot of qu) {
             lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
             const a = ev.gross / held * lot.shares * (1 - ft.tfs);
