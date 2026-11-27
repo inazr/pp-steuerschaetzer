@@ -154,4 +154,16 @@ export default ({ g, check, near }) => {
   check('B1: foreign account not inherited', near(b1.lots.find(l => l.depot === 'B').vpCum, 177.1 * 3 / 12, 0.006), b1.lots.map(l => l.vpCum));
   b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2026-02-10', 'BUY', 'A', 10, 1200)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
   check('B1: next-year lot has no 2025 distribution', !(b1.lots[1].divPS[2025] > 0), b1.lots[1].divPS);
+
+  // B4: Kurs zum Jahresbeginn mit Rückfall auf den ersten Kurs des Jahres; Hinweis bei fehlendem Basiszins des laufenden Jahres
+  const pys = g('priceAtYearStart');
+  check('B4: prior-year price wins', pys([['2024-12-30', 100], ['2025-01-02', 101]], 2025) === 100);
+  check('B4: falls back to first price of the year', pys([['2025-01-02', 101], ['2025-02-01', 105]], 2025) === 101);
+  check('B4: nothing within 10 days', pys([['2025-01-11', 101]], 2025) === null);
+  let r4 = replay(mk({ txs: [tx('2025-01-02', 'BUY', 'A', 100, 10000)], prices: [['2025-01-02', 100], ['2025-12-30', 120], ['2026-11-20', 125]] }), SET, '2026-11-27');
+  check('B4: VP 2025 computed when history starts Jan 2', r4.vpRows.some(x => x.year === 2025 && x.vp > 0), r4.warnings);
+  r4 = replay(mk({ txs: [tx('2025-01-02', 'BUY', 'A', 100, 10000)], prices: [['2025-01-02', 100], ['2026-12-30', 120]] }), SET, '2027-01-05');
+  check('B4: missing base rate of current year is reported', r4.warnings.some(w => w.includes('Kein Basiszins für 2027')), r4.warnings);
+  r4 = replay(mk({ txs: [], prices: [] }), SET, '2027-01-05');
+  check('B4: no base-rate warning without holdings', !r4.warnings.length, r4.warnings);
 };

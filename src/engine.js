@@ -30,6 +30,14 @@ function priceOnOrBefore(list, date, maxDays = 10) {
   return days <= maxDays ? list[idx][1] : null;
 }
 
+// Kurs zu Beginn des Jahres: letzter Kurs am oder vor dem 01.01.; fehlt der (Kurshistorie beginnt im Januar), der erste Kurs bis 10.01.
+function priceAtYearStart(list, year) {
+  const before = priceOnOrBefore(list, `${year}-01-01`);
+  if (before !== null) return before;
+  const first = list.find(p => p[0] >= `${year}-01-01`);
+  return first && first[0] <= `${year}-01-10` ? first[1] : null;
+}
+
 // § 18 InvStG für einen Lot und ein Jahr
 function vpForLot({ wertAnfang, wertEnde, basiszins, ausschuettungen, kaufdatum, jahr }) {
   const basisertrag = basiszins > 0 ? round2(wertAnfang * basiszins * param('vpFaktor', jahr)) : 0;
@@ -188,7 +196,7 @@ function replay(data, settings, today) {
       const sec = secById.get(security), ft = FUND_TYPES[fundTypeOf(settings, sec)];
       if (!ft.vp) continue;
       const list = data.prices.get(security) || [];
-      const ps = priceOnOrBefore(list, `${Y}-01-01`), end = endPrice(list), pe = end && end[0];
+      const ps = priceAtYearStart(list, Y), end = endPrice(list), pe = end && end[0];
       if (ps === null || !pe) {
         warnings.push(`Kein Kurs zum ${ps === null ? '01.01.' : '31.12.'}${Y} für ${sec.name} – ${label} übersprungen`);
         continue;
@@ -245,6 +253,7 @@ function replay(data, settings, today) {
   const vpForecast = hasParam('basiszins', currentYear)
     ? vpYear(currentYear, list => list.length ? [list[list.length - 1][1], list[list.length - 1][0]] : null, false, `Prognose Vorabpauschale ${currentYear}`)
     : [];
+  if (!hasParam('basiszins', currentYear) && [...queues.values()].some(l => l.length)) warnings.push(`Kein Basiszins für ${currentYear} hinterlegt – Prognose der Vorabpauschale nicht berechnet`);
 
   // VP des Jahres Y fließt am 02.01. des Folgejahres zu; Zinsen je Konto
   for (const r of vpRows) if (r.taxable > 0 && `${r.year + 1}-01-02` <= today) addIncome(`${r.year + 1}-01-02`, r.depot, 'vp', r.taxable);
