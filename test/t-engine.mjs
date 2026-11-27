@@ -150,8 +150,9 @@ export default ({ g, check, near }) => {
   check('B1: late lot inherits distribution', near(b1.lots[1].vpCum, 77.1 * 3 / 12, 0.006), b1.lots[1].vpCum);
   b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A', 'B']), prices: PB1 }), SET, '2026-11-27');
   check('B1: sibling depot inherits', near(b1.lots.find(l => l.depot === 'B').vpCum, 77.1 * 3 / 12, 0.006), b1.lots.map(l => l.vpCum));
+  // Ausschüttung je Stück ist eine Größe des Fonds (§ 18 Abs. 1 S. 1 InvStG, BMF Rz. 18.2), nicht des Kontos
   b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
-  check('B1: foreign account not inherited', near(b1.lots.find(l => l.depot === 'B').vpCum, 177.1 * 3 / 12, 0.006), b1.lots.map(l => l.vpCum));
+  check('B1: depot on another account inherits the fund distribution', near(b1.lots.find(l => l.depot === 'B').vpCum, 77.1 * 3 / 12, 0.006), b1.lots.map(l => l.vpCum));
   b1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2026-02-10', 'BUY', 'A', 10, 1200)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
   check('B1: next-year lot has no 2025 distribution', !(b1.lots[1].divPS[2025] > 0), b1.lots[1].divPS);
 
@@ -181,6 +182,35 @@ export default ({ g, check, near }) => {
   const m5r = replay(mk2({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-06-02', 'TRANSFER_OUT', 'A', 100, 11000, { transferKey: 'm5' }), tx('2025-06-02', 'TRANSFER_IN', 'B', 100, 11000, { transferKey: 'm5' }),
     tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
   check('M5: buy after transfer inherits from the moved lot', m5r.lots.length === 2 && near(m5r.lots[0].vpCum, 77.1, 0.006) && near(m5r.lots[1].vpCum, 77.1 * 3 / 12, 0.006), m5r.lots.map(l => [l.depot, l.vpCum, l.divPS]));
+
+  // Nachprüfung 1: Erbe über Konten hinweg, ohne Doppelzählung
+  const mk3 = d => ({ ...mk(d), portfolios: [{ uuid: 'A', name: 'Depot A', accountUuid: 'k' }, { uuid: 'B', name: 'Depot B', accountUuid: 'k2' }, { uuid: 'C', name: 'Depot C', accountUuid: 'k3' }] });
+  const late = res => res.lots.find(l => l.buyDate === '2025-10-10');
+  // Zwei Banken buchen dieselbe Ausschüttung (je 1,00 € je Stück): ein Kauf an einem dritten Konto erbt 1,00, nicht 2,00
+  let n1 = replay(mk3({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2024-06-01', 'BUY', 'B', 100, 10000), tx('2025-10-10', 'BUY', 'C', 100, 11500)],
+    dividends: [{ uuid: 'd1', date: '2025-03-15', depots: ['A'], security: 'S', gross: 100 }, { uuid: 'd1b', date: '2025-03-15', depots: ['B'], security: 'S', gross: 100 }], prices: PB1 }), SET, '2026-11-27');
+  check('N1: same distribution booked by two banks counts once', near(late(n1).divPS[2025], 1, 1e-9) && near(late(n1).vpCum, 77.1 * 3 / 12, 0.006), late(n1));
+  // Alles vor dem Zahltag verkauft (Ausschüttung geht an den letzten Bestand), Rückkauf im Oktober: erbt die Ausschüttung
+  n1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-03-01', 'SELL', 'A', 100, 10500), tx('2025-10-10', 'BUY', 'A', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
+  check('N1: buy-back after a sale before payment day inherits', late(n1) && near(late(n1).divPS[2025], 1, 1e-9) && near(late(n1).vpCum, 77.1 * 3 / 12, 0.006), late(n1));
+  // C erbt im Juni 1,00 von A, bekommt im September selbst 0,50: ein Kauf im Oktober kennt 1,50 (nicht nur das Maximum 1,00)
+  n1 = replay(mk3({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-06-02', 'BUY', 'C', 100, 11000), tx('2025-07-01', 'SELL', 'A', 100, 11000), tx('2025-10-10', 'BUY', 'C', 100, 11500)],
+    dividends: [{ uuid: 'd1', date: '2025-03-15', depots: ['A'], security: 'S', gross: 100 }, { uuid: 'd2', date: '2025-09-15', depots: ['C'], security: 'S', gross: 50 }], prices: PB1 }), SET, '2026-11-27');
+  const june = n1.lots.find(l => l.buyDate === '2025-06-02');
+  check('N1: inherited amount plus own later distribution (June lot)', june && near(june.divPS[2025], 1.5, 1e-9) && near(june.vpCum, 27.1 * 7 / 12, 0.006), june);
+  check('N1: inherited amount plus own later distribution (October lot)', late(n1) && near(late(n1).divPS[2025], 1.5, 1e-9) && near(late(n1).vpCum, 27.1 * 3 / 12, 0.006), late(n1));
+  // Eine Bank bucht dieselbe Ausschüttung doppelt so hoch (Datenfehler): das eigene Konto geht vor, sonst der kleinste Betrag
+  const twoBanks = (dA, dB, buyer) => replay(mk3({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2024-06-01', 'BUY', 'B', 100, 10000), tx('2025-10-10', 'BUY', buyer, 100, 11500)],
+    dividends: [{ uuid: 'dA', date: dA, depots: ['A'], security: 'S', gross: 200 }, { uuid: 'dB', date: dB, depots: ['B'], security: 'S', gross: 100 }], prices: PB1 }), SET, '2026-11-27');
+  n1 = twoBanks('2025-07-03', '2025-07-03', 'B');
+  check('N1: own bank booking wins over a higher one elsewhere', near(late(n1).divPS[2025], 1, 1e-9), late(n1));
+  n1 = twoBanks('2025-07-03', '2025-07-03', 'C');
+  check('N1: third bank takes the smallest booking of the same distribution', near(late(n1).divPS[2025], 1, 1e-9), late(n1));
+  // Banken schreiben dieselbe Ausschüttung an verschiedenen Tagen gut: wenige Tage Abstand = ein Termin, ein Monat = zwei Termine
+  n1 = twoBanks('2025-07-03', '2025-07-07', 'C');
+  check('N1: bookings a few days apart are one distribution', near(late(n1).divPS[2025], 1, 1e-9), late(n1));
+  n1 = twoBanks('2025-04-03', '2025-07-03', 'C');
+  check('N1: bookings months apart are two distributions', near(late(n1).divPS[2025], 3, 1e-9), late(n1));
 
   // Nachprüfung 4: kein Basiszins-Hinweis, wenn nur Wertpapiere ohne Vorabpauschale im Bestand sind
   const P4 = [['2025-12-30', 100], ['2026-12-30', 110]];

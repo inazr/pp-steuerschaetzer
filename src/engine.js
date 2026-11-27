@@ -11,6 +11,8 @@ function vpInflowDate(year) {
 }
 // Ex-Tag bis Zahltag liegt bei ETFs meist 1–4 Wochen: so lange gilt ein geleertes Depot noch als Empfänger einer Ausschüttung
 const DIV_ORPHAN_DAYS = 60;
+// Buchungen derselben Ausschüttung bei verschiedenen Banken liegen wenige Tage auseinander; monatliche Ausschüttungen rund 30 Tage
+const DIV_SAME_DAYS = 7;
 
 // Explizite Wahl des Nutzers (je ISIN, sonst UUID), sonst geraten
 const explicitFundType = (settings, sec) => { const key = settings.fundTypes && sec && settings.fundTypes[sec.isin || sec.uuid]; return FUND_TYPES[key] ? key : null; };
@@ -105,12 +107,29 @@ function replay(data, settings, today) {
     return r;
   };
   const oversold = (ev, missing) => errors.push(`Buchung über Bestand am ${isoToDe(ev.date)}: ${(secById.get(ev.security) || {}).name || ev.security} in ${depName(ev.depot)} (${round8(missing)} Stück fehlen)`);
-  // Ausschüttung je Stück, die ein Depot (bzw. sein Konto) im Jahr schon gesehen hat: depot|security|Jahr. § 18 Abs. 1 InvStG zählt die
-  // Ausschüttungen des Fonds im Kalenderjahr je Anteil – ein später gekaufter Lot erbt sie deshalb für sein Kaufjahr.
-  const divSeen = new Map();
+  // § 18 Abs. 1 S. 1 InvStG (BMF Rz. 18.2) zählt die Ausschüttungen des Fonds im Kalenderjahr je Anteil, unabhängig von Konto und
+  // Kaufdatum: ein später gekaufter Lot erbt sie für sein Kaufjahr. Gesammelt je Fonds und Jahr (security|Jahr) als Termine
+  // [{ date, entries: [{ key, depots, ps }] }] mit der Ausschüttung je Stück je Konto (depots = alle Depots des Kontos).
+  // Jede Bank bucht dieselbe Ausschüttung erneut, oft an einem anderen Tag: Buchungen verschiedener Konten im Abstand von
+  // höchstens DIV_SAME_DAYS Tagen sind ein Termin. Je Termin zählt der Betrag des eigenen Kontos, sonst der kleinste der anderen
+  // Banken – so breitet sich eine fehlerhafte Buchung einer Bank nicht auf andere Depots aus, und nichts zählt doppelt.
+  const fundDivs = new Map();
+  const noteDiv = (ev, ps) => {
+    const k = `${ev.security}|${ev.date.slice(0, 4)}`, depots = ev.depots || [ev.depot], key = depots.join(',');
+    if (!fundDivs.has(k)) fundDivs.set(k, []);
+    const list = fundDivs.get(k);
+    let t = list.find(t => Math.abs(Date.parse(ev.date) - Date.parse(t.date)) <= DIV_SAME_DAYS * 864e5);
+    if (!t) list.push(t = { date: ev.date, entries: [] });
+    const e = t.entries.find(e => e.key === key);
+    if (e) e.ps += ps; else t.entries.push({ key, depots, ps });
+  };
+  const inheritedDiv = (depot, security, y) => (fundDivs.get(`${security}|${y}`) || []).reduce((s, t) => {
+    const own = t.entries.find(e => e.depots.includes(depot));
+    return s + (own ? own.ps : Math.min(...t.entries.map(e => e.ps)));
+  }, 0);
   const buy = ev => {
     if (!(ev.shares > EPS)) return;
-    const y = +ev.date.slice(0, 4), seen = divSeen.get(`${ev.depot}|${ev.security}|${y}`);
+    const y = +ev.date.slice(0, 4), seen = inheritedDiv(ev.depot, ev.security, y);
     insert(q(ev.depot, ev.security), { id: ++lotId, depot: ev.depot, security: ev.security, buyDate: ev.date, shares: ev.shares, cost: ev.amount / ev.shares, vpCum: 0, divPS: seen > 0 ? { [y]: seen } : {} });
   };
 
@@ -124,7 +143,7 @@ function replay(data, settings, today) {
         const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
         const perDepot = new Map();
         if (held > EPS) {
-          for (const d of ev.depots || [ev.depot]) { const k = `${d}|${ev.security}|${y}`; divSeen.set(k, (divSeen.get(k) || 0) + ev.gross / held); }
+          noteDiv(ev, ev.gross / held);
           for (const qu of queues) for (const lot of qu) {
             lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
             const a = ev.gross / held * lot.shares * (1 - ft.tfs);
@@ -141,6 +160,7 @@ function replay(data, settings, today) {
           const name = (secById.get(ev.security) || {}).name || ev.security;
           const total = last.reduce((s, [, h]) => s + h.shares, 0);
           if (!last.length) { warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${name} ohne Bestand ignoriert`); return; }
+          noteDiv(ev, ev.gross / total); // für einen Rückkauf im selben Jahr
           for (const [d, h] of last) {
             const a = ev.gross * h.shares / total * (1 - ft.tfs);
             if (inView(d)) distributions[y] = (distributions[y] || 0) + a;
@@ -184,12 +204,7 @@ function replay(data, settings, today) {
         lastHeld.delete(p.out.depot + '|' + p.out.security); // Bestand ist nur umgezogen, nicht abgegangen
         if (missing) oversold(p.out, missing);
         const target = q(p.in.depot, p.in.security);
-        // Das Zieldepot kennt damit die Ausschüttung je Stück des Jahres (für spätere Käufe dort, s. divSeen)
-        const seenKey = `${p.in.depot}|${p.in.security}|${y}`;
-        for (const piece of pieces) {
-          piece.depot = p.in.depot; insert(target, piece);
-          if (piece.divPS[y] > (divSeen.get(seenKey) || 0)) divSeen.set(seenKey, piece.divPS[y]);
-        }
+        for (const piece of pieces) { piece.depot = p.in.depot; insert(target, piece); }
         return;
       }
     }
