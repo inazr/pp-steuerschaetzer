@@ -18,8 +18,14 @@ function parseXml(s) {
     if (s.startsWith('<!--', lt)) { i = until('-->', lt) + 3; continue; }
     if (s.startsWith('<![CDATA[', lt)) { const e = until(']]>', lt); if (cur) text += '\u0000' + s.slice(lt + 9, e); i = e + 3; continue; }
     if (s[lt + 1] === '?' || s[lt + 1] === '!') { i = until('>', lt) + 1; continue; }
-    const gt = s.indexOf('>', lt);
+    let gt = s.indexOf('>', lt);
     if (gt < 0) throw new Error('XML_BROKEN');
+    // „>“ innerhalb eines Attributwerts beendet das Tag nicht: nur wenn Anführungszeichen vorkommen, zeichenweise bis zum echten Ende gehen
+    if (s[lt + 1] !== '/' && /["']/.test(s.slice(lt, gt))) {
+      let quote = '';
+      for (gt = lt + 1; gt < n; gt++) { const c = s[gt]; if (quote) { if (c === quote) quote = ''; } else if (c === '"' || c === "'") quote = c; else if (c === '>') break; }
+      if (gt >= n) throw new Error('XML_BROKEN');
+    }
     if (s[lt + 1] === '/') {
       // schließendes Tag muss zum offenen Element passen (sonst: falsch geschachtelt oder beschädigt)
       if (!cur || s.slice(lt + 2, gt).trim() !== cur.name) throw new Error('XML_BROKEN');

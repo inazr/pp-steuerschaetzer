@@ -51,4 +51,5 @@ export default ({ g, check }) => {
   const d9 = { securities: [{ uuid: 'S9', name: '=HYPERLINK("x")', isin: 'IE9' }], portfolios: [{ uuid: 'D9', name: '+Depot' }] };
   const l9 = g('csvAllowance')({ rows: [{ bank: 'D9', lot: { depot: 'D9', security: 'S9', buyDate: '2020-01-02', cost: 10 }, shares: 1, price: 5, gross: 5, gainTaxable: -5 }] }, d9).split('\r\n')[1];
   check('B9: export guards names, keeps negative amount', l9.startsWith("'+Depot;'+Depot;\"'=HYPERLINK(\"\"x\"\")\";IE9;") && l9.endsWith(';-5,00'), l9);
+  check('M2: ISIN column is guarded too', g('csvNames')({ securities: [{ uuid: 's', name: 'N', isin: '=1+1' }], portfolios: [] }, 'd', 's')[2] === "'=1+1");
 };

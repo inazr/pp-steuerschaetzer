@@ -58,4 +58,9 @@ export default async ({ g, check }) => {
   const pbBad = new Uint8Array([...new TextEncoder().encode('PPPBV1'), 0x80]);
   check('B6: truncated protobuf -> UNSUPPORTED_FORMAT', await code6(load6(await makeZip([['data.portfolio', pbBad]]))) === 'UNSUPPORTED_FORMAT');
   check('B6: valid file still loads', await code6(load6(enc6('<client><securities/><accounts/><portfolios><portfolio><uuid>p</uuid><name>D</name><transactions/></portfolio></portfolios></client>'))) === 'OK');
+
+  // Schlussprüfung M1: „>“ und „/>“ innerhalb eines Attributwerts beenden das Tag nicht
+  const q1 = parseXml('<client><a note="a/>b" x=\'>\'>t</a><b k="1"/></client>');
+  check('M1: quoted > and /> inside attributes', q1.children.length === 2 && q1.children[0].attrs.note === 'a/>b' && q1.children[0].attrs.x === '>' && q1.children[0].text === 't' && q1.children[1].attrs.k === '1', q1.children.map(c => [c.name, c.attrs, c.text]));
+  check('M1: unterminated quote is broken', broken('<a x="1><b/></a>') === 'XML_BROKEN');
 };

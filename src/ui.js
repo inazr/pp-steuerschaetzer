@@ -335,7 +335,7 @@ function renderVp() {
     </div>
     <div class="card">
       <div class="card-h"><h2>Berechnung nach § 18 InvStG</h2><button class="btn" id="csv-vp"${rows.length ? '' : ' disabled'}>CSV exportieren</button></div>
-      <p class="note">Basisertrag = Wert 01.01. × Basiszins × ${param('vpFaktor', YEAR).toLocaleString('de-DE')}, höchstens Wertsteigerung + Ausschüttungen; davon gehen die Ausschüttungen ab. Im Kaufjahr je vollem Monat vor dem Kauf ein Zwölftel weniger. Steuer vor Sparerpauschbetrag. Jahre mit negativem Basiszins (${Object.keys(LAW.basiszins.values).filter(y => LAW.basiszins.values[y] < 0).join(', ')}) ergeben keine Vorabpauschale.</p>
+      <p class="note">Basisertrag = Wert 01.01. × Basiszins × ${param('vpFaktor', YEAR).toLocaleString('de-DE')}, höchstens Wertsteigerung + Ausschüttungen; davon gehen die Ausschüttungen ab. Im Kaufjahr je vollem Monat vor dem Kauf ein Zwölftel weniger. Die Spalte „Ausschüttungen“ zeigt den angerechneten Betrag: Anteile, die erst nach einer Ausschüttung des Jahres gekauft wurden, bekommen sie je Stück angerechnet, auch wenn sie dafür nicht gezahlt wurde. Steuer vor Sparerpauschbetrag. Jahre mit negativem Basiszins (${Object.keys(LAW.basiszins.values).filter(y => LAW.basiszins.values[y] < 0).join(', ')}) ergeben keine Vorabpauschale.</p>
       <div class="tablebox"><table>
         <thead><tr><th>Jahr</th>${multiDepot() ? '<th>Depot</th>' : ''}<th>Wertpapier</th><th>Wert 01.01.</th><th>Wert 31.12.</th><th>Basisertrag</th><th>Ausschüttungen</th><th>Vorabpauschale</th><th>TFS</th><th>Steuerpflichtig</th><th>Steuer</th></tr></thead>
         <tbody>${body || `<tr><td class="txt" colspan="11">Keine Einträge</td></tr>`}</tbody>

@@ -8,7 +8,7 @@ const csvShares = x => round8(x).toFixed(8).replace(/\.?0+$/, '').replace('.', '
 const csvDoc = (header, rows) => '﻿' + [header, ...rows].map(r => r.map(c => csvCell(String(c))).join(';')).join('\r\n') + '\r\n';
 const csvNames = (data, depot, security) => {
   const s = secByUuid(data, security) || {};
-  return [csvText((data.portfolios.find(p => p.uuid === depot) || {}).name || depot), csvText(s.name || security), s.isin || ''];
+  return [csvText((data.portfolios.find(p => p.uuid === depot) || {}).name || depot), csvText(s.name || security), csvText(s.isin || '')];
 };
 
 function csvVp(rows, data) {

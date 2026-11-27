@@ -172,4 +172,13 @@ export default ({ g, check, near }) => {
   check('B10: 2026 Friday', vid(2026) === '2026-01-02', vid(2026));
   check('B10: 2027 Jan 2 is Saturday', vid(2027) === '2027-01-04', vid(2027));
   check('B10: 2028 Jan 2 is Sunday', vid(2028) === '2028-01-03', vid(2028));
+
+  // Schlussprüfung M3: die Vorabpauschale des Vorjahres zählt ab Jahresbeginn, auch wenn der erste Werktag erst der 04.01. ist
+  let m3 = replay(mk({ txs: [tx('2025-06-02', 'BUY', 'A', 100, 10000)], prices: [['2025-12-30', 100], ['2026-12-30', 120]] }), SET, '2027-01-01');
+  check('M3: VP 2026 is income of 2027 from Jan 1, dated first working day', inc(m3, 'vp').some(e => e.year === 2027 && e.date === '2027-01-04' && e.amount > 0), inc(m3, 'vp'));
+  // Schlussprüfung M5: nach einem Übertrag auf ein anderes Konto erbt ein späterer Kauf im Zieldepot die Ausschüttung
+  const mk2 = d => ({ ...mk(d), portfolios: [{ uuid: 'A', name: 'Depot A', accountUuid: 'k' }, { uuid: 'B', name: 'Depot B', accountUuid: 'k2' }] });
+  const m5r = replay(mk2({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-06-02', 'TRANSFER_OUT', 'A', 100, 11000, { transferKey: 'm5' }), tx('2025-06-02', 'TRANSFER_IN', 'B', 100, 11000, { transferKey: 'm5' }),
+    tx('2025-10-10', 'BUY', 'B', 100, 11500)], dividends: div(['A']), prices: PB1 }), SET, '2026-11-27');
+  check('M5: buy after transfer inherits from the moved lot', m5r.lots.length === 2 && near(m5r.lots[0].vpCum, 77.1, 0.006) && near(m5r.lots[1].vpCum, 77.1 * 3 / 12, 0.006), m5r.lots.map(l => [l.depot, l.vpCum, l.divPS]));
 };

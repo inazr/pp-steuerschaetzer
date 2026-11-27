@@ -184,7 +184,12 @@ function replay(data, settings, today) {
         lastHeld.delete(p.out.depot + '|' + p.out.security); // Bestand ist nur umgezogen, nicht abgegangen
         if (missing) oversold(p.out, missing);
         const target = q(p.in.depot, p.in.security);
-        for (const piece of pieces) { piece.depot = p.in.depot; insert(target, piece); }
+        // Das Zieldepot kennt damit die Ausschüttung je Stück des Jahres (für spätere Käufe dort, s. divSeen)
+        const seenKey = `${p.in.depot}|${p.in.security}|${y}`;
+        for (const piece of pieces) {
+          piece.depot = p.in.depot; insert(target, piece);
+          if (piece.divPS[y] > (divSeen.get(seenKey) || 0)) divSeen.set(seenKey, piece.divPS[y]);
+        }
         return;
       }
     }
@@ -263,7 +268,8 @@ function replay(data, settings, today) {
   if (!hasParam('basiszins', currentYear) && [...queues.values()].some(l => l.length)) warnings.push(`Kein Basiszins für ${currentYear} hinterlegt – Prognose der Vorabpauschale nicht berechnet`);
 
   // VP des Jahres Y fließt am ersten Werktag des Folgejahres zu; Zinsen je Konto
-  for (const r of vpRows) if (r.taxable > 0 && vpInflowDate(r.year + 1) <= today) addIncome(vpInflowDate(r.year + 1), r.depot, 'vp', r.taxable);
+  // (vpRows gibt es nur für abgeschlossene Jahre: der Ertrag zählt ab Jahresbeginn, auch in den Tagen vor dem ersten Werktag)
+  for (const r of vpRows) if (r.taxable > 0) addIncome(vpInflowDate(r.year + 1), r.depot, 'vp', r.taxable);
   for (const z of data.interest || []) if (z.date <= today) addIncome(z.date, z.account, 'zins', z.gross);
   income.sort(byDate);
   veranlagung.sort(byDate);
