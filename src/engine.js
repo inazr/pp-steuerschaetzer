@@ -13,6 +13,12 @@ function vpInflowDate(year) {
 const DIV_ORPHAN_DAYS = 60;
 // Buchungen derselben Ausschüttung bei verschiedenen Banken liegen wenige Tage auseinander; monatliche Ausschüttungen rund 30 Tage
 const DIV_SAME_DAYS = 7;
+// Stückzahl der Bank gegen Bestand laut Datei: Rundung von Sparplan-Bruchstücken ist kein Datenfehler
+const sharesMatch = (bank, file) => Math.abs(bank - file) <= Math.max(0.01, 0.001 * bank);
+// § 18 Abs. 1 InvStG zählt die Ausschüttungen des Fonds im Kalenderjahr. Zahlt der Fonds am Jahresende, schreibt die Bank oft
+// erst am ersten Werktag des neuen Jahres gut: diese Gutschrift mindert die Vorabpauschale des Vorjahres (so rechnen die Banken).
+// Als Ertrag (Freibetrag) zählt sie im Jahr der Gutschrift (§ 11 EStG, BMF Rz. 2.47).
+const divVpYear = ev => { const y = +ev.date.slice(0, 4); return ev.type === 'DIV' && ev.date <= vpInflowDate(y) ? y - 1 : y; };
 
 // Explizite Wahl des Nutzers (je ISIN, sonst UUID), sonst geraten
 const explicitFundType = (settings, sec) => { const key = settings.fundTypes && sec && settings.fundTypes[sec.isin || sec.uuid]; return FUND_TYPES[key] ? key : null; };
@@ -114,8 +120,8 @@ function replay(data, settings, today) {
   // höchstens DIV_SAME_DAYS Tagen sind ein Termin. Je Termin zählt der Betrag des eigenen Kontos, sonst der kleinste der anderen
   // Banken – so breitet sich eine fehlerhafte Buchung einer Bank nicht auf andere Depots aus, und nichts zählt doppelt.
   const fundDivs = new Map();
-  const noteDiv = (ev, ps) => {
-    const k = `${ev.security}|${ev.date.slice(0, 4)}`, depots = ev.depots || [ev.depot], key = depots.join(',');
+  const noteDiv = (ev, ps, vy) => {
+    const k = `${ev.security}|${vy}`, depots = ev.depots || [ev.depot], key = depots.join(',');
     if (!fundDivs.has(k)) fundDivs.set(k, []);
     const list = fundDivs.get(k);
     let t = list.find(t => Math.abs(Date.parse(ev.date) - Date.parse(t.date)) <= DIV_SAME_DAYS * 864e5);
@@ -133,19 +139,49 @@ function replay(data, settings, today) {
     insert(q(ev.depot, ev.security), { id: ++lotId, depot: ev.depot, security: ev.security, buyDate: ev.date, shares: ev.shares, cost: ev.amount / ev.shares, vpCum: 0, divPS: seen > 0 ? { [y]: seen } : {} });
   };
 
+  // Bestandsverlauf je Depot und Wertpapier: [[Datum, Bestand nach der Buchung]], für die Prüfung der Stückzahl der Bank
+  const heldLog = new Map();
+  const logHeld = ev => {
+    const k = ev.depot + '|' + ev.security;
+    if (!heldLog.has(k)) heldLog.set(k, []);
+    heldLog.get(k).push([ev.date, q(ev.depot, ev.security).reduce((s, l) => s + l.shares, 0)]);
+  };
+  const heldAt = (log, date) => { let v = 0; for (const [d, s] of log) { if (d > date) break; v = s; } return v; };
+  // Alle Bestände der Depots zwischen from und jetzt (zu from und nach jeder späteren Buchung)
+  const heldSince = (depots, security, from) => {
+    const logs = depots.map(d => heldLog.get(d + '|' + security) || []);
+    const dates = [from, ...new Set(logs.flat().map(([d]) => d).filter(d => d > from))];
+    return dates.map(t => logs.reduce((s, log) => s + heldAt(log, t), 0));
+  };
+  // Die Bank nennt den Bestand am Ex-Tag (bis DIV_ORPHAN_DAYS vor der Gutschrift). Passt er zu keinem Bestand der Datei in dieser
+  // Zeit – weder aller Depots am Konto noch eines einzelnen –, fehlt eine Buchung oder steht eine doppelt drin.
+  const checkBankShares = (ev, held) => {
+    const depots = ev.depots || [ev.depot];
+    const from = new Date(Date.parse(ev.date) - DIV_ORPHAN_DAYS * 864e5).toISOString().slice(0, 10);
+    const groups = depots.length > 1 ? [depots, ...depots.map(d => [d])] : [depots];
+    if (groups.some(g => heldSince(g, ev.security, from).some(v => sharesMatch(ev.shares, v)))) return;
+    warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${(secById.get(ev.security) || {}).name || ev.security} in ${depots.map(depName).join(', ')}: `
+      + `${fmtShares(ev.shares)} Stück laut Bank, ${fmtShares(held)} laut Datei – fehlt eine Buchung oder steht eine doppelt drin?`);
+  };
+
   const handle = ev => {
     const y = +ev.date.slice(0, 4);
     switch (ev.type) {
       case 'DIV': {
-        // Ausschüttung am Konto: auf alle Depots dieses Kontos nach Bestand am Zahltag verteilen
+        // Ausschüttung am Konto: auf alle Depots dieses Kontos nach Bestand am Zahltag verteilen. Je Anteil zählt die Stückzahl
+        // der Bank (Bestand am Ex-Tag); ein Kauf zwischen Ex-Tag und Gutschrift ändert die Ausschüttung je Anteil nicht.
         const queues = (ev.depots || [ev.depot]).map(d => q(d, ev.security));
         const held = queues.reduce((s, qu) => s + qu.reduce((a, l) => a + l.shares, 0), 0);
-        const ft = FUND_TYPES[fundTypeOf(settings, secById.get(ev.security))];
+        const sec = secById.get(ev.security), ft = FUND_TYPES[fundTypeOf(settings, sec)];
+        const vy = divVpYear(ev), bank = ev.shares > EPS;
+        if (bank) checkBankShares(ev, held);
+        if (vy < y && ft.vp && vy >= 2018) warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${(sec || {}).name || ev.security} zählt für die Vorabpauschale ${vy} (der Fonds zahlt meist zum Jahresende) und für den Freibetrag ${y}`);
         const perDepot = new Map();
         if (held > EPS) {
-          noteDiv(ev, ev.gross / held);
+          const ps = ev.gross / (bank ? ev.shares : held);
+          noteDiv(ev, ps, vy);
           for (const qu of queues) for (const lot of qu) {
-            lot.divPS[y] = (lot.divPS[y] || 0) + ev.gross / held;
+            lot.divPS[vy] = (lot.divPS[vy] || 0) + ps;
             const a = ev.gross / held * lot.shares * (1 - ft.tfs);
             perDepot.set(lot.depot, (perDepot.get(lot.depot) || 0) + a);
             // steuerpflichtiger Teil verbraucht den Freibetrag (nur ausgewählte Depots)
@@ -160,7 +196,7 @@ function replay(data, settings, today) {
           const name = (secById.get(ev.security) || {}).name || ev.security;
           const total = last.reduce((s, [, h]) => s + h.shares, 0);
           if (!last.length) { warnings.push(`Ausschüttung vom ${isoToDe(ev.date)} für ${name} ohne Bestand ignoriert`); return; }
-          noteDiv(ev, ev.gross / total); // für einen Rückkauf im selben Jahr
+          noteDiv(ev, ev.gross / (bank ? ev.shares : total), vy); // für einen Rückkauf im selben Jahr
           for (const [d, h] of last) {
             const a = ev.gross * h.shares / total * (1 - ft.tfs);
             if (inView(d)) distributions[y] = (distributions[y] || 0) + a;
@@ -275,7 +311,13 @@ function replay(data, settings, today) {
 
   let doneYear = (events.length ? +events[0].date.slice(0, 4) : currentYear) - 1;
   const flush = upto => { while (doneYear < upto) yearEnd(++doneYear); };
-  for (const ev of events) { if (ev.date >= '2018-01-01') switchOver(); flush(+ev.date.slice(0, 4) - 1); handle(ev); }
+  // Eine Januar-Gutschrift für das Vorjahr (divVpYear) kommt noch vor dessen Jahresabschluss
+  for (const ev of events) {
+    if (ev.date >= '2018-01-01') switchOver();
+    flush(divVpYear(ev) - 1);
+    handle(ev);
+    if (ev.type !== 'DIV') logHeld(ev);
+  }
   if (today >= '2018-01-01') switchOver();
   flush(currentYear - 1);
   // Prognose für das laufende Jahr (fließt im Januar des Folgejahres zu): letzter Kurs statt Kurs zum 31.12.

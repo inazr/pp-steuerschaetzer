@@ -147,6 +147,7 @@ function lawRows(settings, year) {
     row('Jahressaldo', 'Steuer je Bank als Jahressaldo statt in der Buchungsreihenfolge der Bank', 'A', 'Annahme des Tools'),
     row('Gemeinsamer Freibetrag', 'Ohne eingetragene Freistellungsaufträge wird der Sparerpauschbetrag gemeinsam über alle Banken gerechnet', 'A', 'Annahme des Tools'),
     row('Fondstyp', 'Steht nicht in der PP-Datei und wird aus Name und ISIN geraten, bis du ihn bestätigst', 'A', 'Annahme des Tools'),
+    row('Ausschüttungen zum Jahreswechsel', 'Gutschriften bis zum ersten Werktag im Januar mindern die Vorabpauschale des Vorjahres, weil der Fonds meist zum Jahresende zahlt; für den Freibetrag zählen sie im Jahr der Gutschrift', 'A', 'Annahme des Tools; § 18 Abs. 1 InvStG', LAW_URL.invstg18),
     row('Altgewinn', 'Kurs 31.12.2017 − Einstand, ohne ausschüttungsgleiche Erträge aus der Zeit vor 2018', 'A', 'Annahme des Tools; § 56 Abs. 3 InvStG', LAW_URL.invstg56),
     row('Freibetrag Altanteile: Bemessung', `${eur0(fb)} werden auf den Gewinn nach Teilfreistellung angerechnet`, 'G', 'BMF-Schreiben vom 21.05.2019, Rz. 56.101; § 56 Abs. 6 InvStG', LAW_URL.invstg56),
     row('Freibetrag Altanteile: Paare', `Bei Zusammenveranlagung gemeinsam ${eur0(2 * fb)} statt ${eur0(fb)} je Person für die eigenen Anteile`, 'A', 'Annahme des Tools; § 56 Abs. 6 InvStG', LAW_URL.invstg56),

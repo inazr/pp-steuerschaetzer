@@ -38,7 +38,7 @@ const SAME = {
     { type: 'BUY', uuid: 'buy-usd', pf: 'pf-A', acc: 'acc-1', date: '2023-01-11', sec: 'sec-usd', shares: 200000000, amount: 20000 },
     { type: 'SELL', uuid: 'sell-1', pf: 'pf-A', acc: 'acc-1', date: '2023-06-01', sec: 'sec-eur', shares: 300000000, amount: 35000, units: [['TAX', 1234], ['FEE', 150]] },
     { type: 'TRANSFER', uuid: 'tr-out', otherUuid: 'tr-in', pf: 'pf-A', otherPf: 'pf-B', date: '2023-07-01', sec: 'sec-eur', shares: 400000000, amount: 44000, units: [['FEE', 300]] },
-    { type: 'DIVIDEND', uuid: 'div-1', acc: 'acc-1', date: '2023-07-10', sec: 'sec-eur', amount: 1000, units: [['TAX', 264], ['FEE', 25]] },
+    { type: 'DIVIDEND', uuid: 'div-1', acc: 'acc-1', date: '2023-07-10', sec: 'sec-eur', amount: 1000, shares: 700000000, units: [['TAX', 264], ['FEE', 25]] },
     { type: 'DIVIDEND', uuid: 'div-nosec', acc: 'acc-1', date: '2023-08-01', amount: 500, units: [['TAX', 132]] },
     { type: 'INTEREST', uuid: 'int-1', acc: 'acc-1', date: '2023-09-30', amount: 7500, units: [['TAX', 2638]] },
     { type: 'INTEREST', uuid: 'int-usd', acc: 'acc-usd', date: '2023-09-30', amount: 300 },
@@ -58,7 +58,7 @@ function sameAsXml(D) {
   const accTxs = acc => D.txs.filter(t => !t.pf && t.acc === acc).map(t => {
     const type = t.type === 'DIVIDEND' ? (t.sec ? 'DIVIDENDS' : 'INTEREST') : t.type; // PP: Ausschüttung ohne Wertpapier = Zins
     return `<account-transaction><uuid>${t.uuid}</uuid><date>${t.date}T00:00</date><currencyCode>EUR</currencyCode><amount>${t.amount}</amount>`
-      + `${t.sec ? `<security><uuid>${t.sec}</uuid></security>` : ''}<type>${type}</type>${unitsXml(t.units)}</account-transaction>`;
+      + `${t.sec ? `<security><uuid>${t.sec}</uuid></security>` : ''}${t.shares ? `<shares>${t.shares}</shares>` : ''}<type>${type}</type>${unitsXml(t.units)}</account-transaction>`;
   }).join('');
   return `<client><version>66</version><baseCurrency>EUR</baseCurrency><securities>${D.securities.map(s => `<security><uuid>${s.uuid}</uuid><name>${s.name}</name>`
     + `<currencyCode>${s.cur}</currencyCode><isin>${s.isin || ''}</isin><wkn>${s.wkn || ''}</wkn><prices>${s.prices.map(([t, v]) => `<price t="${t}" v="${v}"/>`).join('')}</prices></security>`).join('')}</securities>`
@@ -95,6 +95,8 @@ export default ({ g, check, near, root }) => {
   check('pp: delivery inbound', byId['pt-del1'] && byId['pt-del1'].type === 'DELIVERY_INBOUND' && near(byId['pt-del1'].amount, 550));
   check('pp: dividend gross = net + tax', d.dividends.length === 1 && d.dividends[0].date === '2023-07-10' && d.dividends[0].depots.join() === 'pf-1'
     && d.dividends[0].security === 'sec-etf' && near(d.dividends[0].gross, 12.64), d.dividends);
+  // Stückzahl der Bank (Bestand am Ex-Tag): Grundlage der Ausschüttung je Anteil
+  check('pp: dividend keeps the bank share count', d.dividends[0].shares === 13, d.dividends[0]);
   const pr = d.prices.get('sec-etf');
   check('pp: prices sorted and scaled', pr.length === 3 && pr[0][0] === '2022-12-30' && near(pr[0][1], 100) && near(pr[2][1], 130), pr);
 
@@ -147,6 +149,7 @@ export default ({ g, check, near, root }) => {
   check('pb: xml fixture is meaningful', fromXml.txs.length === 5 && fromXml.dividends.length === 1 && fromXml.interest.length === 2
     && fromXml.warnings.length === 2, { txs: fromXml.txs.map(t => t.uuid), warnings: fromXml.warnings });
   check('pb: protobuf == xml', norm(fromPb) === norm(fromXml), { pb: norm(fromPb), xml: norm(fromXml) });
+  check('pb: dividend share count read in both formats', fromXml.dividends[0].shares === 7 && fromPb.dividends[0].shares === 7, [fromXml.dividends, fromPb.dividends]);
   check('pb: canonical order on ties (date, depot index, source order)', fromPb.txs.map(t => t.uuid).join() === fromXml.txs.map(t => t.uuid).join(), fromPb.txs.map(t => t.uuid));
   check('pb: dividend without security becomes interest', fromPb.interest.some(i => i.uuid === 'div-nosec'));
   check('pb: transfer pair keyed by source uuid', fromPb.txs.some(t => t.uuid === 'tr-in' && t.type === 'TRANSFER_IN' && t.depot === 'pf-B' && t.transferKey === 'tr-out'));

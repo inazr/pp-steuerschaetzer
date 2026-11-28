@@ -3,7 +3,7 @@
 // Beide Leser erzeugen dasselbe Rohmodell; mapPortfolio wendet die gemeinsame Fachlogik an (EUR-Filter, Brutto, Warnungen, Reihenfolge).
 //   securities: [{ uuid, name, isin, currency, prices: () => [[YYYY-MM-DD, Kurs]] }]
 //   portfolios: [{ uuid, name, accountUuid, txs: [{ uuid, type, date, security, shares, amount, fees, taxes, transferKey? }] }]
-//   accounts:   [{ uuid, name, currency, txs: [{ uuid, type: 'INTEREST' | 'DIVIDENDS', date, security, amount, fees, taxes }] }]
+//   accounts:   [{ uuid, name, currency, txs: [{ uuid, type: 'INTEREST' | 'DIVIDENDS', date, security, shares, amount, fees, taxes }] }]
 const PP_TX_TYPES = new Set(['BUY', 'SELL', 'DELIVERY_INBOUND', 'DELIVERY_OUTBOUND', 'TRANSFER_IN', 'TRANSFER_OUT']);
 const byDate = (a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
 
@@ -61,7 +61,8 @@ function mapPortfolio(raw, warnings = []) {
       if (!eur.has(tx.security) || foreign(tx, false)) continue;
       // Alle Depots am Konto; die Engine verteilt nach Bestand am Zahltag
       if (!owners.length) { warnings.push(`Ausschüttung ohne Depot ignoriert: ${tx.date}`); continue; }
-      dividends.push({ uuid: tx.uuid, date: tx.date, depots: owners.map(p => p.uuid), security: tx.security, gross: tx.amount + tx.taxes + tx.fees });
+      // shares: Stückzahl der Bank (Bestand am Ex-Tag), 0 wenn die Buchung keine nennt
+      dividends.push({ uuid: tx.uuid, date: tx.date, depots: owners.map(p => p.uuid), security: tx.security, gross: tx.amount + tx.taxes + tx.fees, shares: tx.shares > 0 ? tx.shares : 0 });
     }
   }
   interest.sort(byDate);
@@ -92,7 +93,7 @@ function extractPortfolio(xmlText) {
   const secOf = tx => childText(child(tx, 'security'), 'uuid');
   const base = tx => ({
     uuid: childText(tx, 'uuid'), type: childText(tx, 'type'), date: day(childText(tx, 'date')), security: secOf(tx),
-    amount: +childText(tx, 'amount') / 100, fees: units(tx, 'FEE'), taxes: units(tx, 'TAX'), currency: childText(tx, 'currencyCode') || 'EUR',
+    shares: +childText(tx, 'shares') / 1e8, amount: +childText(tx, 'amount') / 100, fees: units(tx, 'FEE'), taxes: units(tx, 'TAX'), currency: childText(tx, 'currencyCode') || 'EUR',
   });
 
   const securities = kids(child(root, 'securities'), 'security').map(s => ({
@@ -104,7 +105,7 @@ function extractPortfolio(xmlText) {
   const portfolios = kids(child(root, 'portfolios'), 'portfolio').map(p => ({
     uuid: childText(p, 'uuid'), name: childText(p, 'name'), accountUuid: childText(child(p, 'referenceAccount'), 'uuid'),
     txs: kids(child(p, 'transactions'), 'portfolio-transaction').filter(tx => PP_TX_TYPES.has(childText(tx, 'type'))).map(tx => {
-      const t = { ...base(tx), shares: +childText(tx, 'shares') / 1e8 };
+      const t = base(tx);
       if (t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT') t.transferKey = childText(child(child(tx, 'crossEntry'), 'transactionFrom'), 'uuid');
       return t;
     }),

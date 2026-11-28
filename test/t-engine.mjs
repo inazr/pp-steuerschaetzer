@@ -212,6 +212,41 @@ export default ({ g, check, near }) => {
   n1 = twoBanks('2025-04-03', '2025-07-03', 'C');
   check('N1: bookings months apart are two distributions', near(late(n1).divPS[2025], 3, 1e-9), late(n1));
 
+  // Stückzahl der Bank: Die Ausschüttungsbuchung nennt den Bestand am Ex-Tag. Ein Sparplan zwischen Ex-Tag und Zahltag
+  // erhöht den Bestand laut Datei, nicht die Ausschüttung je Anteil (100 € auf 100 Stück = 1,00 €, nicht 0,50 €)
+  const bankDiv = (date, shares, depots = ['A'], gross = 100) => [{ uuid: 'bd', date, depots, security: 'S', gross, shares }];
+  const shareWarn = r => r.warnings.filter(w => w.includes('laut Bank'));
+  let s1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-03-10', 'BUY', 'A', 100, 11000)], dividends: bankDiv('2025-03-15', 100), prices: PB1 }), SET, '2026-11-27');
+  check('S1: distribution per share from the bank share count', near(s1.lots[0].divPS[2025], 1, 1e-9) && near(s1.lots[0].vpCum, 77.1, 0.006), s1.lots[0]);
+  check('S1: income is still the booked gross amount', near(s1.distributions[2025], 70), s1.distributions);
+  check('S1: buy between ex-date and payment explains the difference', !shareWarn(s1).length, s1.warnings);
+  // Doppelt erfasster Kauf: Die Datei hat 150 Stück, die Bank 100 – das erklärt kein Kauf kurz vor dem Zahltag
+  s1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2025-01-10', 'BUY', 'A', 50, 5000)], dividends: bankDiv('2025-07-03', 100), prices: PB1 }), SET, '2026-11-27');
+  check('S1: unexplained share count is reported', shareWarn(s1).length === 1 && shareWarn(s1)[0].includes('03.07.2025') && shareWarn(s1)[0].includes('Depot A')
+    && shareWarn(s1)[0].includes('150'), s1.warnings);
+  check('S1: per share still from the bank count', near(s1.lots[0].divPS[2025], 1, 1e-9), s1.lots[0].divPS);
+  s1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000)], dividends: bankDiv('2025-07-03', 100.0006), prices: PB1 }), SET, '2026-11-27');
+  check('S1: rounding of fractional shares is no data error', !shareWarn(s1).length, s1.warnings);
+  // Zwei Depots an einem Konto: Die Buchung zählt nur die Stücke ihres Depots
+  s1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2024-06-01', 'BUY', 'B', 50, 5000)], dividends: bankDiv('2025-07-03', 100, ['A', 'B']), prices: PB1 }), SET, '2026-11-27');
+  check('S1: count of one depot on a shared account is no data error', !shareWarn(s1).length, s1.warnings);
+
+  // Januar: Die Bank schreibt eine Ausschüttung, die der Fonds am 31.12. gezahlt hat, erst am ersten Werktag gut.
+  // Sie mindert die Vorabpauschale des Vorjahres; für den Freibetrag zählt die Gutschrift im neuen Jahr.
+  let j1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000)], dividends: bankDiv('2026-01-02', 100), prices: PB1 }), SET, '2026-11-27');
+  const vp25 = r => r.vpRows.find(x => x.year === 2025 && x.depot === 'A');
+  check('J1: credit on the first working day reduces last year\'s VP', near(vp25(j1).vp, 77.1, 1e-9) && near(j1.lots[0].divPS[2025], 1, 1e-9) && !(j1.lots[0].divPS[2026] > 0), [vp25(j1), j1.lots[0].divPS]);
+  check('J1: allowance counts the credit in the new year', near(j1.distributions[2026], 70) && !j1.distributions[2025], j1.distributions);
+  check('J1: hint names the credit and the VP year', j1.warnings.some(w => w.includes('02.01.2026') && w.includes('Vorabpauschale 2025')), j1.warnings);
+  j1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000)], dividends: bankDiv('2026-01-05', 100), prices: PB1 }), SET, '2026-11-27');
+  check('J1: credit after the first working day stays in the new year', near(vp25(j1).vp, 177.1, 1e-9) && near(j1.lots[0].divPS[2026], 1, 1e-9), [vp25(j1), j1.lots[0].divPS]);
+  j1 = replay(mk({ txs: [tx('2024-06-01', 'BUY', 'A', 100, 10000), tx('2026-01-02', 'BUY', 'A', 10, 1200)], dividends: bankDiv('2026-01-02', 100), prices: PB1 }), SET, '2026-11-27');
+  check('J1: a buy in January does not inherit last year\'s distribution', !(j1.lots[1].divPS[2026] > 0), j1.lots[1].divPS);
+  // 2027: der 02.01. ist ein Samstag, erster Werktag ist der 04.01.
+  j1 = replay(mk({ txs: [tx('2025-06-02', 'BUY', 'A', 100, 10000)], dividends: bankDiv('2027-01-04', 100), prices: [['2025-12-30', 100], ['2026-12-30', 120], ['2027-06-01', 125]] }), SET, '2027-11-27');
+  const vp26 = j1.vpRows.find(x => x.year === 2026);
+  check('J1: first working day on Monday Jan 4 still counts for last year', vp26 && near(vp26.vp, 124, 1e-9), vp26);
+
   // Nachprüfung 4: kein Basiszins-Hinweis, wenn nur Wertpapiere ohne Vorabpauschale im Bestand sind
   const P4 = [['2025-12-30', 100], ['2026-12-30', 110]];
   const bzWarn = r => r.warnings.filter(w => w.startsWith('Kein Basiszins'));
