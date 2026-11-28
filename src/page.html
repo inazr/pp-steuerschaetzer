@@ -94,8 +94,8 @@ main.wrap { padding-block: 20px 60px; display: block; }
 .note b { color: var(--ink); }
 .disclaimer { display: flex; gap: 12px; align-items: center; margin: 0 0 20px; border: 1px solid var(--warn); border-left-width: 4px; background: var(--warn-soft); color: var(--ink); border-radius: var(--r); padding: 10px 14px; font-size: 13px; }
 .disclaimer b { color: var(--warn); }
-.disclaimer .x { margin-left: auto; flex: none; border: 0; background: none; color: var(--ink-2); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; }
-.disclaimer .x:hover { color: var(--ink); }
+.disclaimer .x, .msg .x { margin-left: auto; flex: none; border: 0; background: none; color: var(--ink-2); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; }
+.disclaimer .x:hover, .msg .x:hover { color: var(--ink); }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .fact { border-top: 1px solid var(--line); padding-top: 6px; }
 .fact .l { font-size: 11px; color: var(--ink-3); }
@@ -151,6 +151,7 @@ textarea { width: 100%; min-height: 120px; font-family: var(--font-num); font-si
 .msg.err { background: var(--warn-soft); color: var(--ink); border-left: 4px solid var(--s8); }
 .msg.warn { background: var(--warn-soft); color: var(--ink); border-left: 4px solid var(--warn); }
 .msg ul { margin: 4px 0 0; padding-left: 18px; }
+.msg.hints .x { float: right; margin: -2px 0 0 12px; }
 .msg.guess-msg { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .ft { display: flex; gap: 6px; align-items: center; }
 .ft.guess select { border-color: var(--warn); background: var(--warn-soft); }

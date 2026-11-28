@@ -6,7 +6,7 @@ const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String
 const YEAR = +TODAY.slice(0, 4);
 const TAB_KEY = STORE_KEY + '-tab', DISC_KEY = STORE_KEY + '-disclaimer';
 
-const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, altAlloc: null, plan: null, target: '', planTarget: 0, dez: null, tab: 0, banksOffOpen: false };
+const ui = { data: null, settings: loadSettings(localStorage), depots: null, result: null, led: null, alloc: null, altAlloc: null, plan: null, target: '', planTarget: 0, dez: null, tab: 0, banksOffOpen: false, hints: '', hintsHidden: '' };
 try { ui.tab = Math.min(4, Math.max(0, +localStorage.getItem(TAB_KEY) || 0)); } catch { /* egal */ }
 
 const S = () => ({ ...ui.settings, depots: ui.depots });
@@ -155,8 +155,10 @@ function messages() {
     .map(([s, p]) => p ? `Letzter Kurs für ${s.name} ist vom ${fmtDate(p[0])} – bitte Kurse in Portfolio Performance aktualisieren.` : `Kein Kurs für ${s.name} – Wertpapier wird in Freibetrag und Verkaufsplanung nicht berücksichtigt.`);
   const guessed = tradedSecs().filter(x => fundTypeGuessed(ui.settings, x)).length;
   if (guessed) out.push(`<div class="msg warn guess-msg"><span><b>${guessed} ${guessed === 1 ? 'Fondstyp ist' : 'Fondstypen sind'} geraten</b> – bitte in der Wertpapier-Tabelle prüfen. Der Typ bestimmt Vorabpauschale und Teilfreistellung.</span><button class="btn" type="button" id="confirm-all">Alle bestätigen</button></div>`);
+  // Ausgeblendete Hinweise bleiben weg, bis sich ihr Inhalt ändert (nur im Speicher: Hinweise enthalten Namen und Beträge aus der Datei)
   const warns = [...ui.data.warnings, ...r.warnings, ...stale];
-  if (warns.length) out.push(`<div class="msg warn"><b>Hinweise</b><ul>${warns.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`);
+  ui.hints = warns.join('\n');
+  if (warns.length && ui.hints !== ui.hintsHidden) out.push(`<div class="msg warn hints"><button class="x" type="button" id="hints-close" aria-label="Hinweise ausblenden" title="Ausblenden">×</button><b>Hinweise</b><ul>${warns.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`);
   return out.join('');
 }
 
@@ -608,6 +610,7 @@ document.addEventListener('click', e => {
     ui.settings.fundTypes = confirmFundTypes(ui.settings, secs);
     save(); recompute(); return;
   }
+  if (id === 'hints-close') { ui.hintsHidden = ui.hints; e.target.closest('.hints').remove(); return; }
   if (id === 'csv-vp') download(`vorabpauschale-${TODAY}.csv`, csvVp(ui.result.vpRows, ui.data));
   else if (id === 'csv-fb') download(`freibetrag-${YEAR}.csv`, csvAllowance(ui.alloc, ui.data));
   else if (id === 'csv-alt') download(`altbestand-freibetrag-${YEAR}.csv`, csvAltFreibetrag(ui.altAlloc, ui.data));
